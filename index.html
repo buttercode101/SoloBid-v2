@@ -1,0 +1,610 @@
+import React, { useState } from 'react';
+import { useAuth } from '../lib/auth';
+import { db, storage } from '../lib/firebase';
+import { doc, setDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { toast } from 'sonner';
+import { z } from 'zod';
+import { motion } from 'motion/react';
+import { Trash2, AlertTriangle, RefreshCw, Download, Upload } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../components/ui/dialog";
+import { COUNTRIES, getCountryByCode, getCountryByCurrency } from '../lib/countries';
+import { downloadBackup, restoreBackup } from '../lib/localDatabase';
+
+const settingsSchema = z.object({
+  businessName: z.string().min(1, "Business Name is required"),
+  defaultLaborRate: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, "Labor rate must be a positive number"),
+  defaultTaxRate: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, "Tax rate must be a positive number"),
+  defaultMarkup: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, "Markup must be a positive number"),
+  invoicePrefix: z.string().min(1, "Invoice prefix is required"),
+});
+
+export default function Settings() {
+  const { user, profile, refreshProfile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [purgeType, setPurgeType] = useState<'profile' | 'data' | null>(null);
+  const [resetConfirmInput, setResetConfirmInput] = useState('');
+  const [isPurging, setIsPurging] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    businessName: profile?.businessName || '',
+    defaultLaborRate: profile?.defaultLaborRate?.toString() || '75',
+    defaultTaxRate: profile?.defaultTaxRate?.toString() || '0',
+    defaultMarkup: profile?.defaultMarkup?.toString() || '20',
+    terms: profile?.terms || '',
+    invoicePrefix: profile?.invoicePrefix || 'INV-',
+    pdfStyle: profile?.pdfStyle || 'modern',
+    pdfFont: profile?.pdfFont || 'Helvetica',
+    defaultCurrency: profile?.defaultCurrency || 'ZAR',
+    country: profile?.country || 'ZA',
+    vatNumber: profile?.vatNumber || '',
+    saTaxInvoiceMode: profile?.saTaxInvoiceMode || false,
+  });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  const handleCountryChange = (countryCode: string) => {
+    const countryConfig = getCountryByCode(countryCode);
+    if (countryConfig) {
+      setFormData(prev => ({
+        ...prev,
+        country: countryCode,
+        defaultCurrency: countryConfig.currency,
+        defaultTaxRate: countryConfig.taxRate.toString(),
+        saTaxInvoiceMode: !!countryConfig.saTaxInvoiceMode,
+      }));
+      toast.info(`Updated default currency to ${countryConfig.currency} and tax rate to ${countryConfig.taxRate}% for ${countryConfig.name}.`);
+    } else {
+      setFormData(prev => ({ ...prev, country: countryCode }));
+    }
+  };
+
+  const handleCurrencyChange = (currencyCode: string) => {
+    const countryConfig = getCountryByCurrency(currencyCode);
+    if (countryConfig) {
+      setFormData(prev => ({
+        ...prev,
+        defaultCurrency: currencyCode,
+        country: countryConfig.code,
+        defaultTaxRate: countryConfig.taxRate.toString(),
+        saTaxInvoiceMode: !!countryConfig.saTaxInvoiceMode,
+      }));
+      toast.info(`Updated country to ${countryConfig.name} and tax rate to ${countryConfig.taxRate}% based on currency.`);
+    } else {
+      setFormData(prev => ({ ...prev, defaultCurrency: currencyCode }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    try {
+      const validationResult = settingsSchema.safeParse(formData);
+      if (!validationResult.success) {
+        const errors = validationResult.error.issues.map(err => err.message);
+        toast.error(errors[0]);
+        return;
+      }
+
+      setLoading(true);
+      let logoUrl = profile?.logoUrl || '';
+
+      if (logoFile) {
+        const storageRef = ref(storage, `logos/${user.uid}/${logoFile.name}`);
+        await uploadBytes(storageRef, logoFile);
+        logoUrl = await getDownloadURL(storageRef);
+      }
+
+      const profileData = {
+        uid: user.uid,
+        businessName: formData.businessName,
+        logoUrl,
+        defaultLaborRate: parseFloat(formData.defaultLaborRate) || 0,
+        defaultTaxRate: parseFloat(formData.defaultTaxRate) || 0,
+        defaultMarkup: parseFloat(formData.defaultMarkup) || 0,
+        terms: formData.terms,
+        invoicePrefix: formData.invoicePrefix,
+        pdfStyle: formData.pdfStyle,
+        pdfFont: formData.pdfFont,
+        defaultCurrency: formData.defaultCurrency,
+        country: formData.country,
+        vatNumber: formData.vatNumber,
+        saTaxInvoiceMode: formData.saTaxInvoiceMode,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await setDoc(doc(db, 'users', user.uid), profileData, { merge: true });
+      await refreshProfile();
+      toast.success('Settings saved successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePurge = async () => {
+    if (!user) return;
+    setIsPurging(true);
+
+    try {
+      const isFactoryReset = purgeType === 'profile';
+      
+      const collectionsToPurge = [
+        { name: 'estimates', subcollections: ['lineItems', 'expenses'] },
+        { name: 'invoices', subcollections: [] },
+        { name: 'recurringInvoices', subcollections: ['lineItems'] },
+        { name: 'clients', subcollections: [] },
+        { name: 'templates', subcollections: [] }
+      ];
+
+      for (const col of collectionsToPurge) {
+        const q = query(collection(db, col.name), where('uid', '==', user.uid));
+        const snap = await getDocs(q);
+        
+        let batch = writeBatch(db);
+        let batchCount = 0;
+
+        for (const docSnap of snap.docs) {
+          const docId = docSnap.id;
+          
+          // Delete subcollections
+          for (const subName of col.subcollections) {
+            const subRef = collection(db, col.name, docId, subName);
+            const subSnap = await getDocs(subRef);
+            for (const subDocSnap of subSnap.docs) {
+              batch.delete(subDocSnap.ref);
+              batchCount++;
+              if (batchCount >= 400) {
+                await batch.commit();
+                batch = writeBatch(db);
+                batchCount = 0;
+              }
+            }
+          }
+          
+          // Delete parent doc
+          batch.delete(docSnap.ref);
+          batchCount++;
+          if (batchCount >= 400) {
+            await batch.commit();
+            batch = writeBatch(db);
+            batchCount = 0;
+          }
+        }
+        
+        if (batchCount > 0) {
+          await batch.commit();
+        }
+      }
+
+      if (isFactoryReset) {
+        // Reset settings / profile to standard defaults
+        const defaultProfile = {
+          uid: user.uid,
+          businessName: '',
+          logoUrl: '',
+          defaultLaborRate: 75,
+          defaultTaxRate: 15,
+          defaultMarkup: 20,
+          terms: '',
+          invoicePrefix: 'INV-',
+          pdfStyle: 'modern',
+          pdfFont: 'Helvetica',
+          defaultCurrency: 'ZAR',
+          country: 'ZA',
+          vatNumber: '',
+          saTaxInvoiceMode: true,
+          invoiceCount: 0,
+          updatedAt: new Date().toISOString(),
+        };
+
+        await setDoc(doc(db, 'users', user.uid), defaultProfile);
+        
+        setFormData({
+          businessName: '',
+          defaultLaborRate: '75',
+          defaultTaxRate: '15',
+          defaultMarkup: '20',
+          terms: '',
+          invoicePrefix: 'INV-',
+          pdfStyle: 'modern',
+          pdfFont: 'Helvetica',
+          defaultCurrency: 'ZAR',
+          country: 'ZA',
+          vatNumber: '',
+          saTaxInvoiceMode: true,
+        });
+        
+        setLogoFile(null);
+        await refreshProfile();
+        toast.success("Factory reset complete. All settings and databases wiped perfectly.");
+      } else {
+        toast.success("Transactions, clients, and templates database cleared successfully. Business profile saved.");
+      }
+      setPurgeType(null);
+      setResetConfirmInput('');
+    } catch (error: any) {
+      console.error("Purge error:", error);
+      toast.error(error.message || "An error occurred during factory reset");
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
+  const handleRestoreBackup = async (file?: File) => {
+    if (!file) return;
+    if (!window.confirm('Restore this SoloBid backup? This replaces the current local database in this browser.')) return;
+
+    try {
+      setRestoring(true);
+      await restoreBackup(file);
+      toast.success('Backup restored. Reloading SoloBid...');
+      window.setTimeout(() => window.location.reload(), 500);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to restore backup');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-8"
+    >
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <p className="text-zinc-500">Manage your business profile and defaults.</p>
+      </div>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle>Business Profile</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="businessName">Business Name</Label>
+              <Input 
+                id="businessName" 
+                value={formData.businessName}
+                onChange={(e) => setFormData({...formData, businessName: e.target.value})}
+                required 
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="logo">Business Logo</Label>
+              {profile?.logoUrl && !logoFile && (
+                <div className="mb-2">
+                  <img src={profile.logoUrl} alt="Current logo" className="h-16 object-contain" />
+                </div>
+              )}
+              <Input 
+                id="logo" 
+                type="file" 
+                accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="country">Business Country</Label>
+                <select
+                  id="country"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={formData.country}
+                  onChange={(e) => handleCountryChange(e.target.value)}
+                >
+                  {COUNTRIES.map(c => (
+                    <option key={c.code} value={c.code}>
+                      {c.name} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="defaultCurrency">Default Currency</Label>
+                <select 
+                  id="defaultCurrency"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={formData.defaultCurrency}
+                  onChange={(e) => handleCurrencyChange(e.target.value)}
+                >
+                  <option value="ZAR">ZAR (R)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="AUD">AUD (A$)</option>
+                  <option value="CAD">CAD (C$)</option>
+                  <option value="NZD">NZD (NZ$)</option>
+                  <option value="SGD">SGD (S$)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vatNumber">VAT / Tax Number (Optional)</Label>
+                <Input 
+                  id="vatNumber" 
+                  placeholder="e.g. VAT-40102030"
+                  value={formData.vatNumber}
+                  onChange={(e) => setFormData({...formData, vatNumber: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2 flex flex-col justify-end">
+                <label className="flex items-center space-x-2 h-10 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+                    checked={formData.saTaxInvoiceMode}
+                    onChange={(e) => setFormData({...formData, saTaxInvoiceMode: e.target.checked})}
+                  />
+                  <div>
+                    <span className="text-sm font-medium block">SA Tax Invoice Mode</span>
+                    <span className="text-xs text-zinc-500 block">Required for South Africa compliance</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="defaultLaborRate">Default Labor Rate (/hr)</Label>
+                <Input 
+                  id="defaultLaborRate" 
+                  type="number" 
+                  min="0" step="0.01"
+                  value={formData.defaultLaborRate}
+                  onChange={(e) => setFormData({...formData, defaultLaborRate: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="defaultTaxRate">Default Tax Rate (%)</Label>
+                <Input 
+                  id="defaultTaxRate" 
+                  type="number" 
+                  min="0" step="0.01"
+                  value={formData.defaultTaxRate}
+                  onChange={(e) => setFormData({...formData, defaultTaxRate: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="defaultMarkup">Default Markup (%)</Label>
+                <Input 
+                  id="defaultMarkup" 
+                  type="number" 
+                  min="0" step="0.01"
+                  value={formData.defaultMarkup}
+                  onChange={(e) => setFormData({...formData, defaultMarkup: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="invoicePrefix">Invoice Prefix</Label>
+                <Input 
+                  id="invoicePrefix" 
+                  value={formData.invoicePrefix}
+                  onChange={(e) => setFormData({...formData, invoicePrefix: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pdfStyle">PDF Style</Label>
+                <select 
+                  id="pdfStyle"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={formData.pdfStyle}
+                  onChange={(e) => setFormData({...formData, pdfStyle: e.target.value})}
+                >
+                  <option value="modern">Modern</option>
+                  <option value="classic">Classic</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pdfFont">PDF Font</Label>
+                <select 
+                  id="pdfFont"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={formData.pdfFont}
+                  onChange={(e) => setFormData({...formData, pdfFont: e.target.value})}
+                >
+                  <option value="Helvetica">Helvetica</option>
+                  <option value="Times-Roman">Times Roman</option>
+                  <option value="Courier">Courier</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="terms">Default Terms & Conditions</Label>
+              <Textarea 
+                id="terms" 
+                rows={4}
+                value={formData.terms}
+                onChange={(e) => setFormData({...formData, terms: e.target.value})}
+              />
+            </div>
+
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Saving...' : 'Save Settings'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle>Backup & Restore</CardTitle>
+          <p className="text-sm text-zinc-500">
+            Move your full local SoloBid database, files, and mock accounts between browsers or machines.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Download className="w-4 h-4 text-zinc-500" />
+              <h3 className="font-semibold text-sm">Export database</h3>
+            </div>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              Downloads estimates, invoices, clients, templates, recurring schedules, profile data, logos, and receipts as one JSON file.
+            </p>
+            <Button type="button" variant="outline" className="w-full justify-center" onClick={downloadBackup}>
+              Download Backup
+            </Button>
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Upload className="w-4 h-4 text-zinc-500" />
+              <h3 className="font-semibold text-sm">Restore database</h3>
+            </div>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              Upload a SoloBid backup JSON file to rebuild the local records on this browser.
+            </p>
+            <Input
+              type="file"
+              accept="application/json,.json"
+              disabled={restoring}
+              onChange={(event) => handleRestoreBackup(event.target.files?.[0])}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {user && (
+        <Card className="max-w-2xl border-red-200 bg-red-50/5 mt-8 shadow-sm">
+          <CardHeader className="border-b border-red-100 pb-4">
+            <CardTitle className="text-red-900 flex items-center gap-2 text-xl font-bold">
+              <Trash2 className="text-red-600 w-5 h-5" /> Danger Zone
+            </CardTitle>
+            <p className="text-sm text-red-700">Irreversible administrative actions to wipe or reset your records.</p>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-red-100/40">
+              <div className="space-y-1">
+                <h4 className="font-semibold text-zinc-950 text-sm">Clear Transactions & Entries Only</h4>
+                <p className="text-xs text-zinc-500 leading-relaxed max-w-md">
+                  Permanently deletes all estimates, invoices, recurring schedules, clients, and templates. Your business settings, defaults, rates, tax config, and uploaded logo remain safely intact.
+                </p>
+              </div>
+              <Button 
+                type="button" 
+                variant="destructive" 
+                className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 self-start md:self-center shrink-0"
+                onClick={() => {
+                  setPurgeType('data');
+                  setResetConfirmInput('');
+                }}
+              >
+                Clear Entries
+              </Button>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h4 className="font-semibold text-red-950 text-sm">Factory Reset Account & Data</h4>
+                <p className="text-xs text-zinc-500 leading-relaxed max-w-md">
+                  Completely wipes everything. Reset your labor rate, tax rate, terms, company settings back to default, delete uploaded logo, and clear all client records and estimates from the database.
+                </p>
+              </div>
+              <Button 
+                type="button" 
+                variant="destructive" 
+                className="bg-red-600 font-medium hover:bg-red-700 self-start md:self-center shrink-0"
+                onClick={() => {
+                  setPurgeType('profile');
+                  setResetConfirmInput('');
+                }}
+              >
+                Factory Reset
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={!!purgeType} onOpenChange={() => { setPurgeType(null); setResetConfirmInput(''); }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              {purgeType === 'profile' ? "Confirm Factory Reset" : "Confirm Data Purge"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-zinc-600 leading-relaxed">
+              {purgeType === 'profile' ? (
+                <>
+                  You are performing a <strong>Factory Reset</strong>. This will permanently delete <strong>EVERYTHING</strong> including all estimates, invoices, line items, expenses, clients, templates, and restore all settings and rates back to standard app defaults.
+                </>
+              ) : (
+                <>
+                  You are about to delete <strong>ALL transaction entries</strong>. This will permanently clear all estimates, invoices, line items, expenses, custom clients, and estimate templates. Your business profile & settings will be kept.
+                </>
+              )}
+            </p>
+            <p className="text-xs text-red-600 font-bold bg-red-50 p-2.5 rounded-lg border border-red-100">
+              ⚠️ Warning: This action is absolutely permanent and cannot be undone. All database records will be deleted immediately.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="safety-input" className="text-xs font-semibold text-zinc-700">
+                Type <span className="font-mono bg-zinc-100 px-1 py-0.5 rounded text-red-600 font-bold">{purgeType === 'profile' ? 'RESET' : 'DELETE'}</span> below to verify:
+              </Label>
+              <Input
+                id="safety-input"
+                autoComplete="off"
+                placeholder={purgeType === 'profile' ? "RESET" : "DELETE"}
+                value={resetConfirmInput}
+                onChange={(e) => setResetConfirmInput(e.target.value)}
+                className="font-mono uppercase tracking-widest text-center"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-end flex-row">
+            <Button
+              variant="outline"
+              disabled={isPurging}
+              onClick={() => { setPurgeType(null); setResetConfirmInput(''); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className={purgeType === 'profile' ? "bg-red-600 hover:bg-red-700 font-medium" : "bg-red-500 hover:bg-red-600 font-medium"}
+              disabled={isPurging || resetConfirmInput.toUpperCase() !== (purgeType === 'profile' ? 'RESET' : 'DELETE')}
+              onClick={handlePurge}
+            >
+              {isPurging ? (
+                <span className="flex items-center gap-1">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Purging...
+                </span>
+              ) : (
+                purgeType === 'profile' ? 'Wipe & Factory Reset' : 'Wipe All Entries'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </motion.div>
+  );
+}

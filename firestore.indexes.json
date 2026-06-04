@@ -1,0 +1,276 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
+import { db, storage } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { toast } from 'sonner';
+import { COUNTRIES, getCountryByCode, getCountryByCurrency } from '../lib/countries';
+
+export default function Onboarding() {
+  const { user, refreshProfile } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    businessName: '',
+    defaultLaborRate: '75',
+    defaultTaxRate: '15',
+    defaultMarkup: '20',
+    terms: 'Payment is due within 14 days of invoice date. All materials remain property of the contractor until paid in full.',
+    defaultCurrency: 'ZAR',
+    country: 'ZA',
+    vatNumber: '',
+    saTaxInvoiceMode: true,
+  });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+
+  const handleCountryChange = (countryCode: string) => {
+    const countryConfig = getCountryByCode(countryCode);
+    if (countryConfig) {
+      setFormData(prev => ({
+        ...prev,
+        country: countryCode,
+        defaultCurrency: countryConfig.currency,
+        defaultTaxRate: countryConfig.taxRate.toString(),
+        saTaxInvoiceMode: !!countryConfig.saTaxInvoiceMode,
+      }));
+      toast.info(`Updated default currency to ${countryConfig.currency} and tax rate to ${countryConfig.taxRate}% for ${countryConfig.name}.`);
+    } else {
+      setFormData(prev => ({ ...prev, country: countryCode }));
+    }
+  };
+
+  const handleCurrencyChange = (currencyCode: string) => {
+    const countryConfig = getCountryByCurrency(currencyCode);
+    if (countryConfig) {
+      setFormData(prev => ({
+        ...prev,
+        defaultCurrency: currencyCode,
+        country: countryConfig.code,
+        defaultTaxRate: countryConfig.taxRate.toString(),
+        saTaxInvoiceMode: !!countryConfig.saTaxInvoiceMode,
+      }));
+      toast.info(`Updated country to ${countryConfig.name} and tax rate to ${countryConfig.taxRate}% based on currency.`);
+    } else {
+      setFormData(prev => ({ ...prev, defaultCurrency: currencyCode }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      let logoUrl = '';
+
+      if (logoFile) {
+        const storageRef = ref(storage, `logos/${user.uid}/${logoFile.name}`);
+        await uploadBytes(storageRef, logoFile);
+        logoUrl = await getDownloadURL(storageRef);
+      }
+
+      const profileData = {
+        uid: user.uid,
+        businessName: formData.businessName,
+        logoUrl,
+        defaultLaborRate: parseFloat(formData.defaultLaborRate) || 0,
+        defaultTaxRate: parseFloat(formData.defaultTaxRate) || 0,
+        defaultMarkup: parseFloat(formData.defaultMarkup) || 0,
+        terms: formData.terms,
+        invoicePrefix: 'INV-',
+        invoiceCount: 0,
+        pdfStyle: 'modern',
+        pdfFont: 'Helvetica',
+        defaultCurrency: formData.defaultCurrency,
+        country: formData.country,
+        vatNumber: formData.vatNumber,
+        saTaxInvoiceMode: formData.saTaxInvoiceMode,
+        createdAt: new Date().toISOString(),
+      };
+
+      await setDoc(doc(db, 'users', user.uid), profileData);
+      
+      // Create some default templates
+      await createDefaultTemplates(user.uid);
+
+      await refreshProfile();
+      navigate('/');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createDefaultTemplates = async (uid: string) => {
+    const templates = [
+      {
+        id: crypto.randomUUID(),
+        uid,
+        name: 'Basic Service Call',
+        description: 'Standard diagnostic and minor repair',
+        lineItems: [
+          { id: crypto.randomUUID(), description: 'Diagnostic Fee', qty: 1, unitCost: 85, type: 'labor', markupPercent: 0 },
+          { id: crypto.randomUUID(), description: 'Minor Parts', qty: 1, unitCost: 25, type: 'material', markupPercent: parseFloat(formData.defaultMarkup) || 0 }
+        ]
+      }
+    ];
+
+    for (const t of templates) {
+      await setDoc(doc(db, 'templates', t.id), t);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-4 py-12">
+      <Card className="w-full max-w-xl">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Welcome to SoloBid</CardTitle>
+          <CardDescription>
+            Let's set up your business profile so you can start sending estimates.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="businessName">Business Name *</Label>
+              <Input 
+                id="businessName" 
+                value={formData.businessName}
+                onChange={(e) => setFormData({...formData, businessName: e.target.value})}
+                required 
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="logo">Business Logo</Label>
+              <Input 
+                id="logo" 
+                type="file" 
+                accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="country">Business Country</Label>
+                <select
+                  id="country"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={formData.country}
+                  onChange={(e) => handleCountryChange(e.target.value)}
+                >
+                  {COUNTRIES.map(c => (
+                    <option key={c.code} value={c.code}>
+                      {c.name} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="defaultCurrency">Default Currency</Label>
+                <select 
+                  id="defaultCurrency"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={formData.defaultCurrency}
+                  onChange={(e) => handleCurrencyChange(e.target.value)}
+                >
+                  <option value="ZAR">ZAR (R)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="AUD">AUD (A$)</option>
+                  <option value="CAD">CAD (C$)</option>
+                  <option value="NZD">NZD (NZ$)</option>
+                  <option value="SGD">SGD (S$)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vatNumber">VAT / Tax Number (Optional)</Label>
+                <Input 
+                  id="vatNumber" 
+                  placeholder="e.g. VAT-40102030"
+                  value={formData.vatNumber}
+                  onChange={(e) => setFormData({...formData, vatNumber: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2 flex flex-col justify-end">
+                <label className="flex items-center space-x-2 h-10 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+                    checked={formData.saTaxInvoiceMode}
+                    onChange={(e) => setFormData({...formData, saTaxInvoiceMode: e.target.checked})}
+                  />
+                  <div>
+                    <span className="text-sm font-medium block">SA Tax Invoice Mode</span>
+                    <span className="text-xs text-zinc-500 block">Required for South Africa compliance</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="defaultLaborRate">Default Labor Rate (/hr)</Label>
+                <Input 
+                  id="defaultLaborRate" 
+                  type="number" 
+                  min="0" step="0.01"
+                  value={formData.defaultLaborRate}
+                  onChange={(e) => setFormData({...formData, defaultLaborRate: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="defaultTaxRate">Default Tax Rate (%)</Label>
+                <Input 
+                  id="defaultTaxRate" 
+                  type="number" 
+                  min="0" step="0.01"
+                  value={formData.defaultTaxRate}
+                  onChange={(e) => setFormData({...formData, defaultTaxRate: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="defaultMarkup">Default Markup (%)</Label>
+                <Input 
+                  id="defaultMarkup" 
+                  type="number" 
+                  min="0" step="0.01"
+                  value={formData.defaultMarkup}
+                  onChange={(e) => setFormData({...formData, defaultMarkup: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="terms">Default Terms & Conditions</Label>
+              <Textarea 
+                id="terms" 
+                rows={4}
+                value={formData.terms}
+                onChange={(e) => setFormData({...formData, terms: e.target.value})}
+              />
+            </div>
+
+            <Button type="submit" className="w-full" loading={loading}>
+              Complete Setup
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

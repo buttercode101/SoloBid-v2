@@ -1,0 +1,9 @@
+{
+  "name": "SoloBid",
+  "description": "Exhaustive Estimate & Invoice Builder for Solo Contractors with Real-time Sync and PDF Generation",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
