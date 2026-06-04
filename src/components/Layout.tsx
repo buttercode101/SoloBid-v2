@@ -12,6 +12,7 @@ export function Layout() {
   const location = useLocation();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const isOnline = useOnlineStatus();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -19,6 +20,11 @@ export function Layout() {
       setDeferredPrompt(e);
     });
   }, []);
+
+  // Auto-hide menu when navigating or changing routes
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location.pathname]);
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
@@ -44,8 +50,8 @@ export function Layout() {
     { name: 'Settings', path: '/settings', icon: Settings, public: false },
   ];
 
-  const Logo = () => (
-    <Link to="/" className="flex items-center gap-2">
+  const Logo = ({ onClick }: { onClick?: () => void }) => (
+    <Link to="/" className="flex items-center gap-2" onClick={onClick}>
       <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shadow-lg shadow-zinc-200">
         <FileText className="w-5 h-5 text-white" />
       </div>
@@ -53,7 +59,7 @@ export function Layout() {
     </Link>
   );
 
-  const NavLinks = () => (
+  const NavLinks = ({ onItemClick }: { onItemClick?: () => void }) => (
     <>
       {navItems.map((item) => {
         const Icon = item.icon;
@@ -65,6 +71,7 @@ export function Layout() {
           <Link
             key={item.path}
             to={item.path}
+            onClick={onItemClick}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
               isActive 
                 ? 'bg-zinc-900 text-white shadow-md shadow-zinc-200 font-medium' 
@@ -104,7 +111,7 @@ export function Layout() {
               Sign In
             </Button>
           )}
-          <Sheet>
+          <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="hover:bg-zinc-100">
                 <Menu className="w-6 h-6" />
@@ -113,10 +120,10 @@ export function Layout() {
             <SheetContent side="left" className="w-72 p-0 border-r-0">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
               <div className="p-6 border-b">
-                <Logo />
+                <Logo onClick={() => setIsMenuOpen(false)} />
               </div>
               <div className="p-4 flex flex-col gap-2 mt-2">
-                <NavLinks />
+                <NavLinks onItemClick={() => setIsMenuOpen(false)} />
               </div>
               <div className="absolute bottom-0 left-0 right-0 p-6 border-t bg-white space-y-3">
                 {profile && (
@@ -131,18 +138,18 @@ export function Layout() {
                   </div>
                 )}
                 {deferredPrompt && (
-                  <Button variant="outline" className="w-full justify-start text-zinc-900 border-zinc-200" onClick={handleInstallClick}>
+                  <Button variant="outline" className="w-full justify-start text-zinc-900 border-zinc-200" onClick={() => { handleInstallClick(); setIsMenuOpen(false); }}>
                     <Download className="w-5 h-5 mr-3" />
                     Install App
                   </Button>
                 )}
                 {user ? (
-                  <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100" onClick={handleSignOut}>
+                  <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100" onClick={async () => { await handleSignOut(); setIsMenuOpen(false); }}>
                     <LogOut className="w-5 h-5 mr-3" />
                     Sign Out
                   </Button>
                 ) : (
-                  <Button className="w-full justify-start bg-zinc-900 text-white" onClick={() => navigate('/login')}>
+                  <Button className="w-full justify-start bg-zinc-900 text-white" onClick={() => { navigate('/login'); setIsMenuOpen(false); }}>
                     <LogOut className="w-5 h-5 mr-3 rotate-180" />
                     Get Started
                   </Button>
