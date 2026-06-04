@@ -1,9 +1,11 @@
 {
   "name": "SoloBid",
-  "description": "Exhaustive Estimate & Invoice Builder for Solo Contractors with Real-time Sync and PDF Generation",
+  "description": "Exhaustive Quote & Invoice Builder for Solo Contractors with Real-time Sync and PDF Generation",
   "requestFramePermissions": [
     "camera",
     "microphone"
   ],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

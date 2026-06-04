@@ -1,0 +1,559 @@
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
+import { db } from '../lib/firebase';
+import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Plus, FileText, Banknote, Clock, Search, Download, Copy, Check, BarChart3, Trash2, Calendar } from 'lucide-react';
+import { EmptyState } from '../components/EmptyState';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { format } from 'date-fns';
+import { motion } from 'motion/react';
+import { toast } from 'sonner';
+import { getCurrencySymbol } from '../lib/currencies';
+import { getUserFriendlyError } from '../lib/errorHandler';
+
+const DEMO_QUOTES = [
+  { id: 'demo1', clientName: 'Global Tech Solutions', clientEmail: 'contact@globaltech.com', status: 'approved', total: 12500.00, createdAt: new Date().toISOString(), currency: 'USD' },
+  { id: 'demo2', clientName: 'Urban Design Studio', clientEmail: 'info@urbandesign.io', status: 'sent', total: 4500.00, createdAt: new Date(Date.now() - 86400000).toISOString(), currency: 'USD' },
+  { id: 'demo3', clientName: 'Heritage Restoration', clientEmail: 'office@heritagerest.com', status: 'converted', total: 6800.00, createdAt: new Date(Date.now() - 172800000).toISOString(), currency: 'USD' },
+  { id: 'demo4', clientName: 'Peak Performance Inc', clientEmail: 'admin@peakperf.com', status: 'draft', total: 2400.00, createdAt: new Date(Date.now() - 259200000).toISOString(), currency: 'USD' },
+];
+
+export default function Dashboard() {
+  const { user, profile } = useAuth();
+  const [recentQuotes, setRecentQuotes] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [stats, setStats] = useState({
+    pendingCount: 0,
+    billedThisMonth: 0,
+    avgJobValue: 0,
+    profitThisMonth: 0
+  });
+
+  const isQuoteExpired = (q: any) => {
+    if (!q.expiresAt) return false;
+    if (['approved', 'paid', 'converted'].includes(q.status)) return false;
+    return new Date() > new Date(q.expiresAt);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteId || !user) return;
+    try {
+      setIsDeleting(true);
+      const batch = writeBatch(db);
+      
+      // Delete lineItems
+      const itemsRef = collection(db, 'quotes', deleteId, 'lineItems');
+      const itemsSnap = await getDocs(itemsRef);
+      itemsSnap.docs.forEach(docSnap => {
+        batch.delete(docSnap.ref);
+      });
+
+      // Delete expenses
+      const expensesRef = collection(db, 'quotes', deleteId, 'expenses');
+      const expensesSnap = await getDocs(expensesRef);
+      expensesSnap.docs.forEach(docSnap => {
+        batch.delete(docSnap.ref);
+      });
+
+      // Delete quote document
+      batch.delete(doc(db, 'quotes', deleteId));
+
+      await batch.commit();
+      toast.success("Quote deleted successfully");
+      setDeleteId(null);
+    } catch (error) {
+      console.error("Error deleting quote:", error);
+      toast.error("Failed to delete quote");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) {
+      setRecentQuotes(DEMO_QUOTES);
+      setStats({
+        pendingCount: 1,
+        billedThisMonth: 19300,
+        avgJobValue: 7933.33,
+        profitThisMonth: 12450
+      });
+      loading && setLoading(false);
+      return;
+    }
+
+    let quotesList: any[] = [];
+    let invoicesList: any[] = [];
+
+    const computeAndSetStats = async () => {
+      let pending = 0;
+      let billed = 0;
+      let totalValue = 0;
+      let approvedCount = 0;
+      let totalExpensesThisMonth = 0;
+
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      // Fetch all expenses for this user for the current month
+      try {
+        const startOfMonth = new Date(currentYear, currentMonth, 1).toISOString();
+        const expensesQuery = query(
+          collectionGroup(db, 'expenses'),
+          where('uid', '==', user.uid),
+          where('createdAt', '>=', startOfMonth)
+        );
+        const expensesSnap = await getDocs(expensesQuery);
+        expensesSnap.forEach(expDoc => {
+          totalExpensesThisMonth += expDoc.data().amount || 0;
+        });
+      } catch (err) {
+        console.error("Failed to fetch expenses", err);
+      }
+
+      // Calculate stats from quotes
+      for (const q of quotesList) {
+        if (q.status === 'sent' && !isQuoteExpired(q)) pending++;
+        if (q.status === 'approved' || q.status === 'converted') {
+          totalValue += q.total || 0;
+          approvedCount++;
+        }
+      }
+
+      // Track quote IDs captured by invoices to avoid double counting
+      const invoiceQuoteIds = new Set<string>();
+
+      // Calculate billed amount from in-month invoices
+      for (const inv of invoicesList) {
+        if (inv.createdAt) {
+          const invDate = new Date(inv.createdAt);
+          if (invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear) {
+            billed += inv.total || 0;
+            if (inv.quoteId) {
+              invoiceQuoteIds.add(inv.quoteId);
+            } else if (inv.estimateId) {
+              // support older database records
+              invoiceQuoteIds.add(inv.estimateId);
+            }
+          }
+        }
+      }
+
+      // Fallback: Add any quotes approved or converted this month that don't have matching invoices yet
+      for (const q of quotesList) {
+        if (q.status === 'approved' || q.status === 'converted') {
+          const updateDateStr = q.approvedAt || q.createdAt;
+          if (updateDateStr) {
+            const updateDate = new Date(updateDateStr);
+            if (updateDate.getMonth() === currentMonth && updateDate.getFullYear() === currentYear) {
+              if (!invoiceQuoteIds.has(q.id)) {
+                billed += q.total || 0;
+              }
+            }
+          }
+        }
+      }
+
+      setStats({
+        pendingCount: pending,
+        billedThisMonth: billed,
+        avgJobValue: approvedCount > 0 ? totalValue / approvedCount : 0,
+        profitThisMonth: billed - totalExpensesThisMonth
+      });
+      setLoading(false);
+    };
+
+    const quotesRef = collection(db, 'quotes');
+    const quotesQ = query(
+      quotesRef,
+      where('uid', '==', user.uid)
+    );
+
+    const unsubscribeQuotes = onSnapshot(quotesQ, (snapshot) => {
+      quotesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      quotesList.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      quotesList = quotesList.slice(0, 50);
+      setRecentQuotes(quotesList);
+      computeAndSetStats();
+    }, (error) => {
+      console.error("Dashboard quotes subscription error:", error);
+      toast.error(getUserFriendlyError(error));
+      setLoading(false);
+    });
+
+    const invoicesRef = collection(db, 'invoices');
+    const invoicesQ = query(
+      invoicesRef,
+      where('uid', '==', user.uid)
+    );
+
+    const unsubscribeInvoices = onSnapshot(invoicesQ, (snapshot) => {
+      invoicesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      computeAndSetStats();
+    }, (error) => {
+      console.error("Dashboard invoices subscription error:", error);
+    });
+
+    return () => {
+      unsubscribeQuotes();
+      unsubscribeInvoices();
+    };
+  }, [user]);
+
+  const filteredQuotes = recentQuotes.filter(q => 
+    (q.clientName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (q.status || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleExportCSV = () => {
+    const headers = ['ID', 'Client Name', 'Client Email', 'Status', 'Total', 'Created At'];
+    const csvData = filteredQuotes.map(q => [
+      q.id,
+      `"${q.clientName || ''}"`,
+      `"${q.clientEmail || ''}"`,
+      q.status,
+      q.total || 0,
+      q.createdAt ? new Date(q.createdAt).toISOString() : ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `quotes_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCopyLink = (id: string) => {
+    const url = `${window.location.origin}/client/quote/${id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    toast.success("Link copied to clipboard");
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div className="h-10 bg-zinc-200 rounded w-1/4"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-32 bg-zinc-200 rounded-xl"></div>
+          ))}
+        </div>
+        <div className="h-64 bg-zinc-200 rounded-xl"></div>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-8"
+    >
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {user ? `Welcome back, ${profile?.businessName || 'Business Owner'}` : 'Welcome to SoloBid'}
+          </h1>
+          <p className="text-zinc-500">
+            {user ? "Here's what's happening with your business today." : "Take a look at how SoloBid can help you manage your quotes and invoices."}
+          </p>
+        </div>
+        <Button asChild size="lg" className="w-full sm:w-auto bg-zinc-900 shadow-md transition-all active:scale-[0.98]">
+          <Link to={user ? "/quotes/new" : "/login"}>
+            <Plus className="w-5 h-5 mr-2" />
+            {user ? 'New Quote' : 'Start Free Trial'}
+          </Link>
+        </Button>
+      </div>
+
+      {!user && (
+        <Card className="bg-zinc-900 text-white border-none overflow-hidden relative group">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+            <BarChart3 className="w-32 h-32 rotate-12" />
+          </div>
+          <CardContent className="p-8 relative z-10">
+            <div className="max-w-2xl">
+              <h2 className="text-2xl font-bold mb-3">You're currently in Demo Mode</h2>
+              <p className="text-zinc-400 mb-6 leading-relaxed">
+                Experience the power of professional quote building and tracking. Sign up now to create your own quotes, manage real clients, and get paid faster.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <Button variant="outline" className="bg-white text-zinc-900 border-none hover:bg-zinc-100" asChild>
+                  <Link to="/login">Create Account</Link>
+                </Button>
+                <Button variant="ghost" className="text-white hover:bg-white/10" asChild>
+                  <Link to="/login">Sign In</Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-500">Billed This Month</CardTitle>
+            <Banknote className="w-4 h-4 text-zinc-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{getCurrencySymbol(profile?.defaultCurrency || 'ZAR')}{stats.billedThisMonth.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-500">Profit This Month</CardTitle>
+            <Banknote className="w-4 h-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{getCurrencySymbol(profile?.defaultCurrency || 'ZAR')}{stats.profitThisMonth.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-500">Pending Quotes</CardTitle>
+            <Clock className="w-4 h-4 text-zinc-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pendingCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-500">Avg Job Value</CardTitle>
+            <FileText className="w-4 h-4 text-zinc-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{getCurrencySymbol(profile?.defaultCurrency || 'ZAR')}{stats.avgJobValue.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <CardTitle>Recent Quotes</CardTitle>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-500" />
+              <Input
+                type="search"
+                placeholder="Search clients..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Button variant="outline" size="icon" onClick={handleExportCSV} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredQuotes.length === 0 ? (
+            <EmptyState
+              icon={searchQuery ? <Search className="w-8 h-8" /> : <BarChart3 className="w-8 h-8" />}
+              title={searchQuery ? "No matches found" : "No quotes yet"}
+              description={searchQuery ? "Try adjusting your search terms." : "Create your first quote to start tracking your business."}
+            />
+          ) : (
+            <div className="space-y-3 md:overflow-x-auto">
+              {/* Mobile card view */}
+              <div className="md:hidden space-y-3">
+                  {filteredQuotes.map((q) => {
+                    const isExpired = isQuoteExpired(q);
+                    return (
+                      <div key={q.id} className="p-4 border rounded-lg bg-white shadow-sm space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <Link to={`/quotes/${q.id}`} className="font-medium hover:underline">
+                              {q.clientName || 'Unnamed Client'}
+                            </Link>
+                            <p className="text-sm text-zinc-500 flex flex-wrap items-center gap-1">
+                              {q.createdAt ? format(new Date(q.createdAt), 'MMM d, yyyy') : '-'}
+                              {q.expiresAt && (
+                                <span className={`text-xs ml-1 font-normal ${isExpired ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>
+                                  (Val: {format(new Date(q.expiresAt), 'MMM d')})
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          {(() => {
+                            const statusConfig = {
+                              draft: { bg: 'bg-zinc-100', text: 'text-zinc-800', icon: '⊙', label: 'Draft (not sent)' },
+                              sent: { bg: 'bg-blue-100', text: 'text-blue-800', icon: '✉', label: 'Sent to client' },
+                              approved: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Approved by client' },
+                              paid: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Paid' },
+                              converted: { bg: 'bg-purple-100', text: 'text-purple-800', icon: '✓', label: 'Converted to invoice' },
+                              overdue: { bg: 'bg-red-100', text: 'text-red-800', icon: '!', label: 'Overdue' },
+                              expired: { bg: 'bg-red-55/80 border border-red-200', text: 'text-red-600', icon: '⏰', label: 'Expired' }
+                            };
+                            const activeStatus = isExpired ? 'expired' : q.status;
+                            const config = statusConfig[activeStatus as keyof typeof statusConfig] || statusConfig.draft;
+                            return (
+                              <span 
+                                className={`px-2 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 w-fit ${config.bg} ${config.text}`}
+                                role="status"
+                                aria-label={config.label}
+                              >
+                                <span aria-hidden="true">{config.icon}</span>
+                                {activeStatus}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <div className="flex justify-between items-center pt-3 border-t">
+                          <span className="font-medium">
+                            {getCurrencySymbol(q.currency || profile?.defaultCurrency || 'ZAR')}{(q.total || 0).toFixed(2)}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => handleCopyLink(q.id)} title="Copy Client Link">
+                              {copiedId === q.id ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-zinc-500" />}
+                            </Button>
+                            {user && (
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="text-zinc-500 hover:text-red-600"
+                                onClick={() => setDeleteId(q.id)}
+                                title="Delete Quote"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Desktop table */}
+              <table className="hidden md:table w-full text-sm text-left">
+                <thead className="text-xs text-zinc-500 uppercase bg-zinc-50">
+                  <tr>
+                    <th className="px-4 py-3 rounded-tl-md">Client</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Total</th>
+                    <th className="px-4 py-3 text-right rounded-tr-md">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredQuotes.map((q) => {
+                    const isExpired = isQuoteExpired(q);
+                    return (
+                      <tr key={q.id} className="border-b last:border-0 hover:bg-zinc-50 transition-colors">
+                        <td className="px-4 py-3 font-medium">
+                          <Link to={`/quotes/${q.id}`} className="hover:underline">
+                            {q.clientName || 'Unnamed Client'}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-500">
+                          <div className="flex flex-col">
+                            <span>{q.createdAt ? format(new Date(q.createdAt), 'MMM d, yyyy') : '-'}</span>
+                            {q.expiresAt && (
+                              <span className={`text-xs mt-0.5 ${isExpired ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>
+                                Valid until: {format(new Date(q.expiresAt), 'MMM d, yyyy')}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const statusConfig = {
+                              draft: { bg: 'bg-zinc-100', text: 'text-zinc-800', icon: '⊙', label: 'Draft (not sent)' },
+                              sent: { bg: 'bg-blue-100', text: 'text-blue-800', icon: '✉', label: 'Sent to client' },
+                              approved: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Approved by client' },
+                              paid: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Paid' },
+                              converted: { bg: 'bg-purple-100', text: 'text-purple-800', icon: '✓', label: 'Converted to invoice' },
+                              overdue: { bg: 'bg-red-100', text: 'text-red-800', icon: '!', label: 'Overdue' },
+                              expired: { bg: 'bg-red-55/80 border border-red-200', text: 'text-red-600', icon: '⏰', label: 'Expired' }
+                            };
+                            const activeStatus = isExpired ? 'expired' : q.status;
+                            const config = statusConfig[activeStatus as keyof typeof statusConfig] || statusConfig.draft;
+                            return (
+                              <span 
+                                className={`px-3 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 w-fit ${config.bg} ${config.text}`}
+                                role="status"
+                                aria-label={config.label}
+                              >
+                                <span aria-hidden="true">{config.icon}</span>
+                                {activeStatus}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium">
+                          {getCurrencySymbol(q.currency || profile?.defaultCurrency || 'ZAR')}{(q.total || 0).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleCopyLink(q.id)}
+                              title="Copy Client Link"
+                            >
+                              {copiedId === q.id ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4 text-zinc-500" />}
+                            </Button>
+                            {user && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="text-zinc-500 hover:text-red-600 hover:bg-red-50"
+                                onClick={() => setDeleteId(q.id)}
+                                title="Delete Quote"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        title="Delete Quote"
+        description="Are you sure you want to delete this quote? This will permanently delete the quote, its line items, and any recorded expenses. This action cannot be undone."
+        confirmLabel="Delete Quote"
+        cancelLabel="Keep Quote"
+        isDangerous={true}
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
+    </motion.div>
+  );
+}

@@ -18,15 +18,6 @@
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "firebase/auth": [
-        "./src/lib/mockFirebase/auth.ts"
-      ],
-      "firebase/firestore": [
-        "./src/lib/mockFirebase/firestore.ts"
-      ],
-      "firebase/storage": [
-        "./src/lib/mockFirebase/storage.ts"
       ]
     },
     "allowImportingTsExtensions": true,
