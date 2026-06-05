@@ -61,4 +61,5 @@ export const statusBadgeStyles = {
   paid: 'bg-teal-50 text-teal-700 border border-teal-100',
   overdue: 'bg-red-50 text-red-700 border border-red-100',
   rejected: 'bg-red-50 text-red-700 border border-red-100',
+  request_revision: 'bg-amber-50 text-amber-700 border border-amber-100',
 };

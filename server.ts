@@ -8,6 +8,7 @@ import React from "react";
 import { InvoicePDF } from "./src/components/InvoicePDF.js";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +38,46 @@ if (!admin.apps.length) {
 }
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy_key");
+
+const PUBLIC_APPROVAL_TOKEN_TTL_DAYS = 30;
+const APPROVAL_TOKEN_BYTES = 32;
+const PUBLIC_DECISIONS = ['approve', 'reject', 'request_revision'] as const;
+type PublicDecision = typeof PUBLIC_DECISIONS[number];
+
+function hashApprovalToken(token: string) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function createApprovalToken() {
+  const token = crypto.randomBytes(APPROVAL_TOKEN_BYTES).toString('base64url');
+  const expiresAt = new Date(Date.now() + PUBLIC_APPROVAL_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return { token, tokenHash: hashApprovalToken(token), expiresAt };
+}
+
+function isValidCollectionName(collectionName: unknown): collectionName is 'quotes' | 'estimates' {
+  return collectionName === 'quotes' || collectionName === 'estimates';
+}
+
+function isValidQuoteId(quoteId: unknown): quoteId is string {
+  return typeof quoteId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(quoteId);
+}
+
+function getClientIp(req: express.Request) {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (typeof forwardedFor === 'string' && forwardedFor.trim()) return forwardedFor.split(',')[0].trim();
+  return req.ip || req.socket.remoteAddress || null;
+}
+
+function sanitizeText(value: unknown, maxLength: number) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+function isSignatureDataUrl(value: unknown) {
+  return typeof value === 'string'
+    && value.length > 20
+    && value.length < 500000
+    && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(value);
+}
 
 // Auth Middleware
 const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -103,6 +144,138 @@ async function createApp() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+
+  app.post("/api/quote-share-token", requireAuth, async (req, res) => {
+    try {
+      const { quoteId, collectionName = 'quotes' } = req.body;
+      if (!isValidQuoteId(quoteId) || !isValidCollectionName(collectionName)) {
+        return res.status(400).json({ error: "Invalid quote reference." });
+      }
+
+      const db = admin.firestore();
+      const quoteRef = db.collection(collectionName).doc(quoteId);
+      const quoteSnap = await quoteRef.get();
+      if (!quoteSnap.exists) return res.status(404).json({ error: "Quote not found." });
+
+      const quote = quoteSnap.data() as any;
+      if (quote.uid !== (req as any).user.uid) return res.status(403).json({ error: "Forbidden" });
+      if (quote.status !== 'sent') return res.status(409).json({ error: "Only sent quotations can create approval links." });
+
+      const { token, tokenHash, expiresAt } = createApprovalToken();
+      await quoteRef.update({
+        publicApprovalTokenHash: tokenHash,
+        publicApprovalTokenExpiresAt: expiresAt,
+        publicApprovalTokenIssuedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      res.json({ status: "ok", token, expiresAt });
+    } catch (error) {
+      console.error("Failed to create approval token:", error);
+      res.status(500).json({ error: "Failed to prepare a secure approval link." });
+    }
+  });
+
+  app.post("/api/public/quotes/:quoteId/decision", async (req, res) => {
+    try {
+      const { quoteId } = req.params;
+      const { token, decision, signatureName, note, signatureDataUrl, collectionName = 'quotes' } = req.body;
+      if (!isValidQuoteId(quoteId) || !isValidCollectionName(collectionName)) {
+        return res.status(400).json({ error: "Invalid quote reference." });
+      }
+      if (typeof token !== 'string' || token.length < 20) {
+        return res.status(401).json({ error: "A valid approval token is required." });
+      }
+      if (!PUBLIC_DECISIONS.includes(decision)) {
+        return res.status(400).json({ error: "Invalid quotation decision." });
+      }
+
+      const db = admin.firestore();
+      const quoteRef = db.collection(collectionName).doc(quoteId);
+      const auditRef = quoteRef.collection('approvalAudits').doc();
+      const artifactRef = quoteRef.collection('approvalArtifacts').doc('signature');
+      const now = new Date().toISOString();
+      let nextStatus: 'approved' | 'rejected' | 'request_revision';
+      let responsePayload: Record<string, any> = {};
+
+      await db.runTransaction(async transaction => {
+        const quoteSnap = await transaction.get(quoteRef);
+        if (!quoteSnap.exists) throw Object.assign(new Error("Quote not found."), { statusCode: 404 });
+
+        const quote = quoteSnap.data() as any;
+        if (quote.status !== 'sent') throw Object.assign(new Error("This quotation is no longer open for client action."), { statusCode: 409 });
+        if (!quote.publicApprovalTokenHash || hashApprovalToken(token) !== quote.publicApprovalTokenHash) {
+          throw Object.assign(new Error("Invalid approval token."), { statusCode: 401 });
+        }
+        if (quote.publicApprovalTokenExpiresAt && new Date(quote.publicApprovalTokenExpiresAt).getTime() < Date.now()) {
+          throw Object.assign(new Error("This approval link has expired."), { statusCode: 410 });
+        }
+
+        const trimmedName = sanitizeText(signatureName, 100);
+        const trimmedNote = sanitizeText(note, 1000);
+        const update: Record<string, any> = {
+          updatedAt: now,
+          publicApprovalTokenHash: admin.firestore.FieldValue.delete(),
+          publicApprovalTokenExpiresAt: admin.firestore.FieldValue.delete(),
+          publicApprovalTokenIssuedAt: admin.firestore.FieldValue.delete(),
+        };
+
+        if (decision === 'approve') {
+          if (trimmedName.length < 2) {
+            throw Object.assign(new Error("Please enter your full name to sign."), { statusCode: 400 });
+          }
+          nextStatus = 'approved';
+          update.status = nextStatus;
+          update.signatureName = trimmedName;
+          update.approvedAt = now;
+          update.signatureDataUrl = admin.firestore.FieldValue.delete();
+        } else if (decision === 'reject') {
+          nextStatus = 'rejected';
+          update.status = nextStatus;
+          update.rejectionReason = trimmedNote;
+          update.rejectedAt = now;
+        } else {
+          nextStatus = 'request_revision';
+          update.status = nextStatus;
+          update.revisionRequest = trimmedNote;
+          update.revisionRequestedAt = now;
+        }
+
+        transaction.update(quoteRef, update);
+        if (decision === 'approve' && isSignatureDataUrl(signatureDataUrl)) {
+          transaction.set(artifactRef, {
+            quoteId,
+            collectionName,
+            uid: quote.uid,
+            type: 'signature',
+            dataUrl: signatureDataUrl,
+            createdAt: now,
+          });
+        }
+        transaction.set(auditRef, {
+          quoteId,
+          collectionName,
+          uid: quote.uid,
+          decision,
+          status: nextStatus!,
+          signatureName: decision === 'approve' ? trimmedName : null,
+          note: decision === 'approve' ? null : trimmedNote,
+          createdAt: now,
+          clientEmail: quote.clientEmail || null,
+          userAgent: req.get('user-agent') || null,
+          ip: getClientIp(req),
+          signatureArtifactPath: decision === 'approve' && isSignatureDataUrl(signatureDataUrl) ? artifactRef.path : null,
+        });
+        responsePayload = { status: nextStatus!, at: now, signatureName: trimmedName, note: trimmedNote };
+      });
+
+      res.json({ status: "ok", ...responsePayload });
+    } catch (error: any) {
+      console.error("Public quote decision failed:", error);
+      res.status(error.statusCode || 500).json({ error: error.message || "Failed to record the quotation decision." });
+    }
   });
 
   app.post("/api/send-email", requireAuth, async (req, res) => {
