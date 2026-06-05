@@ -2,31 +2,36 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, doc, setDoc, getDoc, getDocs, runTransaction } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, setDoc, getDoc, getDocs, runTransaction } from 'firebase/firestore';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../components/InvoicePDF';
-import { Download, Mail } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Download, Mail, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getCurrencySymbol } from '../lib/currencies';
-
 import { authorizedFetch } from '../lib/api';
-
-import { DollarSign } from 'lucide-react';
 import { EmptyState } from '../components/EmptyState';
+import { formatZAR, statusBadgeStyles } from '../lib/theme';
 
 export default function Invoices() {
   const { user, profile } = useAuth();
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [approvedEstimates, setApprovedEstimates] = useState<any[]>([]); // internally named approvedEstimates to avoid widespread structure changes, but visually represent quotes/quotations
+  const [approvedEstimates, setApprovedEstimates] = useState<any[]>([]); 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
   const [pdfProgress, setPdfProgress] = useState<number | null>(null);
+
+  const formatCurrency = (amount: number, curr: string) => {
+    if (curr === 'ZAR') {
+      return formatZAR(amount);
+    }
+    return `${getCurrencySymbol(curr)}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -39,7 +44,6 @@ export default function Invoices() {
       if (invLoaded && quotesLoaded && estLoaded) setInitialLoading(false);
     };
 
-    // Listen to invoices
     const invQ = query(
       collection(db, 'invoices'),
       where('uid', '==', user.uid)
@@ -64,7 +68,6 @@ export default function Invoices() {
       setApprovedEstimates([...quotesList, ...estimatesList]);
     };
 
-    // Listen to approved quotes (ready to convert)
     const quotesQ = query(
       collection(db, 'quotes'),
       where('uid', '==', user.uid),
@@ -78,7 +81,6 @@ export default function Invoices() {
       checkLoaded();
     });
 
-    // Listen to approved estimates (ready to convert)
     const estQ = query(
       collection(db, 'estimates'),
       where('uid', '==', user.uid),
@@ -147,10 +149,8 @@ export default function Invoices() {
         const prefix = userData.invoicePrefix || 'INV-';
         invoiceNumber = `${prefix}${newCount.toString().padStart(4, '0')}`;
         
-        // Update user counter
         transaction.update(userRef, { invoiceCount: newCount });
         
-        // Create invoice
         const invoiceData = {
           id: invoiceId,
           uid: user.uid,
@@ -168,7 +168,6 @@ export default function Invoices() {
         const invoiceRef = doc(db, 'invoices', invoiceId);
         transaction.set(invoiceRef, invoiceData);
         
-        // Update estimate status
         transaction.update(estimateRef, { status: 'converted' });
       });
       
@@ -197,7 +196,6 @@ export default function Invoices() {
       setPdfProgress(0);
       setGeneratingPdf(invoice.id);
       
-      // Step 1: Fetch estimate (20%)
       setPdfProgress(20);
       let estDoc = await getDoc(doc(db, 'quotes', invoice.estimateId));
       let collectionName = 'quotes';
@@ -207,13 +205,11 @@ export default function Invoices() {
       }
       const estimate = estDoc.data();
       
-      // Step 2: Fetch line items (40%)
       setPdfProgress(40);
       const itemsRef = collection(db, collectionName, invoice.estimateId, 'lineItems');
       const itemsSnap = await getDocs(itemsRef);
       const lineItems = itemsSnap.docs.map(d => d.data());
 
-      // Step 3: Generate PDF (60%)
       setPdfProgress(60);
       const blob = await pdf(
         <InvoicePDF 
@@ -224,7 +220,6 @@ export default function Invoices() {
         />
       ).toBlob();
       
-      // Step 4: Download (100%)
       setPdfProgress(100);
       const invoiceNum = invoice.invoiceNumber || invoice.id.substring(0, 8).toUpperCase();
       const url = URL.createObjectURL(blob);
@@ -236,7 +231,7 @@ export default function Invoices() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast.success("Invoice downloaded");
+      toast.success("Invoice PDF exported");
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF");
@@ -257,10 +252,10 @@ export default function Invoices() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        throw new Error(errorData.error || `Server status: ${response.status}`);
       }
       
-      const data = await response.json();
+      await response.json();
       toast.success("Invoice sent to client");
     } catch (error: any) {
       console.error("Invoice send error:", {
@@ -268,7 +263,7 @@ export default function Invoices() {
         error: error.message,
         timestamp: new Date().toISOString()
       });
-      toast.error(error.message || "Failed to send invoice");
+      toast.error(error.message || "Failed to transmit invoice");
     } finally {
       setGeneratingPdf(null);
     }
@@ -280,137 +275,163 @@ export default function Invoices() {
         status: 'paid',
         paidAt: new Date().toISOString()
       }, { merge: true });
-      toast.success("Invoice marked as paid");
+      toast.success("Invoice record updated to PAID");
     } catch (error) {
-      toast.error("Failed to update invoice");
+      toast.error("Failed to update status");
     }
   };
 
   if (initialLoading) {
     return (
-      <div className="space-y-8 animate-pulse">
-        <div className="h-10 bg-zinc-200 rounded w-1/4"></div>
-        <div className="h-48 bg-zinc-200 rounded-xl"></div>
-        <div className="h-64 bg-zinc-200 rounded-xl"></div>
+      <div className="space-y-8 animate-pulse max-w-7xl mx-auto">
+        <div className="h-10 bg-zinc-150 rounded-xl w-1/4"></div>
+        <div className="h-40 bg-zinc-100 rounded-3xl"></div>
+        <div className="h-64 bg-zinc-100 rounded-3xl"></div>
       </div>
     );
   }
 
+  const getStatusBadge = (status: string) => {
+    const style = statusBadgeStyles[status as keyof typeof statusBadgeStyles] || statusBadgeStyles.draft;
+    const labelMap: Record<string, string> = {
+      draft: 'Draft',
+      sent: 'Sent',
+      approved: 'Approved',
+      paid: 'Paid',
+      converted: 'Invoiced',
+      overdue: 'Overdue'
+    };
+    const label = labelMap[status.toLowerCase()] || status;
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold capitalize border ${style}`}>
+        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+        {label}
+      </span>
+    );
+  };
+
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-8"
+      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+      className="space-y-8 max-w-7xl mx-auto"
     >
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
-        <p className="text-zinc-500">Manage your billing and get paid.</p>
+      <div className="pb-2 border-b border-zinc-100">
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">Billing & Invoices</h1>
+        <p className="text-zinc-455 text-xs mt-0.5">Track payments, send invoices, and update payment status.</p>
       </div>
 
-      {approvedEstimates.length > 0 && (
-        <Card className="border-green-200 bg-green-50/30">
-          <CardHeader>
-            <CardTitle className="text-green-800">Ready to Invoice</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {approvedEstimates.map(est => (
-                <div key={est.id} className="flex items-center justify-between p-4 bg-white rounded-lg border shadow-sm">
-                  <div>
-                    <div className="font-medium">{est.clientName}</div>
-                    <div className="text-sm text-zinc-500">Approved {format(new Date(est.approvedAt), 'MMM d, yyyy')}</div>
+      <AnimatePresence mode="popLayout">
+        {approvedEstimates.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <Card className="rounded-3xl border border-teal-200/80 bg-teal-50/10 shadow-sm overflow-hidden">
+              <CardHeader className="p-6 pb-2 border-b border-teal-100/40">
+                <CardTitle className="text-[#03423a] text-base font-semibold flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
+                  Approved Quotes
+                </CardTitle>
+                <CardDescription className="text-zinc-650 text-xs font-normal">These quotes have been approved and can now be turned into invoices.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                {approvedEstimates.map(est => (
+                  <div key={est.id} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-white/90 backdrop-blur-md rounded-2xl border border-teal-100/50 shadow-sm hover:shadow-md transition-all">
+                    <div>
+                      <div className="font-semibold text-zinc-900 text-sm md:text-base">{est.clientName || "Unnamed Customer"}</div>
+                      <div className="text-xs text-zinc-450 mt-0.5">Approved {format(new Date(est.approvedAt || est.updatedAt), 'MMM d, yyyy')}</div>
+                    </div>
+                    <div className="flex items-center gap-4.5 w-full md:w-auto justify-between md:justify-end">
+                      <div className="font-bold text-[#03423a] tracking-tight text-sm md:text-base tabular-nums">
+                        {formatCurrency(est.total, est.currency || profile?.defaultCurrency || 'ZAR')}
+                      </div>
+                      <Button 
+                        size="sm" 
+                        className="h-9 bg-primary hover:bg-[#03362f] text-white rounded-xl text-xs font-semibold px-4 cursor-pointer active:scale-95 transition-all shadow-sm flex items-center gap-1.5"
+                        onClick={() => handleConvert(est)} 
+                        loading={loading}
+                      >
+                        Generate Invoice
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="font-bold">{getCurrencySymbol(est.currency || profile?.defaultCurrency || 'ZAR')}{est.total.toFixed(2)}</div>
-                    <Button onClick={() => handleConvert(est)} loading={loading}>
-                      Convert to Invoice
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                ))}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Invoices</CardTitle>
+      {/* Invoice Directory */}
+      <Card className="rounded-3xl border border-zinc-150 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)] overflow-hidden">
+        <CardHeader className="p-6 border-b border-zinc-50 bg-zinc-50/15">
+          <CardTitle className="text-lg font-semibold text-zinc-900">Saved Invoices</CardTitle>
+          <CardDescription className="text-zinc-400 text-xs text-left">View, download, or mark invoices as paid.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {invoices.length === 0 ? (
-            <EmptyState
-              icon={<DollarSign className="w-8 h-8" />}
-              title="No invoices yet"
-              description="Convert an approved quote into an invoice to get started."
-            />
+            <div className="p-12">
+              <EmptyState
+                icon={<DollarSign className="w-8 h-8 text-zinc-350" />}
+                title="No Invoices Found"
+                description="Once a client approves a quote, you can turn it into an invoice here."
+              />
+            </div>
           ) : (
-            <div className="space-y-3 md:overflow-x-auto">
-              {/* Mobile card view */}
-              <div className="md:hidden space-y-3">
+            <div className="w-full">
+              {/* Mobile ledger cards */}
+              <div className="md:hidden divide-y divide-zinc-100 p-4 space-y-4">
                 {invoices.map((inv) => (
-                  <div key={inv.id} className="p-4 border rounded-lg bg-white shadow-sm space-y-3">
+                  <div key={inv.id} className="p-4 bg-zinc-50/20 border border-zinc-100 rounded-2xl shadow-sm space-y-4">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-medium">{inv.clientName || 'Unnamed Client'}</p>
-                        <p className="text-sm text-zinc-500">
+                        <p className="font-semibold text-zinc-900 text-sm">{inv.clientName || 'Custom Client'}</p>
+                        <p className="text-[11px] font-mono text-zinc-400 font-bold mt-0.5">
                           #{inv.invoiceNumber || inv.id.substring(0, 8).toUpperCase()}
                         </p>
-                        <p className="text-sm text-zinc-500">
+                        <p className="text-xs text-zinc-450 mt-1 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-zinc-405" />
                           Due: {format(new Date(inv.dueDate), 'MMM d, yyyy')}
                         </p>
                       </div>
-                      {(() => {
-                        const statusConfig = {
-                          draft: { bg: 'bg-zinc-100', text: 'text-zinc-800', icon: '⊙', label: 'Draft (not sent)' },
-                          sent: { bg: 'bg-blue-100', text: 'text-blue-800', icon: '✉', label: 'Sent to client' },
-                          approved: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Approved by client' },
-                          paid: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Paid' },
-                          converted: { bg: 'bg-purple-100', text: 'text-purple-800', icon: '✓', label: 'Converted to invoice' },
-                          overdue: { bg: 'bg-red-100', text: 'text-red-800', icon: '!', label: 'Overdue' }
-                        };
-                        const config = statusConfig[inv.status as keyof typeof statusConfig] || statusConfig.draft;
-                        return (
-                          <span 
-                            className={`px-2 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 w-fit ${config.bg} ${config.text}`}
-                            role="status"
-                            aria-label={config.label}
-                          >
-                            <span aria-hidden="true">{config.icon}</span>
-                            {inv.status}
-                          </span>
-                        );
-                      })()}
+                      {getStatusBadge(inv.status)}
                     </div>
-                    <div className="flex justify-between items-center pt-3 border-t">
-                      <span className="font-medium">
-                        {getCurrencySymbol(inv.currency || profile?.defaultCurrency || 'ZAR')}{(inv.total || 0).toFixed(2)}
+                    <div className="flex justify-between items-center pt-3.5 border-t border-zinc-100">
+                      <span className="font-bold text-zinc-850 text-sm tabular-nums">
+                        {formatCurrency(inv.total || 0, inv.currency || profile?.defaultCurrency || 'ZAR')}
                       </span>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1.5">
                         {inv.status === 'draft' && (
                           <Button 
                             variant="outline" 
                             size="sm"
+                            className="h-8.5 rounded-lg text-[11px] border-zinc-200 text-zinc-700 bg-white"
                             onClick={() => handleSendInvoice(inv)}
                             loading={generatingPdf === inv.id}
                           >
-                            <Mail className="w-4 h-4 mr-2" /> Send
+                            <Mail className="w-3.5 h-3.5 mr-1 text-zinc-450" /> Send
                           </Button>
                         )}
                         <Button 
                           variant="ghost" 
                           size="icon"
+                          className="h-8.5 w-8.5 rounded-lg text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100"
                           onClick={() => handleDownloadPdf(inv)}
                           loading={generatingPdf === inv.id}
-                          title="Download PDF"
+                          title="Download Invoice PDF"
                         >
-                          {!generatingPdf && <Download className="w-4 h-4" />}
+                          {!generatingPdf && <Download className="w-3.5 h-3.5" />}
                         </Button>
                         {inv.status !== 'paid' && (
                           <Button 
                             variant="outline" 
                             size="sm"
+                            className="h-8.5 rounded-lg text-[11px] border-zinc-200 text-zinc-700 bg-white hover:bg-emerald-50 hover:text-emerald-700"
                             onClick={() => handleMarkPaid(inv.id)}
                           >
                             Mark Paid
@@ -422,71 +443,53 @@ export default function Invoices() {
                 ))}
               </div>
 
-              {/* Desktop table */}
+              {/* Desktop tabular view */}
               <table className="hidden md:table w-full text-sm text-left">
-                <thead className="text-xs text-zinc-500 uppercase bg-zinc-50">
+                <thead className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest bg-zinc-50/50 border-b border-zinc-100">
                   <tr>
-                    <th className="px-4 py-3 rounded-tl-md">Invoice #</th>
-                    <th className="px-4 py-3">Client</th>
-                    <th className="px-4 py-3">Due Date</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Total</th>
-                    <th className="px-4 py-3 text-right rounded-tr-md">Actions</th>
+                    <th className="px-6 py-3.5">Invoice #</th>
+                    <th className="px-6 py-3.5">Client</th>
+                    <th className="px-6 py-3.5">Due Date</th>
+                    <th className="px-6 py-3.5">Status</th>
+                    <th className="px-6 py-3.5 text-right">Amount</th>
+                    <th className="px-6 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-zinc-100 bg-white">
                   {invoices.map((inv) => (
-                    <tr key={inv.id} className="border-b last:border-0 hover:bg-zinc-50 transition-colors">
-                      <td className="px-4 py-3 font-medium">
+                    <tr key={inv.id} className="hover:bg-zinc-50/40 transition-colors duration-150">
+                      <td className="px-6 py-4 font-bold text-zinc-400 font-mono text-xs">
                         {inv.invoiceNumber || inv.id.substring(0, 8).toUpperCase()}
                       </td>
-                      <td className="px-4 py-3 font-medium">
+                      <td className="px-6 py-4 font-semibold text-zinc-900">
                         {inv.clientName || 'Unnamed Client'}
                       </td>
-                      <td className="px-4 py-3 text-zinc-500">
+                      <td className="px-6 py-4 text-zinc-500 text-xs">
                         {format(new Date(inv.dueDate), 'MMM d, yyyy')}
                       </td>
-                      <td className="px-4 py-3">
-                        {(() => {
-                          const statusConfig = {
-                            draft: { bg: 'bg-zinc-100', text: 'text-zinc-800', icon: '⊙', label: 'Draft (not sent)' },
-                            sent: { bg: 'bg-blue-100', text: 'text-blue-800', icon: '✉', label: 'Sent to client' },
-                            approved: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Approved by client' },
-                            paid: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Paid' },
-                            converted: { bg: 'bg-purple-100', text: 'text-purple-800', icon: '✓', label: 'Converted to invoice' },
-                            overdue: { bg: 'bg-red-100', text: 'text-red-800', icon: '!', label: 'Overdue' }
-                          };
-                          const config = statusConfig[inv.status as keyof typeof statusConfig] || statusConfig.draft;
-                          return (
-                            <span 
-                              className={`px-3 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 w-fit ${config.bg} ${config.text}`}
-                              role="status"
-                              aria-label={config.label}
-                            >
-                              <span aria-hidden="true">{config.icon}</span>
-                              {inv.status}
-                            </span>
-                          );
-                        })()}
+                      <td className="px-6 py-4">
+                        {getStatusBadge(inv.status)}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        {getCurrencySymbol(inv.currency || profile?.defaultCurrency || 'ZAR')}{(inv.total || 0).toFixed(2)}
+                      <td className="px-6 py-4 text-right font-bold text-zinc-900 tabular-nums text-sm">
+                        {formatCurrency(inv.total || 0, inv.currency || profile?.defaultCurrency || 'ZAR')}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1.5">
                           {inv.status === 'draft' && (
                             <Button 
                               variant="outline" 
                               size="sm"
+                              className="h-8.5 rounded-lg border-zinc-200 font-semibold text-xs text-zinc-750 bg-white hover:bg-zinc-50 cursor-pointer"
                               onClick={() => handleSendInvoice(inv)}
                               loading={generatingPdf === inv.id}
                             >
-                              <Mail className="w-4 h-4 mr-2" /> Send
+                              <Mail className="w-3.5 h-3.5 mr-1 text-zinc-400" /> Send
                             </Button>
                           )}
                           <Button 
                             variant="ghost" 
                             size="icon"
+                            className="h-8.5 w-8.5 rounded-lg text-zinc-400 hover:text-zinc-950 hover:bg-zinc-50 cursor-pointer"
                             onClick={() => handleDownloadPdf(inv)}
                             disabled={generatingPdf === inv.id}
                             title="Download PDF"
@@ -497,6 +500,7 @@ export default function Invoices() {
                             <Button 
                               variant="outline" 
                               size="sm"
+                              className="h-8.5 rounded-lg border-zinc-200 font-bold text-xs text-zinc-700 bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 cursor-pointer transition-all active:scale-95"
                               onClick={() => handleMarkPaid(inv.id)}
                             >
                               Mark Paid
@@ -512,19 +516,32 @@ export default function Invoices() {
           )}
         </CardContent>
       </Card>
+
+      {/* PDF Generation Popups */}
       {pdfProgress !== null && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-80">
-            <CardContent className="p-6 space-y-4">
-              <h3 className="font-medium">Generating PDF...</h3>
-              <div className="w-full bg-zinc-200 rounded-full h-2">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <Card className="w-80 rounded-3xl border border-zinc-100 shadow-2xl bg-white p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-teal-50 flex items-center justify-center text-primary shrink-0 animate-spin">
+                <Loader2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-zinc-900 text-sm">Preparing PDF</h3>
+                <p className="text-zinc-400 text-[11px]">Creating invoice PDF...</p>
+              </div>
+            </div>
+            <div className="space-y-1.5 pt-1.5">
+              <div className="w-full bg-zinc-100 rounded-full h-2 overflow-hidden">
                 <div 
-                  className="bg-zinc-900 h-2 rounded-full transition-all"
+                  className="bg-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${pdfProgress}%` }}
                 />
               </div>
-              <p className="text-sm text-zinc-600">{pdfProgress}% complete</p>
-            </CardContent>
+              <div className="flex justify-between text-[10px] font-bold text-zinc-450 tracking-wider">
+                <span>PROGRESS</span>
+                <span>{pdfProgress}%</span>
+              </div>
+            </div>
           </Card>
         </div>
       )}

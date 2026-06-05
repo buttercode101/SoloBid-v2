@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
 import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Plus, FileText, Banknote, Clock, Search, Download, Copy, Check, BarChart3, Trash2, Calendar } from 'lucide-react';
+import { Plus, FileText, Banknote, Clock, Search, Download, Copy, Check, BarChart3, Trash2, ArrowUpRight, TrendingUp } from 'lucide-react';
 import { EmptyState } from '../components/EmptyState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { format } from 'date-fns';
@@ -14,6 +14,7 @@ import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { getCurrencySymbol } from '../lib/currencies';
 import { getUserFriendlyError } from '../lib/errorHandler';
+import { formatZAR, statusBadgeStyles } from '../lib/theme';
 
 const DEMO_QUOTES = [
   { id: 'demo1', clientName: 'Global Tech Solutions', clientEmail: 'contact@globaltech.com', status: 'approved', total: 12500.00, createdAt: new Date().toISOString(), currency: 'USD' },
@@ -24,6 +25,7 @@ const DEMO_QUOTES = [
 
 export default function Dashboard() {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [recentQuotes, setRecentQuotes] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,16 @@ export default function Dashboard() {
     profitThisMonth: 0
   });
 
+  const defaultCurrency = profile?.defaultCurrency || 'ZAR';
+
+  const formatCurrency = (amount: number, curr?: string) => {
+    const selectedCurrency = curr || defaultCurrency;
+    if (selectedCurrency === 'ZAR') {
+      return formatZAR(amount);
+    }
+    return `${getCurrencySymbol(selectedCurrency)}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   const isQuoteExpired = (q: any) => {
     if (!q.expiresAt) return false;
     if (['approved', 'paid', 'converted'].includes(q.status)) return false;
@@ -49,21 +61,18 @@ export default function Dashboard() {
       setIsDeleting(true);
       const batch = writeBatch(db);
       
-      // Delete lineItems
       const itemsRef = collection(db, 'quotes', deleteId, 'lineItems');
       const itemsSnap = await getDocs(itemsRef);
       itemsSnap.docs.forEach(docSnap => {
         batch.delete(docSnap.ref);
       });
 
-      // Delete expenses
       const expensesRef = collection(db, 'quotes', deleteId, 'expenses');
       const expensesSnap = await getDocs(expensesRef);
       expensesSnap.docs.forEach(docSnap => {
         batch.delete(docSnap.ref);
       });
 
-      // Delete quote document
       batch.delete(doc(db, 'quotes', deleteId));
 
       await batch.commit();
@@ -104,7 +113,6 @@ export default function Dashboard() {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      // Fetch all expenses for this user for the current month
       try {
         const startOfMonth = new Date(currentYear, currentMonth, 1).toISOString();
         const expensesQuery = query(
@@ -120,7 +128,6 @@ export default function Dashboard() {
         console.error("Failed to fetch expenses", err);
       }
 
-      // Calculate stats from quotes
       for (const q of quotesList) {
         if (q.status === 'sent' && !isQuoteExpired(q)) pending++;
         if (q.status === 'approved' || q.status === 'converted') {
@@ -129,10 +136,8 @@ export default function Dashboard() {
         }
       }
 
-      // Track quote IDs captured by invoices to avoid double counting
       const invoiceQuoteIds = new Set<string>();
 
-      // Calculate billed amount from in-month invoices
       for (const inv of invoicesList) {
         if (inv.createdAt) {
           const invDate = new Date(inv.createdAt);
@@ -141,14 +146,12 @@ export default function Dashboard() {
             if (inv.quoteId) {
               invoiceQuoteIds.add(inv.quoteId);
             } else if (inv.estimateId) {
-              // support older database records
               invoiceQuoteIds.add(inv.estimateId);
             }
           }
         }
       }
 
-      // Fallback: Add any quotes approved or converted this month that don't have matching invoices yet
       for (const q of quotesList) {
         if (q.status === 'approved' || q.status === 'converted') {
           const updateDateStr = q.approvedAt || q.createdAt;
@@ -248,64 +251,97 @@ export default function Dashboard() {
     const url = `${window.location.origin}/client/quote/${id}`;
     navigator.clipboard.writeText(url);
     setCopiedId(id);
-    toast.success("Link copied to clipboard");
+    toast.success("Client link copied");
     setTimeout(() => setCopiedId(null), 2000);
   };
 
   if (loading) {
     return (
       <div className="space-y-8 animate-pulse">
-        <div className="h-10 bg-zinc-200 rounded w-1/4"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="flex flex-col gap-2">
+          <div className="h-9 bg-zinc-250 w-64 rounded-xl"></div>
+          <div className="h-4 bg-zinc-200 w-96 rounded-lg"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-32 bg-zinc-200 rounded-xl"></div>
+            <div key={i} className="h-28 bg-zinc-200 rounded-3xl"></div>
           ))}
         </div>
-        <div className="h-64 bg-zinc-200 rounded-xl"></div>
+        <div className="h-96 bg-zinc-200 rounded-3xl"></div>
       </div>
     );
   }
 
+  const getStatusBadgeClassAndLabel = (status: string, isExpired: boolean) => {
+    const activeStatus = isExpired ? 'expired' : (status || 'draft').toLowerCase();
+    
+    switch (activeStatus) {
+      case 'approved':
+        return { style: statusBadgeStyles.approved, label: 'Approved' };
+      case 'sent':
+        return { style: statusBadgeStyles.sent, label: 'Sent' };
+      case 'converted':
+        return { style: statusBadgeStyles.converted, label: 'Converted' };
+      case 'paid':
+        return { style: statusBadgeStyles.paid, label: 'Paid' };
+      case 'overdue':
+        return { style: statusBadgeStyles.overdue, label: 'Overdue' };
+      case 'expired':
+        return { style: 'bg-red-50 text-red-700 border border-red-150', label: 'Expired' };
+      default:
+        return { style: statusBadgeStyles.draft, label: 'Draft' };
+    }
+  };
+
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-8"
+      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+      className="space-y-8 max-w-7xl mx-auto"
     >
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {user ? `Welcome back, ${profile?.businessName || 'Business Owner'}` : 'Welcome to SoloBid'}
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-zinc-900">
+            {user ? `Welcome, ${profile?.businessName || 'Business Owner'}` : 'SoloBid Dashboard'}
           </h1>
-          <p className="text-zinc-500">
-            {user ? "Here's what's happening with your business today." : "Take a look at how SoloBid can help you manage your quotes and invoices."}
+          <p className="text-zinc-550 mt-1.5 text-base font-normal">
+            {user ? "Manage your quotes, track billing, and review active client pipelines." : "Get a high-level view of your business pipeline instantly."}
           </p>
         </div>
-        <Button asChild size="lg" className="w-full sm:w-auto bg-zinc-900 shadow-md transition-all active:scale-[0.98]">
+        
+        <Button 
+          asChild 
+          size="lg" 
+          className="w-full md:w-auto bg-primary hover:bg-[#03362f] text-white font-medium shadow-sm active:scale-[0.985] cursor-pointer"
+        >
           <Link to={user ? "/quotes/new" : "/login"}>
-            <Plus className="w-5 h-5 mr-2" />
-            {user ? 'New Quote' : 'Start Free Trial'}
+            <Plus className="w-5 h-5 mr-2 stroke-[2.5]" />
+            {user ? 'New Quote' : 'Start Professional Account'}
           </Link>
         </Button>
       </div>
 
       {!user && (
-        <Card className="bg-zinc-900 text-white border-none overflow-hidden relative group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-            <BarChart3 className="w-32 h-32 rotate-12" />
+        <Card className="bg-gradient-to-br from-zinc-900 to-zinc-950 text-white border-none overflow-hidden relative group rounded-3xl shadow-xl">
+          <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+            <BarChart3 className="w-48 h-48 rotate-12" />
           </div>
-          <CardContent className="p-8 relative z-10">
-            <div className="max-w-2xl">
-              <h2 className="text-2xl font-bold mb-3">You're currently in Demo Mode</h2>
-              <p className="text-zinc-400 mb-6 leading-relaxed">
-                Experience the power of professional quote building and tracking. Sign up now to create your own quotes, manage real clients, and get paid faster.
+          <CardContent className="p-8 md:p-10 relative z-10">
+            <div className="max-w-3xl">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase bg-teal-500/20 text-teal-300 border border-teal-500/30 mb-4">
+                <TrendingUp className="w-3.5 h-3.5" />
+                Demo Workspace
+              </span>
+              <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-white mb-3">Professional Quote Control In Demo Mode</h2>
+              <p className="text-zinc-300 text-base mb-6 leading-relaxed max-w-2xl font-light">
+                Secure your database, gain offline client invoice generators, customizable templates, automatic currency conversion, and direct payment integrations.
               </p>
-              <div className="flex flex-wrap gap-4">
-                <Button variant="outline" className="bg-white text-zinc-900 border-none hover:bg-zinc-100" asChild>
-                  <Link to="/login">Create Account</Link>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" className="bg-white text-zinc-900 border-none hover:bg-zinc-100 font-medium" asChild>
+                  <Link to="/login">Create Free Account</Link>
                 </Button>
-                <Button variant="ghost" className="text-white hover:bg-white/10" asChild>
+                <Button variant="ghost" className="text-white hover:bg-white/10 font-medium" asChild>
                   <Link to="/login">Sign In</Link>
                 </Button>
               </div>
@@ -314,230 +350,239 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-500">Billed This Month</CardTitle>
-            <Banknote className="w-4 h-4 text-zinc-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getCurrencySymbol(profile?.defaultCurrency || 'ZAR')}{stats.billedThisMonth.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-500">Profit This Month</CardTitle>
-            <Banknote className="w-4 h-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{getCurrencySymbol(profile?.defaultCurrency || 'ZAR')}{stats.profitThisMonth.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-500">Pending Quotes</CardTitle>
-            <Clock className="w-4 h-4 text-zinc-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-500">Avg Job Value</CardTitle>
-            <FileText className="w-4 h-4 text-zinc-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getCurrencySymbol(profile?.defaultCurrency || 'ZAR')}{stats.avgJobValue.toFixed(2)}</div>
-          </CardContent>
-        </Card>
+      {/* Stats Bento Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {[
+          {
+            title: "Billed This Month",
+            value: formatCurrency(stats.billedThisMonth),
+            icon: Banknote,
+            accent: "bg-teal-50 text-teal-900 border-teal-200/50"
+          },
+          {
+            title: "Profit This Month",
+            value: formatCurrency(stats.profitThisMonth),
+            icon: TrendingUp,
+            accent: "bg-emerald-50 text-emerald-900 border-emerald-200/50"
+          },
+          {
+            title: "Pending Quotes",
+            value: stats.pendingCount.toString(),
+            icon: Clock,
+            accent: "bg-blue-50 text-blue-700 border-blue-100/50"
+          },
+          {
+            title: "Average Job Value",
+            value: formatCurrency(stats.avgJobValue),
+            icon: FileText,
+            accent: "bg-purple-50 text-purple-700 border-purple-100/50"
+          }
+        ].map((stat, i) => (
+          <Card key={i} className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group">
+            <div className="flex justify-between items-start gap-4">
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 group-hover:text-zinc-500 transition-colors">{stat.title}</span>
+                <p className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">{stat.value}</p>
+              </div>
+              <div className={`p-2.5 rounded-2xl border ${stat.accent} flex items-center justify-center`}>
+                <stat.icon className="w-5 h-5 stroke-[2]" />
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <CardTitle>Recent Quotes</CardTitle>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+      {/* Main Recent Quotes Panel */}
+      <Card className="rounded-3xl border border-zinc-100 bg-white overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 border-b border-zinc-50 bg-zinc-50/40">
+          <div>
+            <CardTitle className="text-xl font-semibold text-zinc-900">Recent Quote Ledger</CardTitle>
+            <CardDescription className="text-zinc-500 text-xs mt-0.5">Edit, track, replicate and share quotes directly with your clients.</CardDescription>
+          </div>
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
               <Input
                 type="search"
-                placeholder="Search clients..."
-                className="pl-8"
+                placeholder="Search clients or status..."
+                className="pl-9 h-9.5 rounded-xl border-zinc-150 bg-white shadow-sm font-normal text-sm focus:ring-primary focus:border-primary"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon" onClick={handleExportCSV} title="Export CSV">
-              <Download className="h-4 w-4" />
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-9.5 w-9.5 rounded-xl border-zinc-150 bg-white hover:bg-zinc-50 text-zinc-500 cursor-pointer shadow-sm active:scale-95" 
+              onClick={handleExportCSV} 
+              title="Export CSV"
+            >
+              <Download className="h-4.5 w-4.5" />
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {filteredQuotes.length === 0 ? (
-            <EmptyState
-              icon={searchQuery ? <Search className="w-8 h-8" /> : <BarChart3 className="w-8 h-8" />}
-              title={searchQuery ? "No matches found" : "No quotes yet"}
-              description={searchQuery ? "Try adjusting your search terms." : "Create your first quote to start tracking your business."}
-            />
+            <div className="py-12">
+              <EmptyState
+                icon={searchQuery ? <Search className="w-10 h-10 text-zinc-400" /> : <BarChart3 className="w-10 h-10 text-zinc-400" />}
+                title={searchQuery ? "No matches found" : "Your quote pipeline is empty"}
+                description={searchQuery ? "Try altering your filters or search keywords." : "Send your professional quotes with interactive items and custom themes."}
+              />
+            </div>
           ) : (
-            <div className="space-y-3 md:overflow-x-auto">
-              {/* Mobile card view */}
-              <div className="md:hidden space-y-3">
-                  {filteredQuotes.map((q) => {
-                    const isExpired = isQuoteExpired(q);
-                    return (
-                      <div key={q.id} className="p-4 border rounded-lg bg-white shadow-sm space-y-3">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <Link to={`/quotes/${q.id}`} className="font-medium hover:underline">
-                              {q.clientName || 'Unnamed Client'}
-                            </Link>
-                            <p className="text-sm text-zinc-500 flex flex-wrap items-center gap-1">
-                              {q.createdAt ? format(new Date(q.createdAt), 'MMM d, yyyy') : '-'}
-                              {q.expiresAt && (
-                                <span className={`text-xs ml-1 font-normal ${isExpired ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>
-                                  (Val: {format(new Date(q.expiresAt), 'MMM d')})
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                          {(() => {
-                            const statusConfig = {
-                              draft: { bg: 'bg-zinc-100', text: 'text-zinc-800', icon: '⊙', label: 'Draft (not sent)' },
-                              sent: { bg: 'bg-blue-100', text: 'text-blue-800', icon: '✉', label: 'Sent to client' },
-                              approved: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Approved by client' },
-                              paid: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Paid' },
-                              converted: { bg: 'bg-purple-100', text: 'text-purple-800', icon: '✓', label: 'Converted to invoice' },
-                              overdue: { bg: 'bg-red-100', text: 'text-red-800', icon: '!', label: 'Overdue' },
-                              expired: { bg: 'bg-red-55/80 border border-red-200', text: 'text-red-600', icon: '⏰', label: 'Expired' }
-                            };
-                            const activeStatus = isExpired ? 'expired' : q.status;
-                            const config = statusConfig[activeStatus as keyof typeof statusConfig] || statusConfig.draft;
-                            return (
-                              <span 
-                                className={`px-2 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 w-fit ${config.bg} ${config.text}`}
-                                role="status"
-                                aria-label={config.label}
-                              >
-                                <span aria-hidden="true">{config.icon}</span>
-                                {activeStatus}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                        <div className="flex justify-between items-center pt-3 border-t">
-                          <span className="font-medium">
-                            {getCurrencySymbol(q.currency || profile?.defaultCurrency || 'ZAR')}{(q.total || 0).toFixed(2)}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => handleCopyLink(q.id)} title="Copy Client Link">
-                              {copiedId === q.id ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-zinc-500" />}
-                            </Button>
-                            {user && (
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
-                                className="text-zinc-500 hover:text-red-600"
-                                onClick={() => setDeleteId(q.id)}
-                                title="Delete Quote"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* Desktop table */}
-              <table className="hidden md:table w-full text-sm text-left">
-                <thead className="text-xs text-zinc-500 uppercase bg-zinc-50">
-                  <tr>
-                    <th className="px-4 py-3 rounded-tl-md">Client</th>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Total</th>
-                    <th className="px-4 py-3 text-right rounded-tr-md">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredQuotes.map((q) => {
-                    const isExpired = isQuoteExpired(q);
-                    return (
-                      <tr key={q.id} className="border-b last:border-0 hover:bg-zinc-50 transition-colors">
-                        <td className="px-4 py-3 font-medium">
-                          <Link to={`/quotes/${q.id}`} className="hover:underline">
+            <div className="divide-y divide-zinc-50">
+              {/* Mobile Card Row View */}
+              <div className="md:hidden divide-y divide-zinc-50">
+                {filteredQuotes.map((q) => {
+                  const isExpired = isQuoteExpired(q);
+                  const badge = getStatusBadgeClassAndLabel(q.status, isExpired);
+                  return (
+                    <div key={q.id} className="p-5 bg-white bg-slate-50/10 hover:bg-zinc-50/30 transition-all duration-300 space-y-3 relative">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="space-y-0.5">
+                          <Link to={`/quotes/${q.id}`} className="font-semibold text-zinc-900 hover:text-primary transition-colors text-base line-clamp-1">
                             {q.clientName || 'Unnamed Client'}
                           </Link>
-                        </td>
-                        <td className="px-4 py-3 text-zinc-500">
-                          <div className="flex flex-col">
-                            <span>{q.createdAt ? format(new Date(q.createdAt), 'MMM d, yyyy') : '-'}</span>
+                          <div className="text-xs text-zinc-450 space-y-0.5">
+                            <p className="flex items-center gap-1.5">
+                              <span>Sent: {q.createdAt ? format(new Date(q.createdAt), 'yyyy/MM/dd') : '-'}</span>
+                            </p>
                             {q.expiresAt && (
-                              <span className={`text-xs mt-0.5 ${isExpired ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>
-                                Valid until: {format(new Date(q.expiresAt), 'MMM d, yyyy')}
-                              </span>
+                              <p className={isExpired ? 'text-red-500 font-medium' : 'text-zinc-400'}>
+                                Valid: {format(new Date(q.expiresAt), 'yyyy/MM/dd')}
+                              </p>
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {(() => {
-                            const statusConfig = {
-                              draft: { bg: 'bg-zinc-100', text: 'text-zinc-800', icon: '⊙', label: 'Draft (not sent)' },
-                              sent: { bg: 'bg-blue-100', text: 'text-blue-800', icon: '✉', label: 'Sent to client' },
-                              approved: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Approved by client' },
-                              paid: { bg: 'bg-green-100', text: 'text-green-800', icon: '✓', label: 'Paid' },
-                              converted: { bg: 'bg-purple-100', text: 'text-purple-800', icon: '✓', label: 'Converted to invoice' },
-                              overdue: { bg: 'bg-red-100', text: 'text-red-800', icon: '!', label: 'Overdue' },
-                              expired: { bg: 'bg-red-55/80 border border-red-200', text: 'text-red-600', icon: '⏰', label: 'Expired' }
-                            };
-                            const activeStatus = isExpired ? 'expired' : q.status;
-                            const config = statusConfig[activeStatus as keyof typeof statusConfig] || statusConfig.draft;
-                            return (
-                              <span 
-                                className={`px-3 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 w-fit ${config.bg} ${config.text}`}
-                                role="status"
-                                aria-label={config.label}
-                              >
-                                <span aria-hidden="true">{config.icon}</span>
-                                {activeStatus}
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium">
-                          {getCurrencySymbol(q.currency || profile?.defaultCurrency || 'ZAR')}{(q.total || 0).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        </div>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide border uppercase shrink-0 ${badge.style}`}>
+                          {badge.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-50">
+                        <span className="font-semibold text-zinc-900 text-lg">
+                          {formatCurrency(q.total || 0, q.currency)}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Button 
+                            size="icon" 
+                            variant="outline" 
+                            className="h-8.5 w-8.5 rounded-lg text-zinc-450 border-zinc-200" 
+                            onClick={() => handleCopyLink(q.id)} 
+                            title="Copy Client Link"
+                          >
+                            {copiedId === q.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="outline" 
+                            className="h-8.5 w-8.5 rounded-lg text-zinc-450 border-zinc-200 hover:bg-teal-100/40 hover:text-primary hover:border-primary/20" 
+                            onClick={() => navigate(`/quotes/${q.id}`)} 
+                            title="Edit Quote"
+                          >
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </Button>
+                          {user && (
                             <Button 
-                              variant="ghost" 
                               size="icon" 
-                              onClick={() => handleCopyLink(q.id)}
-                              title="Copy Client Link"
+                              variant="outline" 
+                              className="h-8.5 w-8.5 rounded-lg text-zinc-450 hover:text-red-650 hover:border-red-150 hover:bg-red-50"
+                              onClick={() => setDeleteId(q.id)}
+                              title="Delete Quote"
                             >
-                              {copiedId === q.id ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4 text-zinc-500" />}
+                              <Trash2 className="w-3.5 h-3.5" />
                             </Button>
-                            {user && (
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block">
+                <table className="w-full text-sm text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50/50 text-xs font-semibold tracking-wider text-zinc-400 border-b border-zinc-100">
+                      <th className="px-6 py-4">Client Detail</th>
+                      <th className="px-6 py-4">Dates & Validity</th>
+                      <th className="px-6 py-4">Status Flag</th>
+                      <th className="px-6 py-4 text-right">Aggregate Total</th>
+                      <th className="px-6 py-4 text-right">Management</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-50 bg-white">
+                    {filteredQuotes.map((q) => {
+                      const isExpired = isQuoteExpired(q);
+                      const badge = getStatusBadgeClassAndLabel(q.status, isExpired);
+                      return (
+                        <tr key={q.id} className="hover:bg-zinc-50/50 transition-colors group">
+                          <td className="px-6 py-4.5">
+                            <div className="flex flex-col max-w-sm">
+                              <Link to={`/quotes/${q.id}`} className="font-semibold text-zinc-800 hover:text-primary transition-colors text-base line-clamp-1">
+                                {q.clientName || 'Unnamed Client'}
+                              </Link>
+                              <span className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{q.clientEmail || 'No Email Registered'}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4.5">
+                            <div className="flex flex-col text-xs text-zinc-500 space-y-0.5">
+                              <span className="font-medium text-zinc-600">Created: {q.createdAt ? format(new Date(q.createdAt), 'MMM d, yyyy') : '-'}</span>
+                              {q.expiresAt && (
+                                <span className={`flex items-center gap-1 ${isExpired ? 'text-red-500 font-semibold' : 'text-zinc-400'}`}>
+                                  Expiry: {format(new Date(q.expiresAt), 'MMM d, yyyy')}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4.5">
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold tracking-wider border uppercase ${badge.style}`}>
+                              {badge.label}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4.5 text-right font-semibold text-zinc-850 text-base tabular-nums">
+                            {formatCurrency(q.total || 0, q.currency)}
+                          </td>
+                          <td className="px-6 py-4.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
                               <Button 
-                                variant="ghost" 
+                                variant="outline" 
                                 size="icon" 
-                                className="text-zinc-500 hover:text-red-600 hover:bg-red-50"
-                                onClick={() => setDeleteId(q.id)}
-                                title="Delete Quote"
+                                className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-zinc-800 bg-white border-zinc-200 shadow-sm"
+                                onClick={() => handleCopyLink(q.id)}
+                                title="Copy Secure Client Link"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                {copiedId === q.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                               </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-primary bg-white border-zinc-200 hover:bg-teal-100/40 hover:border-primary/20 shadow-sm"
+                                onClick={() => navigate(`/quotes/${q.id}`)}
+                                title="Edit and Revise Quote"
+                              >
+                                <ArrowUpRight className="h-3.5 w-3.5" />
+                              </Button>
+                              {user && (
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200 bg-white border-zinc-200 shadow-sm"
+                                  onClick={() => setDeleteId(q.id)}
+                                  title="Delete Permanent Archive"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -545,10 +590,10 @@ export default function Dashboard() {
 
       <ConfirmDialog
         open={!!deleteId}
-        title="Delete Quote"
-        description="Are you sure you want to delete this quote? This will permanently delete the quote, its line items, and any recorded expenses. This action cannot be undone."
-        confirmLabel="Delete Quote"
-        cancelLabel="Keep Quote"
+        title="Delete Quote Log"
+        description="Are you sure you want to delete this quote record permanently? All referenced dynamic line items, materials, and internal expense trackers will be deleted. This cannot be undone."
+        confirmLabel="Confirm Delete"
+        cancelLabel="Keep Safe"
         isDangerous={true}
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}

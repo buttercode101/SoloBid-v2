@@ -52,10 +52,10 @@ export function Layout() {
 
   const Logo = ({ onClick }: { onClick?: () => void }) => (
     <Link to="/" className="flex items-center gap-2" onClick={onClick}>
-      <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shadow-lg shadow-zinc-200">
-        <FileText className="w-5 h-5 text-white" />
+      <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center shadow-md shadow-teal-100">
+        <FileText className="w-4.5 h-4.5 text-white stroke-[2.5]" />
       </div>
-      <span className="font-bold text-xl text-zinc-900 tracking-tight">SoloBid</span>
+      <span className="font-bold text-lg text-zinc-900 tracking-tight">SoloBid</span>
     </Link>
   );
 
@@ -65,23 +65,21 @@ export function Layout() {
         const Icon = item.icon;
         const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
         
-        // Show all but maybe visually distinguish protected ones for guests?
-        // Or just let them click and be prompted to login.
         return (
           <Link
             key={item.path}
             to={item.path}
             onClick={onItemClick}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
               isActive 
-                ? 'bg-zinc-900 text-white shadow-md shadow-zinc-200 font-medium' 
-                : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                ? 'bg-primary text-white shadow-sm font-bold active:scale-[0.985]' 
+                : 'text-zinc-600 hover:bg-zinc-100/70 hover:text-zinc-950'
             }`}
           >
             <div className="relative">
-              <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
               {!user && !item.public && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full border border-white" />
+                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full border border-white" />
               )}
             </div>
             {item.name}
@@ -107,50 +105,50 @@ export function Layout() {
         <Logo />
         <div className="flex items-center gap-2">
           {!user && (
-            <Button variant="outline" size="sm" onClick={() => navigate('/login')} className="text-xs">
+            <Button variant="outline" size="sm" onClick={() => navigate('/login')} className="text-xs h-8.5 rounded-lg border-zinc-200 text-zinc-700">
               Sign In
             </Button>
           )}
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="hover:bg-zinc-100">
-                <Menu className="w-6 h-6" />
+              <Button variant="ghost" size="icon" className="hover:bg-zinc-100 h-9.5 w-9.5 rounded-xl">
+                <Menu className="w-5.5 h-5.5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0 border-r-0">
+            <SheetContent side="left" className="w-72 p-0 border-r-0 rounded-r-3xl bg-white flex flex-col h-full shadow-2xl">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
               <div className="p-6 border-b">
                 <Logo onClick={() => setIsMenuOpen(false)} />
               </div>
-              <div className="p-4 flex flex-col gap-2 mt-2">
+              <div className="p-4 flex flex-col gap-1.5 mt-2 flex-grow overflow-y-auto">
                 <NavLinks onItemClick={() => setIsMenuOpen(false)} />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 p-6 border-t bg-white space-y-3">
+              <div className="p-6 border-t bg-zinc-50/50 space-y-3 shrink-0">
                 {profile && (
-                  <div className="flex items-center gap-3 mb-4 p-2 bg-zinc-50 rounded-lg">
-                    <div className="w-10 h-10 bg-zinc-200 rounded-full flex items-center justify-center font-bold text-zinc-600">
-                      {profile.businessName?.charAt(0)}
+                  <div className="flex items-center gap-3 mb-2 p-2 bg-white border border-zinc-100 rounded-2xl shadow-sm">
+                    <div className="w-10 h-10 bg-teal-50 text-primary border border-teal-100 rounded-full flex items-center justify-center font-bold">
+                      {profile.businessName?.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{profile.businessName}</p>
-                      <p className="text-xs text-zinc-500 truncate">{user?.email}</p>
+                      <p className="text-xs font-bold text-zinc-900 truncate">{profile.businessName}</p>
+                      <p className="text-[10px] text-zinc-400 font-medium truncate">{user?.email}</p>
                     </div>
                   </div>
                 )}
                 {deferredPrompt && (
-                  <Button variant="outline" className="w-full justify-start text-zinc-900 border-zinc-200" onClick={() => { handleInstallClick(); setIsMenuOpen(false); }}>
-                    <Download className="w-5 h-5 mr-3" />
+                  <Button variant="outline" className="w-full justify-start text-zinc-900 border-zinc-200 h-9.5 rounded-xl text-xs font-semibold" onClick={() => { handleInstallClick(); setIsMenuOpen(false); }}>
+                    <Download className="w-4 h-4 mr-2" />
                     Install App
                   </Button>
                 )}
                 {user ? (
-                  <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100" onClick={async () => { await handleSignOut(); setIsMenuOpen(false); }}>
-                    <LogOut className="w-5 h-5 mr-3" />
+                  <Button variant="ghost" className="w-full justify-start text-red-650 hover:text-red-700 hover:bg-red-50 h-9.5 rounded-xl text-xs font-bold" onClick={async () => { await handleSignOut(); setIsMenuOpen(false); }}>
+                    <LogOut className="w-4 h-4 mr-2" />
                     Sign Out
                   </Button>
                 ) : (
-                  <Button className="w-full justify-start bg-zinc-900 text-white" onClick={() => { navigate('/login'); setIsMenuOpen(false); }}>
-                    <LogOut className="w-5 h-5 mr-3 rotate-180" />
+                  <Button className="w-full justify-start bg-primary hover:bg-[#03362f] text-white h-9.5 rounded-xl text-xs font-semibold" onClick={() => { navigate('/login'); setIsMenuOpen(false); }}>
+                    <LogOut className="w-4 h-4 mr-2 rotate-180" />
                     Get Started
                   </Button>
                 )}
@@ -165,54 +163,54 @@ export function Layout() {
         <div className="p-8 pb-6">
           <Logo />
           {!user && (
-            <div className="mt-4 p-3 bg-zinc-50 rounded-lg border border-zinc-100">
-              <p className="text-xs text-zinc-500 leading-relaxed">
+            <div className="mt-4 p-3 bg-teal-50/20 rounded-2xl border border-teal-100/50">
+              <p className="text-xs text-primary font-semibold leading-relaxed">
                 You are viewing SoloBid in <strong>Demo Mode</strong>. 
               </p>
-              <Button size="sm" className="w-full mt-2 h-8 text-xs bg-zinc-900" onClick={() => navigate('/login')}>
+              <Button size="sm" className="w-full mt-2.5 h-8.5 rounded-xl text-xs bg-primary hover:bg-[#03362f] active:scale-[0.985] text-white" onClick={() => navigate('/login')}>
                 Sign Up Now
               </Button>
             </div>
           )}
         </div>
-        <div className="p-4 flex flex-col gap-1 flex-1 overflow-y-auto">
+        <div className="p-4 flex flex-col gap-1.5 flex-1 overflow-y-auto">
           <NavLinks />
         </div>
-        <div className="p-6 border-t bg-zinc-50/50 space-y-3">
+        <div className="p-6 border-t bg-zinc-50/15 space-y-3">
           {profile && (
-            <div className="flex items-center gap-3 mb-2 p-2">
-              <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center font-bold text-white shadow-md">
-                {profile.businessName?.charAt(0)}
+            <div className="flex items-center gap-3 mb-2 p-2 rounded-2xl bg-zinc-50 border border-zinc-200/40">
+              <div className="w-10 h-10 bg-teal-50 text-primary border border-teal-100 rounded-full flex items-center justify-center font-bold shadow-sm">
+                {profile.businessName?.charAt(0).toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{profile.businessName}</p>
-                <p className="text-xs text-zinc-500 truncate">{user?.email}</p>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-xs font-bold text-zinc-900 truncate">{profile.businessName}</p>
+                <p className="text-[10px] text-zinc-400 font-medium truncate">{user?.email}</p>
               </div>
             </div>
           )}
           {deferredPrompt && (
-            <Button variant="outline" className="w-full justify-start text-zinc-900 border-zinc-200 hover:bg-white" onClick={handleInstallClick}>
-              <Download className="w-5 h-5 mr-3" />
+            <Button variant="outline" className="w-full h-9.5 rounded-xl justify-start text-zinc-700 border-zinc-200 hover:bg-zinc-50 text-xs font-semibold" onClick={handleInstallClick}>
+              <Download className="w-4 h-4 mr-2 text-zinc-550" />
               Install App
             </Button>
           )}
           {user ? (
-            <Button variant="ghost" className="w-full justify-start text-zinc-500 hover:text-red-600 hover:bg-red-50" onClick={handleSignOut}>
-              <LogOut className="w-5 h-5 mr-3" />
+            <Button variant="ghost" className="w-full h-9.5 rounded-xl justify-start text-zinc-500 hover:text-red-650 hover:bg-red-50 text-xs font-semibold" onClick={handleSignOut}>
+              <LogOut className="w-4 h-4 mr-2" />
               Sign Out
             </Button>
           ) : (
-            <Button variant="ghost" className="w-full justify-start text-zinc-500 hover:text-zinc-900" onClick={() => navigate('/login')}>
-              <LogOut className="w-5 h-5 mr-3 rotate-180" />
+            <Button variant="ghost" className="w-full h-9.5 rounded-xl justify-start text-zinc-500 hover:text-zinc-900 text-xs font-semibold" onClick={() => navigate('/login')}>
+              <LogOut className="w-4 h-4 mr-2 rotate-180" />
               Sign In
             </Button>
           )}
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <div className={`flex-1 md:ml-72 p-4 md:p-10 ${!isOnline ? 'mt-10' : ''}`}>
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <Outlet />
         </div>
       </div>
