@@ -13,12 +13,14 @@ import { useAuth } from '../lib/auth';
 
 const approvalSchema = z.object({
   signatureName: z.string().min(2, "Please enter your full name to sign"),
+  signatureDataUrl: z.string().min(20, "Please draw your signature"),
   agreed: z.boolean().refine(val => val === true, "You must agree to the terms and conditions")
 });
 
 import { getCurrencySymbol } from '../lib/currencies';
 
 import { SafeHtml } from '../components/SafeHtml';
+import { SignaturePad } from '../components/SignaturePad';
 
 export default function ClientView() {
   const { id } = useParams();
@@ -30,6 +32,7 @@ export default function ClientView() {
   const [contractor, setContractor] = useState<any>(null);
   
   const [signatureName, setSignatureName] = useState('');
+  const [signatureDataUrl, setSignatureDataUrl] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [approving, setApproving] = useState(false);
 
@@ -80,7 +83,7 @@ export default function ClientView() {
   };
 
   const handleApprove = async () => {
-    const validationResult = approvalSchema.safeParse({ signatureName, agreed });
+    const validationResult = approvalSchema.safeParse({ signatureName, signatureDataUrl, agreed });
     if (!validationResult.success) {
       const errors = validationResult.error.issues.map(err => err.message);
       toast.error(errors[0]);
@@ -91,13 +94,15 @@ export default function ClientView() {
       setApproving(true);
       const collectionName = estimate?._collectionName || 'quotes';
       const docRef = doc(db, collectionName, id!);
+      const approvedAt = new Date().toISOString();
       await updateDoc(docRef, {
         status: 'approved',
         signatureName,
-        approvedAt: new Date().toISOString()
+        signatureDataUrl,
+        approvedAt
       });
       
-      setEstimate({ ...estimate, status: 'approved', signatureName, approvedAt: new Date().toISOString() });
+      setEstimate({ ...estimate, status: 'approved', signatureName, signatureDataUrl, approvedAt });
       toast.success("Quotation approved successfully!");
     } catch (error) {
       console.error("Error approving:", error);
@@ -381,6 +386,10 @@ export default function ClientView() {
                         className="font-serif text-lg py-6 bg-zinc-50 border-zinc-200 focus:ring-zinc-900 rounded-xl"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs uppercase font-bold text-zinc-500 tracking-wider">Draw Signature</Label>
+                      <SignaturePad value={signatureDataUrl} onChange={setSignatureDataUrl} />
+                    </div>
                     <div className="flex items-start gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-100">
                       <input 
                         type="checkbox" 
@@ -396,7 +405,7 @@ export default function ClientView() {
                     <Button 
                       className="w-full py-7 text-lg font-bold rounded-xl shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]" 
                       onClick={handleApprove}
-                      disabled={approving || !signatureName.trim() || !agreed}
+                      disabled={approving || !signatureName.trim() || !signatureDataUrl || !agreed}
                     >
                       {approving ? 'Approving...' : 'Sign & Approve'}
                     </Button>
@@ -418,6 +427,9 @@ export default function ClientView() {
                       <p className="text-green-700 text-sm mt-1">
                         Digitally signed by <span className="font-serif italic font-bold">{estimate.signatureName}</span>
                       </p>
+                      {estimate.signatureDataUrl && (
+                        <img src={estimate.signatureDataUrl} alt="Client signature" className="mx-auto mt-3 h-16 max-w-48 object-contain rounded-lg bg-white/70 p-2" />
+                      )}
                       <p className="text-xs text-green-600 mt-2 font-medium bg-green-100/50 py-1 px-2 rounded-full inline-block">
                         {new Date(estimate.approvedAt).toLocaleString()}
                       </p>

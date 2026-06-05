@@ -10,7 +10,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, Send, ArrowLeft, Mic, GripVertical, ImagePlus, Copy, Check, FileText, Sparkles, Calendar, Receipt, Milestone, Layers } from 'lucide-react';
+import { Plus, Trash2, Save, Send, ArrowLeft, Mic, GripVertical, ImagePlus, Copy, Check, FileText, Sparkles, Calendar, Receipt, Milestone, Layers, WifiOff, MessageCircle, Printer, Download, Loader2 } from 'lucide-react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -37,7 +37,10 @@ import DOMPurify from 'dompurify';
 import { getCurrencySymbol } from '../lib/currencies';
 import { getUserFriendlyError } from '../lib/errorHandler';
 import { useRateLimit } from '../hooks/useRateLimit';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { formatZAR } from '../lib/theme';
+import { getPendingQuoteSaves, getQuoteDraftLocally, queueQuoteSave, removeQuoteDraftLocally, saveQuoteDraftLocally, setPendingQuoteSaves, type OfflineQuoteDraft } from '../lib/offline';
+import { buildQuotePdfBlob, downloadQuotePdf, sharePdfViaWhatsApp } from '../lib/documentActions';
 
 const quoteSchema = z.object({
   clientName: z.string().min(1, "Client Name is required"),
@@ -278,6 +281,9 @@ export default function QuoteBuilder() {
   const [validityDays, setValidityDays] = useState('7');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [localSaveStatus, setLocalSaveStatus] = useState('');
+  const [pdfBusy, setPdfBusy] = useState<'download' | 'share' | null>(null);
+  const isOnline = useOnlineStatus();
 
   const { isLimited: isSaving, execute: executeSave } = useRateLimit(1000);
 
@@ -339,6 +345,21 @@ export default function QuoteBuilder() {
       addLineItem();
     }
   }, [id, user, profile]);
+
+  useEffect(() => {
+    syncPendingQuoteSaves();
+  }, [isOnline, user?.uid]);
+
+  useEffect(() => {
+    if (!user || !profile || lineItems.length === 0) return;
+    const timeout = window.setTimeout(() => {
+      const quoteId = id || 'new';
+      const draft = buildOfflineDraft(quoteId, 'draft');
+      saveQuoteDraftLocally(draft);
+      setLocalSaveStatus(`Saved locally ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+    }, 900);
+    return () => window.clearTimeout(timeout);
+  }, [clientName, clientEmail, notes, lineItems, expenses, taxRate, currency, validityDays, isMilestone, progressPercent]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -413,8 +434,26 @@ export default function QuoteBuilder() {
         setExpenses(loadedExpenses);
       }
     } catch (error) {
-      console.error("Error loading quote:", error);
-      toast.error("Failed to load quote");
+      const localDraft = user ? getQuoteDraftLocally(user.uid, quoteId) : null;
+      if (localDraft) {
+        const data = localDraft.quoteData;
+        setClientName(data.clientName || '');
+        setClientEmail(data.clientEmail || '');
+        setNotes(data.notes || '');
+        setTaxRate(data.taxRate !== undefined ? data.taxRate : (profile?.defaultTaxRate || 0));
+        setCurrency(data.currency || profile?.defaultCurrency || 'ZAR');
+        setIsMilestone(data.isMilestone || false);
+        setProgressPercent(data.progressPercent || 0);
+        setQuoteCreatedAt(data.createdAt || null);
+        setValidityDays(data.validityDays || '7');
+        setLineItems(localDraft.lineItems as LineItem[]);
+        setExpenses(localDraft.expenses as Expense[]);
+        setLocalSaveStatus('Restored from local draft');
+        toast.info('Loaded your local draft while offline.');
+      } else {
+        console.error("Error loading quote:", error);
+        toast.error("Failed to load quote");
+      }
     } finally {
       setLoading(false);
     }
@@ -463,6 +502,106 @@ export default function QuoteBuilder() {
     return { subtotal, tax, total, effectiveTaxRate };
   };
 
+  const buildOfflineDraft = (quoteId: string, status: 'draft' | 'sent'): OfflineQuoteDraft => {
+    const { subtotal, tax, total, effectiveTaxRate } = calculateTotals();
+    const originalCreatedAtStr = quoteCreatedAt || new Date().toISOString();
+    let expiresAt: string | null = null;
+    if (validityDays !== 'never') {
+      const daysNum = parseInt(validityDays, 10);
+      const dt = new Date(originalCreatedAtStr);
+      dt.setDate(dt.getDate() + daysNum);
+      expiresAt = dt.toISOString();
+    }
+
+    return {
+      quoteId,
+      uid: user!.uid,
+      status,
+      savedAt: new Date().toISOString(),
+      quoteData: {
+        id: quoteId,
+        uid: user!.uid,
+        clientId: selectedClientId || null,
+        clientName: DOMPurify.sanitize(clientName),
+        clientEmail: DOMPurify.sanitize(clientEmail),
+        notes: DOMPurify.sanitize(notes),
+        taxRate: effectiveTaxRate,
+        subtotal,
+        taxAmount: tax,
+        total,
+        currency,
+        vatAmount: currency === 'ZAR' && profile?.saTaxInvoiceMode ? tax : 0,
+        isSATaxInvoice: currency === 'ZAR' && profile?.saTaxInvoiceMode,
+        isMilestone,
+        progressPercent,
+        status,
+        contractorBusinessName: profile?.businessName || '',
+        contractorLogoUrl: profile?.logoUrl || '',
+        contractorTerms: profile?.terms || '',
+        updatedAt: new Date().toISOString(),
+        createdAt: originalCreatedAtStr,
+        validityDays,
+        expiresAt
+      },
+      lineItems: lineItems.map(item => ({
+        ...item,
+        qty: typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 0,
+        unitCost: typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0,
+        markupPercent: typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0
+      })),
+      expenses: expenses.map(expense => ({
+        ...expense,
+        amount: typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0,
+        uid: user!.uid,
+        quoteId,
+        currency,
+        createdAt: expense.createdAt || new Date().toISOString()
+      }))
+    };
+  };
+
+  const commitQuoteDraft = async (draft: OfflineQuoteDraft) => {
+    const batch = writeBatch(db);
+    const quoteRef = doc(db, 'quotes', draft.quoteId);
+    batch.set(quoteRef, draft.quoteData, { merge: true });
+
+    const itemsRef = collection(db, 'quotes', draft.quoteId, 'lineItems');
+    const existingItemsSnap = await getDocs(itemsRef);
+    const currentItemIds = new Set(draft.lineItems.map(item => item.id));
+    existingItemsSnap.docs.forEach(docSnap => {
+      if (!currentItemIds.has(docSnap.id)) batch.delete(docSnap.ref);
+    });
+    draft.lineItems.forEach(item => batch.set(doc(itemsRef, item.id), item));
+
+    const expensesRef = collection(db, 'quotes', draft.quoteId, 'expenses');
+    const existingExpensesSnap = await getDocs(expensesRef);
+    const currentExpenseIds = new Set(draft.expenses.map(exp => exp.id));
+    existingExpensesSnap.docs.forEach(docSnap => {
+      if (!currentExpenseIds.has(docSnap.id)) batch.delete(docSnap.ref);
+    });
+    draft.expenses.forEach(expense => batch.set(doc(expensesRef, expense.id), expense));
+
+    await batch.commit();
+    saveQuoteDraftLocally(draft);
+    removeQuoteDraftLocally(draft.uid, draft.quoteId);
+  };
+
+  const syncPendingQuoteSaves = async () => {
+    if (!user || !isOnline) return;
+    const pending = getPendingQuoteSaves().filter(item => item.uid === user.uid);
+    if (pending.length === 0) return;
+    const remaining = getPendingQuoteSaves().filter(item => item.uid !== user.uid);
+    for (const draft of pending) {
+      try {
+        await commitQuoteDraft(draft);
+      } catch (error) {
+        remaining.push(draft);
+      }
+    }
+    setPendingQuoteSaves(remaining);
+    if (remaining.length === 0) toast.success('Local quote changes synced');
+  };
+
   const handleSave = async (status: 'draft' | 'sent' = 'draft') => {
     if (status === 'sent' && !clientEmail.trim()) {
       toast.error("Client Email Address Required to Transmit.");
@@ -485,8 +624,19 @@ export default function QuoteBuilder() {
           return;
         }
 
-        setLoading(true);
         const quoteId = id || uuidv4();
+        const localDraft = buildOfflineDraft(quoteId, status);
+        saveQuoteDraftLocally(localDraft);
+        setLocalSaveStatus(`Saved locally ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+
+        if (!isOnline) {
+          queueQuoteSave(localDraft);
+          toast.success('Saved locally. SoloBid will sync when you are back online.');
+          if (!id) navigate(`/quotes/${quoteId}`, { replace: true });
+          return;
+        }
+
+        setLoading(true);
         const { subtotal, tax, total, effectiveTaxRate } = calculateTotals();
         
         const originalCreatedAtStr = quoteCreatedAt || new Date().toISOString();
@@ -577,6 +727,8 @@ export default function QuoteBuilder() {
         }
 
         await batch.commit();
+        removeQuoteDraftLocally(user.uid, quoteId);
+        setLocalSaveStatus('Synced just now');
 
         toast.success(`Quote ${status === 'sent' ? 'sent' : 'saved'} successfully`);
         
@@ -728,10 +880,51 @@ export default function QuoteBuilder() {
     });
   };
 
-  const handleWhatsAppShare = () => {
-    const url = `${window.location.origin}/client/quote/${id}`;
-    const text = `Hi ${clientName}, here is your quote proposal from ${profile?.businessName}: ${url}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  const currentQuoteForPdf = () => ({
+    ...(buildOfflineDraft(id || 'draft', 'draft').quoteData),
+    id: id || 'draft'
+  });
+
+  const handleDownloadQuotePdf = async () => {
+    if (!profile) return;
+    try {
+      setPdfBusy('download');
+      await downloadQuotePdf(currentQuoteForPdf(), profile, lineItems);
+      toast.success('Quotation PDF downloaded');
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast.error('Failed to create quotation PDF');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  const handlePrintQuote = async () => {
+    await handleDownloadQuotePdf();
+    window.setTimeout(() => window.print(), 150);
+  };
+
+  const handleWhatsAppShare = async () => {
+    if (!profile) return;
+    try {
+      setPdfBusy('share');
+      const quote = currentQuoteForPdf();
+      const blob = await buildQuotePdfBlob(quote, profile, lineItems);
+      const url = id ? `${window.location.origin}/client/quote/${id}` : window.location.href;
+      await sharePdfViaWhatsApp(
+        blob,
+        `Quote_${(id || 'draft').substring(0, 8).toUpperCase()}.pdf`,
+        `Hi ${clientName || 'there'}, here is your quote proposal from ${profile.businessName}.`,
+        url
+      );
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        console.error('WhatsApp share error:', error);
+        toast.error('Could not open share sheet');
+      }
+    } finally {
+      setPdfBusy(null);
+    }
   };
 
   const handleDeleteQuote = async () => {
@@ -789,6 +982,18 @@ export default function QuoteBuilder() {
               {id ? 'Edit Bid Proposal' : 'Draft New Quote'}
             </h1>
             <p className="text-zinc-450 text-xs mt-0.5">Fill in the customer details, line items, and tax rate.</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {!isOnline && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                  <WifiOff className="h-3 w-3" /> Offline
+                </span>
+              )}
+              {localSaveStatus && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                  <Check className="h-3 w-3" /> {localSaveStatus}
+                </span>
+              )}
+            </div>
           </div>
           
           <div className="flex items-center gap-2 mt-2 sm:mt-0 sm:ml-4">
@@ -830,6 +1035,15 @@ export default function QuoteBuilder() {
               >
                 {copied ? <Check className="w-4 h-4 mr-2 text-green-600" /> : <Copy className="w-4 h-4 mr-2 text-zinc-500" />}
                 Copy Link
+              </Button>
+              <Button variant="outline" className="h-10 border-zinc-200 text-zinc-700 rounded-xl px-4 hover:bg-zinc-50 active:scale-95 transition-all text-sm" onClick={handleDownloadQuotePdf} disabled={!!pdfBusy} title="Download polished PDF">
+                {pdfBusy === 'download' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2 text-zinc-500" />} PDF
+              </Button>
+              <Button variant="outline" className="h-10 border-zinc-200 text-zinc-700 rounded-xl px-4 hover:bg-zinc-50 active:scale-95 transition-all text-sm" onClick={handlePrintQuote} disabled={!!pdfBusy} title="Print quote">
+                <Printer className="w-4 h-4 mr-2 text-zinc-500" /> Print
+              </Button>
+              <Button variant="outline" className="h-10 border-emerald-200 bg-emerald-50 text-emerald-800 rounded-xl px-4 hover:bg-emerald-100 active:scale-95 transition-all text-sm" onClick={handleWhatsAppShare} disabled={!!pdfBusy} title="Share PDF via WhatsApp">
+                {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />} WhatsApp
               </Button>
             </>
           )}
