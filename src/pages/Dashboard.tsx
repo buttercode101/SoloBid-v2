@@ -53,7 +53,7 @@ export default function Dashboard() {
 
   const isQuoteExpired = (q: any) => {
     if (!q.expiresAt) return false;
-    if (['approved', 'paid', 'converted'].includes(q.status)) return false;
+    if (['approved', 'rejected', 'paid', 'converted'].includes(q.status)) return false;
     return new Date() > new Date(q.expiresAt);
   };
 
@@ -302,6 +302,8 @@ export default function Dashboard() {
         return { style: statusBadgeStyles.paid, label: 'Paid' };
       case 'overdue':
         return { style: statusBadgeStyles.overdue, label: 'Overdue' };
+      case 'rejected':
+        return { style: statusBadgeStyles.rejected, label: 'Declined' };
       case 'expired':
         return { style: 'bg-red-50 text-red-700 border border-red-150', label: 'Expired' };
       default:
