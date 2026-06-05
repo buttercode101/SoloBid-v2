@@ -34,28 +34,24 @@ service cloud.firestore {
       return data.uid is string && data.uid.size() > 0
         && data.clientName is string && data.clientName.size() <= 200
         && data.total is number && data.total >= 0
-        && data.status in ['draft', 'sent', 'approved', 'rejected', 'converted', 'paid', 'overdue'];
+        && data.status in ['draft', 'sent', 'approved', 'rejected', 'request_revision', 'converted', 'paid', 'overdue'];
     }
 
     function isValidQuote(data) {
       return data.uid is string && data.uid.size() > 0
         && data.clientName is string && data.clientName.size() <= 200
         && data.total is number && data.total >= 0
-        && data.status in ['draft', 'sent', 'approved', 'rejected', 'converted', 'paid', 'overdue'];
+        && data.status in ['draft', 'sent', 'approved', 'rejected', 'request_revision', 'converted', 'paid', 'overdue'];
     }
 
     function isClientApprovalUpdate() {
       return existing().status == 'sent'
         && incoming().status == 'approved'
         && incoming().uid == existing().uid
-        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'signatureName', 'signatureDataUrl', 'approvedAt'])
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'signatureName', 'approvedAt'])
         && incoming().signatureName is string
         && incoming().signatureName.size() > 0
         && incoming().signatureName.size() < 100
-        && incoming().signatureDataUrl is string
-        && incoming().signatureDataUrl.size() > 20
-        && incoming().signatureDataUrl.size() < 500000
-        && incoming().signatureDataUrl.matches('^data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+$')
         && incoming().approvedAt is string;
     }
 
@@ -69,6 +65,17 @@ service cloud.firestore {
         && incoming().rejectedAt is string;
     }
 
+
+    function isClientRevisionRequestUpdate() {
+      return existing().status == 'sent'
+        && incoming().status == 'request_revision'
+        && incoming().uid == existing().uid
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'revisionRequest', 'revisionRequestedAt'])
+        && incoming().revisionRequest is string
+        && incoming().revisionRequest.size() <= 1000
+        && incoming().revisionRequestedAt is string;
+    }
+
     // Users
     match /users/{userId} {
       allow read: if isOwner(userId);
@@ -80,11 +87,11 @@ service cloud.firestore {
     match /quotes/{quoteId} {
       allow list: if request.auth != null ? resource.data.uid == request.auth.uid : (resource.data.uid != null);
       allow get: if (request.auth != null ? resource.data.uid == request.auth.uid : (resource.data.uid is string && resource.data.uid.matches('^guest_.*')))
-                    || resource.data.status in ['draft', 'sent', 'approved', 'rejected', 'converted', 'paid', 'overdue'];
+                    || resource.data.status in ['draft', 'sent', 'approved', 'rejected', 'request_revision', 'converted', 'paid', 'overdue'];
       allow create: if (request.auth != null ? request.resource.data.uid == request.auth.uid : (request.resource.data.uid is string && request.resource.data.uid.matches('^guest_.*'))) && isValidQuote(incoming()) && isValidId(quoteId);
       allow update: if (
         (request.auth != null ? (resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid) : (resource.data.uid is string && resource.data.uid.matches('^guest_.*') && request.resource.data.uid == resource.data.uid)) && isValidQuote(incoming())
-      ) || isClientApprovalUpdate() || isClientRejectionUpdate();
+      );
       allow delete: if request.auth != null ? resource.data.uid == request.auth.uid : (resource.data.uid is string && resource.data.uid.matches('^guest_.*'));
     }
 
@@ -92,7 +99,7 @@ service cloud.firestore {
     match /quotes/{quoteId}/lineItems/{itemId} {
       function quoteParentIsReadable() {
         return isOwner(get(/databases/$(database)/documents/quotes/$(quoteId)).data.uid)
-               || get(/databases/$(database)/documents/quotes/$(quoteId)).data.status in ['draft', 'sent', 'approved', 'rejected', 'converted', 'paid', 'overdue'];
+               || get(/databases/$(database)/documents/quotes/$(quoteId)).data.status in ['draft', 'sent', 'approved', 'rejected', 'request_revision', 'converted', 'paid', 'overdue'];
       }
       
       allow read: if quoteParentIsReadable();
@@ -100,6 +107,16 @@ service cloud.firestore {
         (exists(/databases/$(database)/documents/quotes/$(quoteId)) && isOwner(get(/databases/$(database)/documents/quotes/$(quoteId)).data.uid)) ||
         (existsAfter(/databases/$(database)/documents/quotes/$(quoteId)) && isOwner(getAfter(/databases/$(database)/documents/quotes/$(quoteId)).data.uid))
       );
+    }
+
+    match /quotes/{quoteId}/approvalAudits/{auditId} {
+      allow read: if exists(/databases/$(database)/documents/quotes/$(quoteId)) && isOwner(get(/databases/$(database)/documents/quotes/$(quoteId)).data.uid);
+      allow write: if false;
+    }
+
+    match /quotes/{quoteId}/approvalArtifacts/{artifactId} {
+      allow read: if exists(/databases/$(database)/documents/quotes/$(quoteId)) && isOwner(get(/databases/$(database)/documents/quotes/$(quoteId)).data.uid);
+      allow write: if false;
     }
 
     match /quotes/{quoteId}/expenses/{expenseId} {
@@ -117,11 +134,11 @@ service cloud.firestore {
     match /estimates/{estimateId} {
       allow list: if request.auth != null ? resource.data.uid == request.auth.uid : (resource.data.uid != null);
       allow get: if (request.auth != null ? resource.data.uid == request.auth.uid : (resource.data.uid is string && resource.data.uid.matches('^guest_.*')))
-                    || resource.data.status in ['draft', 'sent', 'approved', 'rejected', 'converted', 'paid', 'overdue'];
+                    || resource.data.status in ['draft', 'sent', 'approved', 'rejected', 'request_revision', 'converted', 'paid', 'overdue'];
       allow create: if (request.auth != null ? request.resource.data.uid == request.auth.uid : (request.resource.data.uid is string && request.resource.data.uid.matches('^guest_.*'))) && isValidEstimate(incoming()) && isValidId(estimateId);
       allow update: if (
         (request.auth != null ? (resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid) : (resource.data.uid is string && resource.data.uid.matches('^guest_.*') && request.resource.data.uid == resource.data.uid)) && isValidEstimate(incoming())
-      ) || isClientApprovalUpdate() || isClientRejectionUpdate();
+      );
       allow delete: if request.auth != null ? resource.data.uid == request.auth.uid : (resource.data.uid is string && resource.data.uid.matches('^guest_.*'));
     }
     
@@ -129,7 +146,7 @@ service cloud.firestore {
     match /estimates/{estimateId}/lineItems/{itemId} {
       function parentIsReadable() {
         return isOwner(get(/databases/$(database)/documents/estimates/$(estimateId)).data.uid)
-               || get(/databases/$(database)/documents/estimates/$(estimateId)).data.status in ['draft', 'sent', 'approved', 'rejected', 'converted', 'paid', 'overdue'];
+               || get(/databases/$(database)/documents/estimates/$(estimateId)).data.status in ['draft', 'sent', 'approved', 'rejected', 'request_revision', 'converted', 'paid', 'overdue'];
       }
       
       allow read: if parentIsReadable();
@@ -140,6 +157,16 @@ service cloud.firestore {
     }
 
     // Expenses subcollection
+    match /estimates/{estimateId}/approvalAudits/{auditId} {
+      allow read: if exists(/databases/$(database)/documents/estimates/$(estimateId)) && isOwner(get(/databases/$(database)/documents/estimates/$(estimateId)).data.uid);
+      allow write: if false;
+    }
+
+    match /estimates/{estimateId}/approvalArtifacts/{artifactId} {
+      allow read: if exists(/databases/$(database)/documents/estimates/$(estimateId)) && isOwner(get(/databases/$(database)/documents/estimates/$(estimateId)).data.uid);
+      allow write: if false;
+    }
+
     match /estimates/{estimateId}/expenses/{expenseId} {
       allow read: if (
         (exists(/databases/$(database)/documents/estimates/$(estimateId)) && isOwner(get(/databases/$(database)/documents/estimates/$(estimateId)).data.uid)) ||

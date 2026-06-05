@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -14,18 +14,17 @@ import { useAuth } from '../lib/auth';
 
 const approvalSchema = z.object({
   signatureName: z.string().min(2, "Please enter your full name to sign"),
-  signatureDataUrl: z.string().min(20, "Please draw your signature"),
   agreed: z.boolean().refine(val => val === true, "You must agree to the terms and conditions")
 });
 
 import { getCurrencySymbol } from '../lib/currencies';
 
 import { SafeHtml } from '../components/SafeHtml';
-import { SignaturePad } from '../components/SignaturePad';
 
 export default function ClientView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [estimate, setEstimate] = useState<any>(null); // keeping the state name "estimate" internal to avoid wide changes, but display labels as Quotation
@@ -33,11 +32,11 @@ export default function ClientView() {
   const [contractor, setContractor] = useState<any>(null);
   
   const [signatureName, setSignatureName] = useState('');
-  const [signatureDataUrl, setSignatureDataUrl] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [clientNote, setClientNote] = useState('');
   const [rejecting, setRejecting] = useState(false);
+  const [requestingRevision, setRequestingRevision] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -91,7 +90,7 @@ export default function ClientView() {
       return;
     }
 
-    const validationResult = approvalSchema.safeParse({ signatureName, signatureDataUrl, agreed });
+    const validationResult = approvalSchema.safeParse({ signatureName, agreed });
     if (!validationResult.success) {
       const errors = validationResult.error.issues.map(err => err.message);
       toast.error(errors[0]);
@@ -100,21 +99,28 @@ export default function ClientView() {
 
     try {
       setApproving(true);
-      const collectionName = estimate?._collectionName || 'quotes';
-      const docRef = doc(db, collectionName, id!);
       const approvedAt = new Date().toISOString();
-      await updateDoc(docRef, {
-        status: 'approved',
-        signatureName: signatureName.trim(),
-        signatureDataUrl,
-        approvedAt
+      const response = await fetch(`/api/public/quotes/${id}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: searchParams.get('token'),
+          collectionName: estimate?._collectionName || 'quotes',
+          decision: 'approve',
+          signatureName: signatureName.trim(),
+        }),
       });
-      
-      setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to approve quotation.');
+      }
+      const result = await response.json();
+      const finalApprovedAt = result.at || approvedAt;
+      setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), approvedAt: finalApprovedAt });
       toast.success("Quotation approved successfully!");
     } catch (error) {
       console.error("Error approving:", error);
-      toast.error("Failed to approve quotation. Please refresh the link and try again, or contact the sender.");
+      toast.error(error instanceof Error ? error.message : "Failed to approve quotation. Please refresh the link and try again, or contact the sender.");
     } finally {
       setApproving(false);
     }
@@ -128,23 +134,69 @@ export default function ClientView() {
 
     try {
       setRejecting(true);
-      const collectionName = estimate?._collectionName || 'quotes';
-      const docRef = doc(db, collectionName, id!);
       const rejectedAt = new Date().toISOString();
-      const trimmedReason = rejectionReason.trim();
-      await updateDoc(docRef, {
-        status: 'rejected',
-        rejectionReason: trimmedReason,
-        rejectedAt
+      const trimmedReason = clientNote.trim();
+      const response = await fetch(`/api/public/quotes/${id}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: searchParams.get('token'),
+          collectionName: estimate?._collectionName || 'quotes',
+          decision: 'reject',
+          note: trimmedReason,
+        }),
       });
-
-      setEstimate({ ...estimate, status: 'rejected', rejectionReason: trimmedReason, rejectedAt });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to decline quotation.');
+      }
+      const result = await response.json();
+      const finalRejectedAt = result.at || rejectedAt;
+      setEstimate({ ...estimate, status: 'rejected', rejectionReason: trimmedReason, rejectedAt: finalRejectedAt });
       toast.success('Quotation declined. The sender can review your response.');
     } catch (error) {
       console.error('Error rejecting:', error);
-      toast.error('Failed to decline quotation. Please refresh the link and try again, or contact the sender.');
+      toast.error(error instanceof Error ? error.message : 'Failed to decline quotation. Please refresh the link and try again, or contact the sender.');
     } finally {
       setRejecting(false);
+    }
+  };
+
+
+
+  const handleRequestRevision = async () => {
+    if (estimate?.status !== 'sent') {
+      toast.error('This quotation is not currently open for revision requests.');
+      return;
+    }
+
+    try {
+      setRequestingRevision(true);
+      const revisionRequestedAt = new Date().toISOString();
+      const trimmedNote = clientNote.trim();
+      const response = await fetch(`/api/public/quotes/${id}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: searchParams.get('token'),
+          collectionName: estimate?._collectionName || 'quotes',
+          decision: 'request_revision',
+          note: trimmedNote,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to request revisions.');
+      }
+      const result = await response.json();
+      const finalRequestedAt = result.at || revisionRequestedAt;
+      setEstimate({ ...estimate, status: 'request_revision', revisionRequest: trimmedNote, revisionRequestedAt: finalRequestedAt });
+      toast.success('Revision request sent. The sender can review your response.');
+    } catch (error) {
+      console.error('Error requesting revision:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to request revisions. Please refresh the link and try again, or contact the sender.');
+    } finally {
+      setRequestingRevision(false);
     }
   };
 
@@ -161,7 +213,7 @@ export default function ClientView() {
   const isSATaxInvoice = estimate?.currency === 'ZAR' && contractor?.saTaxInvoiceMode;
 
   const isExpired = estimate?.expiresAt && 
-                    !['approved', 'rejected', 'paid', 'converted'].includes(estimate.status) && 
+                    !['approved', 'rejected', 'request_revision', 'paid', 'converted'].includes(estimate.status) && 
                     new Date() > new Date(estimate.expiresAt);
 
   return (
@@ -227,6 +279,7 @@ export default function ClientView() {
                   converted: { bg: 'bg-purple-50', text: 'text-purple-700', icon: '✓', label: 'Invoiced' },
                   overdue: { bg: 'bg-red-50', text: 'text-red-700', icon: '!', label: 'Overdue' },
                   rejected: { bg: 'bg-red-50', text: 'text-red-700', icon: '×', label: 'Declined' },
+                    request_revision: { bg: 'bg-amber-50', text: 'text-amber-700', icon: '↻', label: 'Revision Requested' },
                   expired: { bg: 'bg-red-50', text: 'text-red-700', icon: '⏰', label: 'Expired' }
                 };
                 const activeStatus = isExpired ? 'expired' : estimate.status;
@@ -349,11 +402,11 @@ export default function ClientView() {
                   {[
                     { key: 'draft', label: 'Quotation Prepared', icon: '📝' },
                     { key: 'sent', label: 'Quotation Sent', icon: '✉️' },
-                    { key: 'approved', label: 'Awaiting Approval', icon: '✍️' },
+                    { key: 'approved', label: 'Client Approved', icon: '✍️' },
                     { key: 'converted', label: 'Job Scheduled', icon: '🗓️' },
                   ].map((step, i) => {
                     const sequence = ['draft', 'sent', 'approved', 'converted'];
-                    const currentIndex = sequence.indexOf(estimate.status === 'paid' ? 'converted' : estimate.status);
+                    const currentIndex = sequence.indexOf(estimate.status === 'paid' ? 'converted' : estimate.status === 'request_revision' ? 'sent' : estimate.status);
                     const stepIndex = sequence.indexOf(step.key);
                     const isCompleted = stepIndex < currentIndex || estimate.status === 'converted' || estimate.status === 'paid';
                     const isCurrent = stepIndex === currentIndex && estimate.status !== 'converted' && estimate.status !== 'paid';
@@ -423,10 +476,6 @@ export default function ClientView() {
                         className="font-serif text-lg py-6 bg-zinc-50 border-zinc-200 focus:ring-zinc-900 rounded-xl"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase font-bold text-zinc-500 tracking-wider">Draw Signature</Label>
-                      <SignaturePad value={signatureDataUrl} onChange={setSignatureDataUrl} />
-                    </div>
                     <div className="flex items-start gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-100">
                       <input 
                         type="checkbox" 
@@ -442,7 +491,7 @@ export default function ClientView() {
                     <Button 
                       className="w-full py-7 text-lg font-bold rounded-xl shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]" 
                       onClick={handleApprove}
-                      disabled={approving || rejecting || !signatureName.trim() || !signatureDataUrl || !agreed}
+                      disabled={approving || rejecting || requestingRevision || !signatureName.trim() || !agreed}
                     >
                       {approving ? 'Approving...' : 'Sign & Approve'}
                     </Button>
@@ -450,11 +499,11 @@ export default function ClientView() {
                       By clicking approve, you electronically sign this agreement.
                     </p>
                     <div className="border-t border-zinc-100 pt-5 space-y-3">
-                      <Label htmlFor="rejectionReason" className="text-xs uppercase font-bold text-zinc-500 tracking-wider">Decline Note (Optional)</Label>
+                      <Label htmlFor="clientNote" className="text-xs uppercase font-bold text-zinc-500 tracking-wider">Decline or Revision Note (Optional)</Label>
                       <Textarea
-                        id="rejectionReason"
-                        value={rejectionReason}
-                        onChange={e => setRejectionReason(e.target.value.slice(0, 1000))}
+                        id="clientNote"
+                        value={clientNote}
+                        onChange={e => setClientNote(e.target.value.slice(0, 1000))}
                         placeholder="Add a short reason or requested change for the sender."
                         className="min-h-24 rounded-xl bg-zinc-50 text-sm"
                       />
@@ -462,10 +511,44 @@ export default function ClientView() {
                         variant="outline"
                         className="w-full rounded-xl border-red-200 text-red-700 hover:bg-red-50"
                         onClick={handleReject}
-                        disabled={approving || rejecting}
+                        disabled={approving || rejecting || requestingRevision}
                       >
                         {rejecting ? 'Declining...' : 'Decline Quotation'}
                       </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
+                        onClick={handleRequestRevision}
+                        disabled={approving || rejecting || requestingRevision}
+                      >
+                        {requestingRevision ? 'Sending Request...' : 'Request Revision'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : estimate.status === 'request_revision' ? (
+              <div className="sticky top-20">
+                <Card className="bg-amber-50 border-amber-200 shadow-sm border-2">
+                  <CardContent className="p-8 text-center space-y-4">
+                    <div className="w-16 h-16 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto shadow-lg shadow-amber-100 text-3xl font-bold">
+                      ↻
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-amber-900 tracking-tight">Revision Requested</h3>
+                      <p className="text-amber-700 text-sm mt-1">
+                        This quotation has a client revision request.
+                      </p>
+                      {estimate.revisionRequest && (
+                        <p className="mt-3 rounded-xl bg-white/70 p-3 text-left text-sm text-amber-800">
+                          {estimate.revisionRequest}
+                        </p>
+                      )}
+                      {estimate.revisionRequestedAt && (
+                        <p className="text-xs text-amber-600 mt-2 font-medium bg-amber-100/50 py-1 px-2 rounded-full inline-block">
+                          {new Date(estimate.revisionRequestedAt).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -519,9 +602,6 @@ export default function ClientView() {
                       <p className="text-green-700 text-sm mt-1">
                         Digitally signed by <span className="font-serif italic font-bold">{estimate.signatureName}</span>
                       </p>
-                      {estimate.signatureDataUrl && (
-                        <img src={estimate.signatureDataUrl} alt="Client signature" className="mx-auto mt-3 h-16 max-w-48 object-contain rounded-lg bg-white/70 p-2" />
-                      )}
                       <p className="text-xs text-green-600 mt-2 font-medium bg-green-100/50 py-1 px-2 rounded-full inline-block">
                         {new Date(estimate.approvedAt).toLocaleString()}
                       </p>

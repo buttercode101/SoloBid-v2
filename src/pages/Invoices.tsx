@@ -337,7 +337,9 @@ export default function Invoices() {
       approved: 'Approved',
       paid: 'Paid',
       converted: 'Invoiced',
-      overdue: 'Overdue'
+      overdue: 'Overdue',
+      rejected: 'Declined',
+      request_revision: 'Revision Requested'
     };
     const label = labelMap[status.toLowerCase()] || status;
     return (
