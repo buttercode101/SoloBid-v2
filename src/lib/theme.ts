@@ -60,4 +60,5 @@ export const statusBadgeStyles = {
   draft: 'bg-zinc-100 text-zinc-650 border border-zinc-200',
   paid: 'bg-teal-50 text-teal-700 border border-teal-100',
   overdue: 'bg-red-50 text-red-700 border border-red-100',
+  rejected: 'bg-red-50 text-red-700 border border-red-100',
 };

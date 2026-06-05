@@ -5,6 +5,7 @@ import { doc, getDoc, collection, getDocs, updateDoc } from 'firebase/firestore'
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
@@ -35,6 +36,8 @@ export default function ClientView() {
   const [signatureDataUrl, setSignatureDataUrl] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -83,6 +86,11 @@ export default function ClientView() {
   };
 
   const handleApprove = async () => {
+    if (estimate?.status !== 'sent') {
+      toast.error('This quotation is not currently open for approval.');
+      return;
+    }
+
     const validationResult = approvalSchema.safeParse({ signatureName, signatureDataUrl, agreed });
     if (!validationResult.success) {
       const errors = validationResult.error.issues.map(err => err.message);
@@ -97,18 +105,46 @@ export default function ClientView() {
       const approvedAt = new Date().toISOString();
       await updateDoc(docRef, {
         status: 'approved',
-        signatureName,
+        signatureName: signatureName.trim(),
         signatureDataUrl,
         approvedAt
       });
       
-      setEstimate({ ...estimate, status: 'approved', signatureName, signatureDataUrl, approvedAt });
+      setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt });
       toast.success("Quotation approved successfully!");
     } catch (error) {
       console.error("Error approving:", error);
-      toast.error("Failed to approve quotation");
+      toast.error("Failed to approve quotation. Please refresh the link and try again, or contact the sender.");
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (estimate?.status !== 'sent') {
+      toast.error('This quotation is not currently open for rejection.');
+      return;
+    }
+
+    try {
+      setRejecting(true);
+      const collectionName = estimate?._collectionName || 'quotes';
+      const docRef = doc(db, collectionName, id!);
+      const rejectedAt = new Date().toISOString();
+      const trimmedReason = rejectionReason.trim();
+      await updateDoc(docRef, {
+        status: 'rejected',
+        rejectionReason: trimmedReason,
+        rejectedAt
+      });
+
+      setEstimate({ ...estimate, status: 'rejected', rejectionReason: trimmedReason, rejectedAt });
+      toast.success('Quotation declined. The sender can review your response.');
+    } catch (error) {
+      console.error('Error rejecting:', error);
+      toast.error('Failed to decline quotation. Please refresh the link and try again, or contact the sender.');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -125,7 +161,7 @@ export default function ClientView() {
   const isSATaxInvoice = estimate?.currency === 'ZAR' && contractor?.saTaxInvoiceMode;
 
   const isExpired = estimate?.expiresAt && 
-                    !['approved', 'paid', 'converted'].includes(estimate.status) && 
+                    !['approved', 'rejected', 'paid', 'converted'].includes(estimate.status) && 
                     new Date() > new Date(estimate.expiresAt);
 
   return (
@@ -190,6 +226,7 @@ export default function ClientView() {
                   paid: { bg: 'bg-green-50', text: 'text-green-700', icon: '✓', label: 'Paid' },
                   converted: { bg: 'bg-purple-50', text: 'text-purple-700', icon: '✓', label: 'Invoiced' },
                   overdue: { bg: 'bg-red-50', text: 'text-red-700', icon: '!', label: 'Overdue' },
+                  rejected: { bg: 'bg-red-50', text: 'text-red-700', icon: '×', label: 'Declined' },
                   expired: { bg: 'bg-red-50', text: 'text-red-700', icon: '⏰', label: 'Expired' }
                 };
                 const activeStatus = isExpired ? 'expired' : estimate.status;
@@ -368,12 +405,12 @@ export default function ClientView() {
                   </CardContent>
                 </Card>
               </div>
-            ) : estimate.status !== 'approved' && estimate.status !== 'converted' && estimate.status !== 'paid' ? (
+            ) : estimate.status === 'sent' ? (
               <div className="sticky top-20">
                 <Card className="border-none shadow-xl shadow-zinc-200 overflow-hidden ring-1 ring-zinc-200">
                   <CardHeader className="bg-zinc-900 text-white">
-                    <CardTitle className="text-lg">Approve Quotation</CardTitle>
-                    <p className="text-xs text-zinc-400">Please review the details then sign below.</p>
+                    <CardTitle className="text-lg">Approve or Decline Quotation</CardTitle>
+                    <p className="text-xs text-zinc-400">Please review the details, then sign to approve or decline with an optional note.</p>
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
                     <div className="space-y-2">
@@ -405,12 +442,67 @@ export default function ClientView() {
                     <Button 
                       className="w-full py-7 text-lg font-bold rounded-xl shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]" 
                       onClick={handleApprove}
-                      disabled={approving || !signatureName.trim() || !signatureDataUrl || !agreed}
+                      disabled={approving || rejecting || !signatureName.trim() || !signatureDataUrl || !agreed}
                     >
                       {approving ? 'Approving...' : 'Sign & Approve'}
                     </Button>
                     <p className="text-[10px] text-zinc-400 text-center uppercase tracking-widest leading-relaxed">
                       By clicking approve, you electronically sign this agreement.
+                    </p>
+                    <div className="border-t border-zinc-100 pt-5 space-y-3">
+                      <Label htmlFor="rejectionReason" className="text-xs uppercase font-bold text-zinc-500 tracking-wider">Decline Note (Optional)</Label>
+                      <Textarea
+                        id="rejectionReason"
+                        value={rejectionReason}
+                        onChange={e => setRejectionReason(e.target.value.slice(0, 1000))}
+                        placeholder="Add a short reason or requested change for the sender."
+                        className="min-h-24 rounded-xl bg-zinc-50 text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        className="w-full rounded-xl border-red-200 text-red-700 hover:bg-red-50"
+                        onClick={handleReject}
+                        disabled={approving || rejecting}
+                      >
+                        {rejecting ? 'Declining...' : 'Decline Quotation'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : estimate.status === 'rejected' ? (
+              <div className="sticky top-20">
+                <Card className="bg-red-50 border-red-200 shadow-sm border-2">
+                  <CardContent className="p-8 text-center space-y-4">
+                    <div className="w-16 h-16 bg-red-500 text-white rounded-full flex items-center justify-center mx-auto shadow-lg shadow-red-100 text-3xl font-bold">
+                      ×
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-red-900 tracking-tight">Declined</h3>
+                      <p className="text-red-700 text-sm mt-1">
+                        This quotation was declined by the client.
+                      </p>
+                      {estimate.rejectionReason && (
+                        <p className="mt-3 rounded-xl bg-white/70 p-3 text-left text-sm text-red-800">
+                          {estimate.rejectionReason}
+                        </p>
+                      )}
+                      {estimate.rejectedAt && (
+                        <p className="text-xs text-red-600 mt-2 font-medium bg-red-100/50 py-1 px-2 rounded-full inline-block">
+                          {new Date(estimate.rejectedAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : estimate.status !== 'approved' && estimate.status !== 'converted' && estimate.status !== 'paid' ? (
+              <div className="sticky top-20">
+                <Card className="border-zinc-200 shadow-sm border-2">
+                  <CardContent className="p-8 text-center space-y-3">
+                    <h3 className="text-xl font-bold text-zinc-900 tracking-tight">Not open for approval</h3>
+                    <p className="text-sm text-zinc-500">
+                      This quotation must be sent before a client can approve or decline it.
                     </p>
                   </CardContent>
                 </Card>
