@@ -158,12 +158,12 @@ export default function Templates() {
         {
           id: uuidv4(),
           uid: user.uid,
-          name: 'Basic Service Call',
-          description: 'Standard diagnostic session and common repair call-out package.',
+          name: 'SA Plumbing Call-Out',
+          description: 'Leak inspection, call-out fee, common fittings, and tidy site handover.',
           lineItems: [
-            { id: uuidv4(), description: 'Diagnostic & Trip Call Fee', qty: 1, unitCost: 450, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Specialist Work-Hours', qty: 1.5, unitCost: profile?.defaultLaborRate || 650, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Consumables & Hardware Fittings', qty: 1, unitCost: 320, type: 'material', markupPercent: profile?.defaultMarkup || 15 }
+            { id: uuidv4(), description: 'Call-Out & Leak Diagnostic', qty: 1, unitCost: 450, type: 'labor', markupPercent: 0 },
+            { id: uuidv4(), description: 'Qualified Plumber Labour', qty: 2, unitCost: profile?.defaultLaborRate || 650, type: 'labor', markupPercent: 0 },
+            { id: uuidv4(), description: 'PVC/Copper Fittings & Consumables', qty: 1, unitCost: 380, type: 'material', markupPercent: profile?.defaultMarkup || 15 }
           ],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -171,13 +171,13 @@ export default function Templates() {
         {
           id: uuidv4(),
           uid: user.uid,
-          name: 'Premium Renovation Bid',
-          description: 'Structured layout plan for comprehensive renovation detailing materials, and extensive hours.',
+          name: 'Renovation Room Refresh',
+          description: 'Measurement, artisan labour, material allowance, and rubble removal for small renovations.',
           lineItems: [
-            { id: uuidv4(), description: 'Interior Layout Planning & Measurements', qty: 1, unitCost: 1500, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Primary Artisan Refined Labor Hours', qty: 32, unitCost: profile?.defaultLaborRate || 550, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Raw Supplies & Decorative Panel Materials', qty: 1, unitCost: 8500, type: 'material', markupPercent: profile?.defaultMarkup || 15 },
-            { id: uuidv4(), description: 'Debris Disposal & Cleanup Surcharge', qty: 1, unitCost: 1200, type: 'labor', markupPercent: 0 }
+            { id: uuidv4(), description: 'Site Measure & Scope Confirmation', qty: 1, unitCost: 1500, type: 'labor', markupPercent: 0 },
+            { id: uuidv4(), description: 'Artisan Labour Hours', qty: 32, unitCost: profile?.defaultLaborRate || 550, type: 'labor', markupPercent: 0 },
+            { id: uuidv4(), description: 'Material Allowance', qty: 1, unitCost: 8500, type: 'material', markupPercent: profile?.defaultMarkup || 15 },
+            { id: uuidv4(), description: 'Rubble Removal & Final Clean', qty: 1, unitCost: 1200, type: 'labor', markupPercent: 0 }
           ],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -185,12 +185,12 @@ export default function Templates() {
         {
           id: uuidv4(),
           uid: user.uid,
-          name: 'Fixed Monthly Retainer',
-          description: 'Contractor recurring retainer for technical and priority upkeep services.',
+          name: 'Electrical Compliance Visit',
+          description: 'DB inspection, fault finding, compliance checks, and replacement consumables.',
           lineItems: [
-            { id: uuidv4(), description: 'Upkeep Priority SLA Retainer Fee', qty: 1, unitCost: 3500, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Scheduled Inspection Hours Accrued', qty: 4, unitCost: 0, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Necessary Filter/Material Replacements', qty: 1, unitCost: 450, type: 'material', markupPercent: profile?.defaultMarkup || 10 }
+            { id: uuidv4(), description: 'Electrical Call-Out & DB Inspection', qty: 1, unitCost: 550, type: 'labor', markupPercent: 0 },
+            { id: uuidv4(), description: 'Fault Finding / Compliance Labour', qty: 3, unitCost: profile?.defaultLaborRate || 650, type: 'labor', markupPercent: 0 },
+            { id: uuidv4(), description: 'Breakers, Terminals & Consumables', qty: 1, unitCost: 650, type: 'material', markupPercent: profile?.defaultMarkup || 10 }
           ],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()

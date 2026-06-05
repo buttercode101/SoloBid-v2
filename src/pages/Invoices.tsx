@@ -10,12 +10,13 @@ import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../components/InvoicePDF';
-import { Download, Mail, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock } from 'lucide-react';
+import { Download, Mail, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock, MessageCircle, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCurrencySymbol } from '../lib/currencies';
 import { authorizedFetch } from '../lib/api';
 import { EmptyState } from '../components/EmptyState';
 import { formatZAR, statusBadgeStyles } from '../lib/theme';
+import { sharePdfViaWhatsApp } from '../lib/documentActions';
 
 export default function Invoices() {
   const { user, profile } = useAuth();
@@ -241,6 +242,42 @@ export default function Invoices() {
     }
   };
 
+  const getInvoicePdfBlob = async (invoice: any) => {
+    let estDoc = await getDoc(doc(db, 'quotes', invoice.estimateId));
+    let collectionName = 'quotes';
+    if (!estDoc.exists()) {
+      estDoc = await getDoc(doc(db, 'estimates', invoice.estimateId));
+      collectionName = 'estimates';
+    }
+    const estimate = estDoc.data();
+    const itemsRef = collection(db, collectionName, invoice.estimateId, 'lineItems');
+    const itemsSnap = await getDocs(itemsRef);
+    const lineItems = itemsSnap.docs.map(d => d.data());
+    return pdf(<InvoicePDF invoice={invoice} estimate={estimate} contractor={profile} lineItems={lineItems} />).toBlob();
+  };
+
+  const handleShareInvoiceWhatsApp = async (invoice: any) => {
+    try {
+      setGeneratingPdf(invoice.id);
+      const blob = await getInvoicePdfBlob(invoice);
+      const invoiceNum = invoice.invoiceNumber || invoice.id.substring(0, 8).toUpperCase();
+      await sharePdfViaWhatsApp(
+        blob,
+        `Invoice_${invoiceNum}.pdf`,
+        `Hi ${invoice.clientName || 'there'}, here is invoice ${invoiceNum} from ${profile?.businessName || 'SoloBid'}.`
+      );
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') toast.error('Could not open share sheet');
+    } finally {
+      setGeneratingPdf(null);
+    }
+  };
+
+  const handlePrintInvoice = async (invoice: any) => {
+    await handleDownloadPdf(invoice);
+    window.setTimeout(() => window.print(), 150);
+  };
+
   const handleSendInvoice = async (invoice: any) => {
     try {
       setGeneratingPdf(invoice.id);
@@ -427,6 +464,12 @@ export default function Invoices() {
                         >
                           {!generatingPdf && <Download className="w-3.5 h-3.5" />}
                         </Button>
+                        <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-lg text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50" onClick={() => handleShareInvoiceWhatsApp(inv)} disabled={generatingPdf === inv.id} title="Share via WhatsApp">
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-lg text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100" onClick={() => handlePrintInvoice(inv)} disabled={generatingPdf === inv.id} title="Print invoice">
+                          <Printer className="w-3.5 h-3.5" />
+                        </Button>
                         {inv.status !== 'paid' && (
                           <Button 
                             variant="outline" 
@@ -495,6 +538,12 @@ export default function Invoices() {
                             title="Download PDF"
                           >
                             <Download className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-lg text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 cursor-pointer" onClick={() => handleShareInvoiceWhatsApp(inv)} disabled={generatingPdf === inv.id} title="Share via WhatsApp">
+                            <MessageCircle className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-lg text-zinc-400 hover:text-zinc-950 hover:bg-zinc-50 cursor-pointer" onClick={() => handlePrintInvoice(inv)} disabled={generatingPdf === inv.id} title="Print invoice">
+                            <Printer className="w-4 h-4" />
                           </Button>
                           {inv.status !== 'paid' && (
                             <Button 

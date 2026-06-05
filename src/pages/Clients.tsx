@@ -20,10 +20,12 @@ import { Textarea } from '../components/ui/textarea';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatZAR } from '../lib/theme';
 
 export default function Clients() {
   const { user } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
+  const [clientStats, setClientStats] = useState<Record<string, { totalBilled: number; lastJobDate?: string }>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
   
@@ -47,7 +49,25 @@ export default function Clients() {
       setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    return () => unsubscribe();
+    const quotesQ = query(collection(db, 'quotes'), where('uid', '==', user.uid));
+    const unsubscribeQuotes = onSnapshot(quotesQ, (snapshot) => {
+      const stats: Record<string, { totalBilled: number; lastJobDate?: string }> = {};
+      snapshot.docs.forEach(docSnap => {
+        const quote: any = { id: docSnap.id, ...docSnap.data() };
+        const key = quote.clientId || quote.clientEmail || quote.clientName;
+        if (!key || !['approved', 'converted', 'paid'].includes(quote.status)) return;
+        const current = stats[key] || { totalBilled: 0 };
+        current.totalBilled += quote.total || 0;
+        const jobDate = quote.approvedAt || quote.updatedAt || quote.createdAt;
+        if (jobDate && (!current.lastJobDate || new Date(jobDate) > new Date(current.lastJobDate))) {
+          current.lastJobDate = jobDate;
+        }
+        stats[key] = current;
+      });
+      setClientStats(stats);
+    });
+
+    return () => { unsubscribe(); unsubscribeQuotes(); };
   }, [user]);
 
   const handleOpenDialog = (client?: any) => {
@@ -217,7 +237,9 @@ export default function Clients() {
               />
             </div>
           ) : (
-            clients.map(client => (
+            clients.map(client => {
+              const stats = clientStats[client.id] || clientStats[client.email] || clientStats[client.name] || { totalBilled: 0 };
+              return (
               <motion.div
                 layout
                 initial={{ opacity: 0, scale: 0.98 }}
@@ -275,6 +297,16 @@ export default function Clients() {
                         <a href={`tel:${client.phone}`} className="font-medium tracking-tight">{client.phone}</a>
                       </div>
                     )}
+                    <div className="grid grid-cols-2 gap-2 rounded-2xl border border-zinc-100 bg-white p-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Total billed</p>
+                        <p className="text-sm font-semibold text-zinc-900">{formatZAR(stats.totalBilled)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Last job</p>
+                        <p className="text-sm font-semibold text-zinc-900">{stats.lastJobDate ? new Date(stats.lastJobDate).toLocaleDateString() : '—'}</p>
+                      </div>
+                    </div>
                     {client.address && (
                       <div className="flex items-start gap-2 text-sm text-zinc-650 hover:text-zinc-900 transition-colors border-t border-zinc-100/50 pt-2 pb-0.5">
                         <MapPin className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5 stroke-[1.5]" />
@@ -304,7 +336,8 @@ export default function Clients() {
                   </div>
                 </Card>
               </motion.div>
-            ))
+              );
+            })
           )}
         </AnimatePresence>
       </div>

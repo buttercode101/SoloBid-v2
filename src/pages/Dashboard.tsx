@@ -36,7 +36,9 @@ export default function Dashboard() {
     pendingCount: 0,
     billedThisMonth: 0,
     avgJobValue: 0,
-    profitThisMonth: 0
+    profitThisMonth: 0,
+    billedLastMonth: 0,
+    completedJobs: 0
   });
 
   const defaultCurrency = profile?.defaultCurrency || 'ZAR';
@@ -93,7 +95,9 @@ export default function Dashboard() {
         pendingCount: 1,
         billedThisMonth: 19300,
         avgJobValue: 7933.33,
-        profitThisMonth: 12450
+        profitThisMonth: 12450,
+        billedLastMonth: 14200,
+        completedJobs: 3
       });
       loading && setLoading(false);
       return;
@@ -107,11 +111,16 @@ export default function Dashboard() {
       let billed = 0;
       let totalValue = 0;
       let approvedCount = 0;
+      let billedLastMonth = 0;
+      let completedJobs = 0;
       let totalExpensesThisMonth = 0;
 
       const now = new Date();
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
+      const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+      const lastMonth = lastMonthDate.getMonth();
+      const lastMonthYear = lastMonthDate.getFullYear();
 
       try {
         const startOfMonth = new Date(currentYear, currentMonth, 1).toISOString();
@@ -143,11 +152,15 @@ export default function Dashboard() {
           const invDate = new Date(inv.createdAt);
           if (invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear) {
             billed += inv.total || 0;
+            completedJobs++;
             if (inv.quoteId) {
               invoiceQuoteIds.add(inv.quoteId);
             } else if (inv.estimateId) {
               invoiceQuoteIds.add(inv.estimateId);
             }
+          }
+          if (invDate.getMonth() === lastMonth && invDate.getFullYear() === lastMonthYear) {
+            billedLastMonth += inv.total || 0;
           }
         }
       }
@@ -160,6 +173,7 @@ export default function Dashboard() {
             if (updateDate.getMonth() === currentMonth && updateDate.getFullYear() === currentYear) {
               if (!invoiceQuoteIds.has(q.id)) {
                 billed += q.total || 0;
+                completedJobs++;
               }
             }
           }
@@ -170,7 +184,9 @@ export default function Dashboard() {
         pendingCount: pending,
         billedThisMonth: billed,
         avgJobValue: approvedCount > 0 ? totalValue / approvedCount : 0,
-        profitThisMonth: billed - totalExpensesThisMonth
+        profitThisMonth: billed - totalExpensesThisMonth,
+        billedLastMonth,
+        completedJobs
       });
       setLoading(false);
     };
@@ -360,15 +376,15 @@ export default function Dashboard() {
             accent: "bg-teal-50 text-teal-900 border-teal-200/50"
           },
           {
-            title: "Profit This Month",
-            value: formatCurrency(stats.profitThisMonth),
+            title: "Vs Last Month",
+            value: `${stats.billedLastMonth > 0 ? Math.round(((stats.billedThisMonth - stats.billedLastMonth) / stats.billedLastMonth) * 100) : 0}%`,
             icon: TrendingUp,
-            accent: "bg-emerald-50 text-emerald-900 border-emerald-200/50"
+            accent: stats.billedThisMonth >= stats.billedLastMonth ? "bg-emerald-50 text-emerald-900 border-emerald-200/50" : "bg-amber-50 text-amber-800 border-amber-200/50"
           },
           {
-            title: "Pending Quotes",
-            value: stats.pendingCount.toString(),
-            icon: Clock,
+            title: "Jobs Completed",
+            value: stats.completedJobs.toString(),
+            icon: Check,
             accent: "bg-blue-50 text-blue-700 border-blue-100/50"
           },
           {
@@ -383,6 +399,9 @@ export default function Dashboard() {
               <div className="space-y-1.5">
                 <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 group-hover:text-zinc-500 transition-colors">{stat.title}</span>
                 <p className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">{stat.value}</p>
+                {stat.title === 'Vs Last Month' && (
+                  <p className="text-[11px] text-zinc-400">Last month: {formatCurrency(stats.billedLastMonth)}</p>
+                )}
               </div>
               <div className={`p-2.5 rounded-2xl border ${stat.accent} flex items-center justify-center`}>
                 <stat.icon className="w-5 h-5 stroke-[2]" />
