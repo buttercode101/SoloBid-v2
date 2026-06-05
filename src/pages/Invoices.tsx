@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, doc, setDoc, getDoc, getDocs, runTransaction } from 'firebase/firestore';
@@ -20,6 +20,7 @@ import { sharePdfViaWhatsApp } from '../lib/documentActions';
 
 export default function Invoices() {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [approvedEstimates, setApprovedEstimates] = useState<any[]>([]); 
   const [loading, setLoading] = useState(false);
@@ -415,8 +416,12 @@ export default function Invoices() {
             <div className="p-12">
               <EmptyState
                 icon={<DollarSign className="w-8 h-8 text-zinc-350" />}
-                title="No Invoices Found"
-                description="Once a client approves a quote, you can turn it into an invoice here."
+                title="No invoices yet"
+                description="Create your first invoice by converting an approved quote, or start by creating a new quote."
+                action={{
+                  label: 'Create Quote',
+                  onClick: () => navigate('/quotes/new')
+                }}
               />
             </div>
           ) : (

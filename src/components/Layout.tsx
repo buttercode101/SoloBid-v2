@@ -38,20 +38,20 @@ export function Layout() {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/login');
+    navigate('/');
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard, public: true },
-    { name: 'Clients', path: '/clients', icon: Users, public: false },
-    { name: 'Invoices', path: '/invoices', icon: FileSpreadsheet, public: false },
-    { name: 'Recurring', path: '/recurring', icon: RefreshCw, public: false },
-    { name: 'Templates', path: '/templates', icon: FileText, public: false },
-    { name: 'Settings', path: '/settings', icon: Settings, public: false },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Clients', path: '/clients', icon: Users },
+    { name: 'Invoices', path: '/invoices', icon: FileSpreadsheet },
+    { name: 'Recurring', path: '/recurring', icon: RefreshCw },
+    { name: 'Templates', path: '/templates', icon: FileText },
+    { name: 'Settings', path: '/settings', icon: Settings },
   ];
 
   const Logo = ({ onClick }: { onClick?: () => void }) => (
-    <Link to="/" className="flex items-center gap-2" onClick={onClick}>
+    <Link to="/dashboard" className="flex items-center gap-2" onClick={onClick}>
       <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center shadow-md shadow-teal-100">
         <FileText className="w-4.5 h-4.5 text-white stroke-[2.5]" />
       </div>
@@ -78,9 +78,6 @@ export function Layout() {
           >
             <div className="relative">
               <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
-              {!user && !item.public && (
-                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-400 rounded-full border border-white" />
-              )}
             </div>
             {item.name}
           </Link>
@@ -104,11 +101,6 @@ export function Layout() {
       <div className={`md:hidden flex items-center justify-between p-4 bg-white border-b sticky top-0 z-40 ${!isOnline ? 'mt-10' : ''}`}>
         <Logo />
         <div className="flex items-center gap-2">
-          {!user && (
-            <Button variant="outline" size="sm" onClick={() => navigate('/login')} className="text-xs h-8.5 rounded-lg border-zinc-200 text-zinc-700">
-              Sign In
-            </Button>
-          )}
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="hover:bg-zinc-100 h-9.5 w-9.5 rounded-xl">
@@ -141,17 +133,10 @@ export function Layout() {
                     Install App
                   </Button>
                 )}
-                {user ? (
-                  <Button variant="ghost" className="w-full justify-start text-red-650 hover:text-red-700 hover:bg-red-50 h-9.5 rounded-xl text-xs font-bold" onClick={async () => { await handleSignOut(); setIsMenuOpen(false); }}>
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
-                  </Button>
-                ) : (
-                  <Button className="w-full justify-start bg-primary hover:bg-[#03362f] text-white h-9.5 rounded-xl text-xs font-semibold" onClick={() => { navigate('/login'); setIsMenuOpen(false); }}>
-                    <LogOut className="w-4 h-4 mr-2 rotate-180" />
-                    Get Started
-                  </Button>
-                )}
+                <Button variant="ghost" className="w-full justify-start text-red-650 hover:text-red-700 hover:bg-red-50 h-9.5 rounded-xl text-xs font-bold" onClick={async () => { await handleSignOut(); setIsMenuOpen(false); }}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </Button>
               </div>
             </SheetContent>
           </Sheet>
@@ -162,16 +147,6 @@ export function Layout() {
       <div className={`hidden md:flex w-72 bg-white border-r flex-col fixed h-full ${!isOnline ? 'mt-10' : ''}`}>
         <div className="p-8 pb-6">
           <Logo />
-          {!user && (
-            <div className="mt-4 p-3 bg-teal-50/20 rounded-2xl border border-teal-100/50">
-              <p className="text-xs text-primary font-semibold leading-relaxed">
-                You are viewing SoloBid in <strong>Demo Mode</strong>. 
-              </p>
-              <Button size="sm" className="w-full mt-2.5 h-8.5 rounded-xl text-xs bg-primary hover:bg-[#03362f] active:scale-[0.985] text-white" onClick={() => navigate('/login')}>
-                Sign Up Now
-              </Button>
-            </div>
-          )}
         </div>
         <div className="p-4 flex flex-col gap-1.5 flex-1 overflow-y-auto">
           <NavLinks />
@@ -194,17 +169,10 @@ export function Layout() {
               Install App
             </Button>
           )}
-          {user ? (
-            <Button variant="ghost" className="w-full h-9.5 rounded-xl justify-start text-zinc-500 hover:text-red-650 hover:bg-red-50 text-xs font-semibold" onClick={handleSignOut}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
-          ) : (
-            <Button variant="ghost" className="w-full h-9.5 rounded-xl justify-start text-zinc-500 hover:text-zinc-900 text-xs font-semibold" onClick={() => navigate('/login')}>
-              <LogOut className="w-4 h-4 mr-2 rotate-180" />
-              Sign In
-            </Button>
-          )}
+          <Button variant="ghost" className="w-full h-9.5 rounded-xl justify-start text-zinc-500 hover:text-red-650 hover:bg-red-50 text-xs font-semibold" onClick={handleSignOut}>
+            <LogOut className="w-4 h-4 mr-2" />
+            Sign Out
+          </Button>
         </div>
       </div>
 
