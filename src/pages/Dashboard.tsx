@@ -15,7 +15,6 @@ import { toast } from 'sonner';
 import { getCurrencySymbol } from '../lib/currencies';
 import { getUserFriendlyError } from '../lib/errorHandler';
 import { formatZAR, statusBadgeStyles } from '../lib/theme';
-import { authorizedFetch } from '../lib/api';
 
 const DEMO_QUOTES = [
   { id: 'demo1', clientName: 'Global Tech Solutions', clientEmail: 'contact@globaltech.com', status: 'approved', total: 12500.00, createdAt: new Date().toISOString(), currency: 'USD' },
@@ -54,7 +53,7 @@ export default function Dashboard() {
 
   const isQuoteExpired = (q: any) => {
     if (!q.expiresAt) return false;
-    if (['approved', 'rejected', 'request_revision', 'paid', 'converted'].includes(q.status)) return false;
+    if (['approved', 'rejected', 'paid', 'converted'].includes(q.status)) return false;
     return new Date() > new Date(q.expiresAt);
   };
 
@@ -264,25 +263,12 @@ export default function Dashboard() {
     document.body.removeChild(link);
   };
 
-  const handleCopyLink = async (id: string) => {
-    try {
-      const tokenResponse = await authorizedFetch('/api/quote-share-token', {
-        method: 'POST',
-        body: JSON.stringify({ quoteId: id, collectionName: 'quotes' })
-      });
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || `Token server status: ${tokenResponse.status}`);
-      }
-      const tokenData = await tokenResponse.json();
-      const url = `${window.location.origin}/client/quote/${id}?token=${encodeURIComponent(tokenData.token)}`;
-      await navigator.clipboard.writeText(url);
-      setCopiedId(id);
-      toast.success("Secure client link copied");
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch (error) {
-      toast.error(getUserFriendlyError(error));
-    }
+  const handleCopyLink = (id: string) => {
+    const url = `${window.location.origin}/client/quote/${id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    toast.success("Client link copied");
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   if (loading) {
@@ -318,8 +304,6 @@ export default function Dashboard() {
         return { style: statusBadgeStyles.overdue, label: 'Overdue' };
       case 'rejected':
         return { style: statusBadgeStyles.rejected, label: 'Declined' };
-      case 'request_revision':
-        return { style: statusBadgeStyles.request_revision, label: 'Revision Requested' };
       case 'expired':
         return { style: 'bg-red-50 text-red-700 border border-red-150', label: 'Expired' };
       default:

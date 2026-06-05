@@ -287,30 +287,13 @@ export default function QuoteBuilder() {
 
   const { isLimited: isSaving, execute: executeSave } = useRateLimit(1000);
 
-  const createSecureClientUrl = async (quoteId: string) => {
-    const tokenResponse = await authorizedFetch('/api/quote-share-token', {
-      method: 'POST',
-      body: JSON.stringify({ quoteId, collectionName: 'quotes' })
-    });
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json().catch(() => ({}));
-      throw new Error(errorData.error || `Token server status: ${tokenResponse.status}`);
-    }
-    const tokenData = await tokenResponse.json();
-    return `${window.location.origin}/client/quote/${quoteId}?token=${encodeURIComponent(tokenData.token)}`;
-  };
-
-  const handleCopyLink = async () => {
+  const handleCopyLink = () => {
     if (!id) return;
-    try {
-      const url = await createSecureClientUrl(id);
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      toast.success("Secure client link copied");
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      toast.error(getUserFriendlyError(error));
-    }
+    const url = `${window.location.origin}/client/quote/${id}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast.success("Secure Client Link Copied");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const sensors = useSensors(
@@ -754,8 +737,9 @@ export default function QuoteBuilder() {
         }
         
         if (status === 'sent') {
+          const clientViewUrl = `${window.location.origin}/client/quote/${quoteId}`;
+          
           try {
-            const clientViewUrl = await createSecureClientUrl(quoteId);
             const response = await authorizedFetch('/api/send-email', {
               method: 'POST',
               body: JSON.stringify({
@@ -926,7 +910,7 @@ export default function QuoteBuilder() {
       setPdfBusy('share');
       const quote = currentQuoteForPdf();
       const blob = await buildQuotePdfBlob(quote, profile, lineItems);
-      const url = id ? await createSecureClientUrl(id) : window.location.href;
+      const url = id ? `${window.location.origin}/client/quote/${id}` : window.location.href;
       await sharePdfViaWhatsApp(
         blob,
         `Quote_${(id || 'draft').substring(0, 8).toUpperCase()}.pdf`,
