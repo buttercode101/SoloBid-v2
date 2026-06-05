@@ -331,7 +331,7 @@ export default function Dashboard() {
           size="lg" 
           className="w-full md:w-auto bg-primary hover:bg-[#03362f] text-white font-medium shadow-sm active:scale-[0.985] cursor-pointer"
         >
-          <Link to={user ? "/quotes/new" : "/login"}>
+          <Link to="/quotes/new">
             <Plus className="w-5 h-5 mr-2 stroke-[2.5]" />
             {user ? 'New Quote' : 'Start Professional Account'}
           </Link>
@@ -355,10 +355,10 @@ export default function Dashboard() {
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button variant="outline" className="bg-white text-zinc-900 border-none hover:bg-zinc-100 font-medium" asChild>
-                  <Link to="/login">Create Free Account</Link>
+                  <Link to="/">Create Free Account</Link>
                 </Button>
                 <Button variant="ghost" className="text-white hover:bg-white/10 font-medium" asChild>
-                  <Link to="/login">Sign In</Link>
+                  <Link to="/">Sign In</Link>
                 </Button>
               </div>
             </div>
@@ -445,8 +445,9 @@ export default function Dashboard() {
             <div className="py-12">
               <EmptyState
                 icon={searchQuery ? <Search className="w-10 h-10 text-zinc-400" /> : <BarChart3 className="w-10 h-10 text-zinc-400" />}
-                title={searchQuery ? "No matches found" : "Your quote pipeline is empty"}
-                description={searchQuery ? "Try altering your filters or search keywords." : "Send your professional quotes with interactive items and custom themes."}
+                title={searchQuery ? "No matches found" : "No quotes yet"}
+                description={searchQuery ? "Try altering your filters or search keywords." : "Create your first quote and send it for client approval in minutes."}
+                action={!searchQuery ? { label: 'Create Quote', onClick: () => navigate('/quotes/new') } : undefined}
               />
             </div>
           ) : (
