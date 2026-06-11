@@ -40,6 +40,7 @@ export const formatWhatsAppPhoneNumber = (phone?: string, defaultCountryCode = D
   if (hadInternationalPrefix) {
     digits = digits.replace(/^00/, '');
   } else if (!hadPlus) {
+    // SoloBid currently guides South African numbers. Convert 082... or 82... to 2782... for wa.me.
     if (digits.startsWith('0')) {
       digits = `${defaultCountryCode}${digits.slice(1)}`;
     } else if (digits.length === 9) {
@@ -50,9 +51,28 @@ export const formatWhatsAppPhoneNumber = (phone?: string, defaultCountryCode = D
   return digits;
 };
 
+export const validateWhatsAppPhoneNumber = (phone: string) => {
+  if (!phone) {
+    throw new Error('Add a client WhatsApp number before sharing. Use South African format, e.g. +27 82 123 4567.');
+  }
+
+  if (!/^27\d{9}$/.test(phone)) {
+    throw new Error('The client WhatsApp number looks invalid. Use South African international format, e.g. +27 82 123 4567.');
+  }
+};
+
 export const getQuotePdfUrl = (quote: WhatsAppShareQuote) => (
   quote.pdfUrl || quote.quotePdfUrl || quote.publicPdfUrl || ''
 ).trim();
+
+export const validateQuotePdfUrl = (pdfUrl: string) => {
+  try {
+    const parsedUrl = new URL(pdfUrl);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Unsupported PDF URL protocol');
+  } catch {
+    throw new Error('The quote PDF link is invalid. Please regenerate the PDF and try sharing again.');
+  }
+};
 
 export const getQuoteShortReference = (quote: WhatsAppShareQuote) => {
   const reference = quote.id && quote.id !== 'draft' ? `Quote #${quote.id.slice(0, 8).toUpperCase()}` : 'your quote';
@@ -83,13 +103,13 @@ export const buildWhatsAppQuoteMessage = (quote: WhatsAppShareQuote, pdfUrl: str
   return [
     `Hi ${clientName},`,
     '',
-    `Thank you for the opportunity. Please find ${reference} from ${businessName}.`,
+    `Thank you for the opportunity. Please find ${reference} from ${businessName} below.`,
     '',
-    `Total amount (incl. VAT): ${total}`,
+    `Total: ${total}`,
     `Validity: ${validity}`,
-    `PDF quote: ${pdfUrl}`,
+    `View/download PDF: ${pdfUrl}`,
     '',
-    'Please reply with ACCEPTED or let me know if you want any changes.',
+    'Please review the quote and reply ACCEPTED to go ahead, or let me know if you would like any changes.',
     '',
     'Kind regards,'
   ].join('\n');
@@ -98,18 +118,13 @@ export const buildWhatsAppQuoteMessage = (quote: WhatsAppShareQuote, pdfUrl: str
 export function generateWhatsAppShareLink(quote: WhatsAppShareQuote): WhatsAppShareLinkResult {
   const phone = formatWhatsAppPhoneNumber(quote.clientPhone || quote.phone);
 
-  if (!phone) {
-    throw new Error('Add a client phone number before sharing this quote on WhatsApp. Use international format, e.g. +27 82 123 4567.');
-  }
-
-  if (phone.length < 10 || phone.length > 15) {
-    throw new Error('The client phone number looks invalid. Please update it using international format, e.g. +27 82 123 4567.');
-  }
+  validateWhatsAppPhoneNumber(phone);
 
   const pdfUrl = getQuotePdfUrl(quote);
   if (!pdfUrl) {
-    throw new Error('No PDF link is available yet. Save the quote, then use Share on WhatsApp again so SoloBid can generate the PDF link.');
+    throw new Error('No PDF link is available yet. SoloBid could not generate a shareable quote PDF. Please save the quote and try again.');
   }
+  validateQuotePdfUrl(pdfUrl);
 
   const message = buildWhatsAppQuoteMessage(quote, pdfUrl);
 

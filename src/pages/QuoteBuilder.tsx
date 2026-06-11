@@ -41,7 +41,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { formatZAR } from '../lib/theme';
 import { getPendingQuoteSaves, getQuoteDraftLocally, queueQuoteSave, removeQuoteDraftLocally, saveQuoteDraftLocally, setPendingQuoteSaves, type OfflineQuoteDraft } from '../lib/offline';
 import { buildQuotePdfBlob, downloadQuotePdf } from '../lib/documentActions';
-import { generateWhatsAppShareLink, trackWhatsAppShare } from '../lib/whatsapp';
+import { formatWhatsAppPhoneNumber, generateWhatsAppShareLink, getQuotePdfUrl, trackWhatsAppShare, validateWhatsAppPhoneNumber } from '../lib/whatsapp';
 
 const quoteSchema = z.object({
   clientName: z.string().min(1, "Client Name is required"),
@@ -281,6 +281,7 @@ export default function QuoteBuilder() {
   const [copied, setCopied] = useState(false);
   const [quoteCreatedAt, setQuoteCreatedAt] = useState<string | null>(null);
   const [validityDays, setValidityDays] = useState('7');
+  const [quotePdfUrl, setQuotePdfUrl] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [localSaveStatus, setLocalSaveStatus] = useState('');
@@ -428,6 +429,7 @@ export default function QuoteBuilder() {
         setProgressPercent(data.progressPercent || 0);
         setQuoteCreatedAt(data.createdAt || null);
         setValidityDays(data.validityDays || '7');
+        setQuotePdfUrl(data.pdfUrl || data.quotePdfUrl || data.publicPdfUrl || '');
         
         const itemsRef = collection(db, 'quotes', quoteId, 'lineItems');
         const itemsSnap = await getDocs(itemsRef);
@@ -454,6 +456,7 @@ export default function QuoteBuilder() {
         setProgressPercent(data.progressPercent || 0);
         setQuoteCreatedAt(data.createdAt || null);
         setValidityDays(data.validityDays || '7');
+        setQuotePdfUrl(data.pdfUrl || data.quotePdfUrl || data.publicPdfUrl || '');
         setLineItems(localDraft.lineItems as LineItem[]);
         setExpenses(localDraft.expenses as Expense[]);
         setLocalSaveStatus('Restored from local draft');
@@ -550,7 +553,9 @@ export default function QuoteBuilder() {
         updatedAt: new Date().toISOString(),
         createdAt: originalCreatedAtStr,
         validityDays,
-        expiresAt
+        expiresAt,
+        pdfUrl: quotePdfUrl || undefined,
+        quotePdfUrl: quotePdfUrl || undefined
       },
       lineItems: lineItems.map(item => ({
         ...item,
@@ -930,32 +935,87 @@ export default function QuoteBuilder() {
       pdfUpdatedAt: new Date().toISOString(),
     }, { merge: true });
 
+    setQuotePdfUrl(pdfUrl);
     return { ...quote, pdfUrl, quotePdfUrl: pdfUrl };
   };
 
   const handleWhatsAppShare = async () => {
-    if (!profile) return;
+    if (!profile) {
+      toast.error('Your business profile is still loading. Please try again in a moment.');
+      return;
+    }
+
+    let whatsappWindow: Window | null = null;
 
     try {
-      setPdfBusy('share');
+      const cleanedPhone = formatWhatsAppPhoneNumber(clientPhone);
+      validateWhatsAppPhoneNumber(cleanedPhone);
+
       const quote = currentQuoteForPdf();
-      const blob = await buildQuotePdfBlob(quote, profile, lineItems);
-      const quoteWithPdf = await uploadQuotePdfAndGetUrl(quote, blob);
-      const share = generateWhatsAppShareLink({
-        ...quoteWithPdf,
+      let quoteWithPdf = {
+        ...quote,
         clientPhone,
         contractorBusinessName: profile.businessName,
         lineItems,
+        pdfUrl: getQuotePdfUrl({ ...quote, pdfUrl: quotePdfUrl, quotePdfUrl }),
+        quotePdfUrl: getQuotePdfUrl({ ...quote, pdfUrl: quotePdfUrl, quotePdfUrl }),
+      };
+
+      console.info('[WhatsApp Share] Starting quote share', {
+        quoteId: id || quote.id,
+        hasExistingPdfUrl: Boolean(getQuotePdfUrl(quoteWithPdf)),
+        cleanedPhone,
       });
 
-      trackWhatsAppShare(id, 'quote_preview');
-      window.open(share.href, '_blank', 'noopener,noreferrer');
-      toast.success('WhatsApp opened with your quote message');
-    } catch (error: any) {
-      if (error?.name !== 'AbortError') {
-        console.error('WhatsApp share error:', error);
-        toast.error(error?.message || 'Could not open WhatsApp share link');
+      if (!getQuotePdfUrl(quoteWithPdf)) {
+        if (!id || !user) {
+          throw new Error('Save the quote before sharing it on WhatsApp so SoloBid can create a secure PDF link.');
+        }
+
+        // Open a tab synchronously from the click so mobile/desktop browsers do not block WhatsApp after PDF generation.
+        whatsappWindow = window.open('about:blank', '_blank');
+        if (whatsappWindow) {
+          whatsappWindow.opener = null;
+          whatsappWindow.document.write('<p style="font-family: sans-serif; padding: 24px;">Preparing your quote for WhatsApp...</p>');
+        }
+        setPdfBusy('share');
+        console.info('[WhatsApp Share] No PDF URL found; generating and uploading quote PDF', { quoteId: id });
+
+        const blob = await buildQuotePdfBlob(quote, profile, lineItems);
+        quoteWithPdf = await uploadQuotePdfAndGetUrl(quote, blob);
+        quoteWithPdf = {
+          ...quoteWithPdf,
+          clientPhone,
+          contractorBusinessName: profile.businessName,
+          lineItems,
+        };
+
+        console.info('[WhatsApp Share] PDF generated and uploaded', {
+          quoteId: id,
+          pdfUrl: getQuotePdfUrl(quoteWithPdf),
+        });
       }
+
+      const share = generateWhatsAppShareLink(quoteWithPdf);
+
+      trackWhatsAppShare(id, 'quote_preview');
+      if (whatsappWindow && !whatsappWindow.closed) {
+        whatsappWindow.location.href = share.href;
+      } else {
+        window.open(share.href, '_blank', 'noopener,noreferrer');
+      }
+      toast.success('Quote opened in WhatsApp');
+      console.info('[WhatsApp Share] WhatsApp opened successfully', { quoteId: id || quote.id, phone: share.phone });
+    } catch (error: any) {
+      if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.close();
+      console.error('[WhatsApp Share] Failed to share quote', {
+        quoteId: id,
+        clientPhone,
+        hasProfile: Boolean(profile),
+        hasPdfUrl: Boolean(quotePdfUrl),
+        error,
+      });
+      toast.error(error?.message || 'Could not open WhatsApp share link. Please check the client phone number and PDF link.');
     } finally {
       setPdfBusy(null);
     }
