@@ -6,7 +6,7 @@ import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, 
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Plus, FileText, Banknote, Clock, Search, Download, Copy, Check, BarChart3, Trash2, ArrowUpRight, TrendingUp } from 'lucide-react';
+import { Plus, FileText, Banknote, Clock, Search, Download, Copy, Check, BarChart3, Trash2, ArrowUpRight, TrendingUp, MessageCircle } from 'lucide-react';
 import { EmptyState } from '../components/EmptyState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { format } from 'date-fns';
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { getCurrencySymbol } from '../lib/currencies';
 import { getUserFriendlyError } from '../lib/errorHandler';
 import { formatZAR, statusBadgeStyles } from '../lib/theme';
+import { generateWhatsAppShareLink, trackWhatsAppShare } from '../lib/whatsapp';
 
 const DEMO_QUOTES = [
   { id: 'demo1', clientName: 'Global Tech Solutions', clientEmail: 'contact@globaltech.com', status: 'approved', total: 12500.00, createdAt: new Date().toISOString(), currency: 'USD' },
@@ -271,6 +272,21 @@ export default function Dashboard() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleWhatsAppShare = (quote: any) => {
+    try {
+      const share = generateWhatsAppShareLink({
+        ...quote,
+        contractorBusinessName: profile?.businessName,
+      });
+
+      trackWhatsAppShare(quote.id, 'quote_list');
+      window.open(share.href, '_blank', 'noopener,noreferrer');
+      toast.success('WhatsApp opened with your quote message');
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not open WhatsApp share link');
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-8 animate-pulse">
@@ -498,6 +514,15 @@ export default function Dashboard() {
                           <Button 
                             size="icon" 
                             variant="outline" 
+                            className="h-8.5 w-8.5 rounded-lg border-[#25D366] bg-[#25D366] text-white hover:bg-[#1fb958] hover:border-[#1fb958]" 
+                            onClick={() => handleWhatsAppShare(q)} 
+                            title="Share on WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="outline" 
                             className="h-8.5 w-8.5 rounded-lg text-zinc-450 border-zinc-200 hover:bg-teal-100/40 hover:text-primary hover:border-primary/20" 
                             onClick={() => navigate(`/quotes/${q.id}`)} 
                             title="Edit Quote"
@@ -576,6 +601,15 @@ export default function Dashboard() {
                                 title="Copy Secure Client Link"
                               >
                                 {copiedId === q.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8.5 w-8.5 rounded-xl border-[#25D366] bg-[#25D366] text-white hover:bg-[#1fb958] hover:border-[#1fb958] shadow-sm"
+                                onClick={() => handleWhatsAppShare(q)}
+                                title="Share on WhatsApp"
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
                               </Button>
                               <Button 
                                 variant="outline" 

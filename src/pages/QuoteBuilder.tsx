@@ -40,7 +40,8 @@ import { useRateLimit } from '../hooks/useRateLimit';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { formatZAR } from '../lib/theme';
 import { getPendingQuoteSaves, getQuoteDraftLocally, queueQuoteSave, removeQuoteDraftLocally, saveQuoteDraftLocally, setPendingQuoteSaves, type OfflineQuoteDraft } from '../lib/offline';
-import { buildQuotePdfBlob, downloadQuotePdf, sharePdfViaWhatsApp } from '../lib/documentActions';
+import { buildQuotePdfBlob, downloadQuotePdf } from '../lib/documentActions';
+import { generateWhatsAppShareLink, trackWhatsAppShare } from '../lib/whatsapp';
 
 const quoteSchema = z.object({
   clientName: z.string().min(1, "Client Name is required"),
@@ -266,6 +267,7 @@ export default function QuoteBuilder() {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -318,10 +320,12 @@ export default function QuoteBuilder() {
       if (client) {
         setClientName(client.name);
         setClientEmail(client.email || '');
+        setClientPhone(client.phone || '');
       }
     } else {
       setClientName('');
       setClientEmail('');
+      setClientPhone('');
     }
   };
 
@@ -359,7 +363,7 @@ export default function QuoteBuilder() {
       setLocalSaveStatus(`Saved locally ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
     }, 900);
     return () => window.clearTimeout(timeout);
-  }, [clientName, clientEmail, notes, lineItems, expenses, taxRate, currency, validityDays, isMilestone, progressPercent]);
+  }, [clientName, clientEmail, clientPhone, notes, lineItems, expenses, taxRate, currency, validityDays, isMilestone, progressPercent]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -415,6 +419,8 @@ export default function QuoteBuilder() {
         const data = docSnap.data();
         setClientName(data.clientName || '');
         setClientEmail(data.clientEmail || '');
+        setClientPhone(data.clientPhone || data.phone || '');
+        setSelectedClientId(data.clientId || '');
         setNotes(data.notes || '');
         setTaxRate(data.taxRate !== undefined ? data.taxRate : (profile?.defaultTaxRate || 0));
         setCurrency(data.currency || profile?.defaultCurrency || 'ZAR');
@@ -439,6 +445,8 @@ export default function QuoteBuilder() {
         const data = localDraft.quoteData;
         setClientName(data.clientName || '');
         setClientEmail(data.clientEmail || '');
+        setClientPhone(data.clientPhone || data.phone || '');
+        setSelectedClientId(data.clientId || '');
         setNotes(data.notes || '');
         setTaxRate(data.taxRate !== undefined ? data.taxRate : (profile?.defaultTaxRate || 0));
         setCurrency(data.currency || profile?.defaultCurrency || 'ZAR');
@@ -524,6 +532,7 @@ export default function QuoteBuilder() {
         clientId: selectedClientId || null,
         clientName: DOMPurify.sanitize(clientName),
         clientEmail: DOMPurify.sanitize(clientEmail),
+        clientPhone: DOMPurify.sanitize(clientPhone),
         notes: DOMPurify.sanitize(notes),
         taxRate: effectiveTaxRate,
         subtotal,
@@ -653,6 +662,7 @@ export default function QuoteBuilder() {
           clientId: selectedClientId || null,
           clientName: DOMPurify.sanitize(clientName),
           clientEmail: DOMPurify.sanitize(clientEmail),
+          clientPhone: DOMPurify.sanitize(clientPhone),
           notes: DOMPurify.sanitize(notes),
           taxRate: effectiveTaxRate,
           subtotal,
@@ -904,23 +914,47 @@ export default function QuoteBuilder() {
     window.setTimeout(() => window.print(), 150);
   };
 
+  const uploadQuotePdfAndGetUrl = async (quote: any, blob: Blob) => {
+    if (!user || !id) {
+      throw new Error('Save the quote before sharing it on WhatsApp so SoloBid can create a secure PDF link.');
+    }
+
+    const fileName = `quotes/${user.uid}/${id}/Quote_${id.substring(0, 8).toUpperCase()}_${Date.now()}.pdf`;
+    const storageRef = ref(storage, fileName);
+    await uploadBytes(storageRef, blob, { contentType: 'application/pdf' });
+    const pdfUrl = await getDownloadURL(storageRef);
+
+    await setDoc(doc(db, 'quotes', id), {
+      pdfUrl,
+      quotePdfUrl: pdfUrl,
+      pdfUpdatedAt: new Date().toISOString(),
+    }, { merge: true });
+
+    return { ...quote, pdfUrl, quotePdfUrl: pdfUrl };
+  };
+
   const handleWhatsAppShare = async () => {
     if (!profile) return;
+
     try {
       setPdfBusy('share');
       const quote = currentQuoteForPdf();
       const blob = await buildQuotePdfBlob(quote, profile, lineItems);
-      const url = id ? `${window.location.origin}/client/quote/${id}` : window.location.href;
-      await sharePdfViaWhatsApp(
-        blob,
-        `Quote_${(id || 'draft').substring(0, 8).toUpperCase()}.pdf`,
-        `Hi ${clientName || 'there'}, here is your quote proposal from ${profile.businessName}.`,
-        url
-      );
+      const quoteWithPdf = await uploadQuotePdfAndGetUrl(quote, blob);
+      const share = generateWhatsAppShareLink({
+        ...quoteWithPdf,
+        clientPhone,
+        contractorBusinessName: profile.businessName,
+        lineItems,
+      });
+
+      trackWhatsAppShare(id, 'quote_preview');
+      window.open(share.href, '_blank', 'noopener,noreferrer');
+      toast.success('WhatsApp opened with your quote message');
     } catch (error: any) {
       if (error?.name !== 'AbortError') {
         console.error('WhatsApp share error:', error);
-        toast.error('Could not open share sheet');
+        toast.error(error?.message || 'Could not open WhatsApp share link');
       }
     } finally {
       setPdfBusy(null);
@@ -1042,8 +1076,8 @@ export default function QuoteBuilder() {
               <Button variant="outline" className="h-10 border-zinc-200 text-zinc-700 rounded-xl px-4 hover:bg-zinc-50 active:scale-95 transition-all text-sm" onClick={handlePrintQuote} disabled={!!pdfBusy} title="Print quote">
                 <Printer className="w-4 h-4 mr-2 text-zinc-500" /> Print
               </Button>
-              <Button variant="outline" className="h-10 border-emerald-200 bg-emerald-50 text-emerald-800 rounded-xl px-4 hover:bg-emerald-100 active:scale-95 transition-all text-sm" onClick={handleWhatsAppShare} disabled={!!pdfBusy} title="Share PDF via WhatsApp">
-                {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />} WhatsApp
+              <Button variant="outline" className="h-10 border-[#25D366] bg-[#25D366] text-white rounded-xl px-4 hover:bg-[#1fb958] hover:border-[#1fb958] active:scale-95 transition-all text-sm shadow-sm shadow-emerald-900/10" onClick={handleWhatsAppShare} disabled={!!pdfBusy} title="Share on WhatsApp">
+                {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />} Share on WhatsApp
               </Button>
             </>
           )}
@@ -1170,6 +1204,18 @@ export default function QuoteBuilder() {
                     className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
                     disabled={!!selectedClientId}
                   />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label className="text-xs text-zinc-500 font-medium">Customer WhatsApp Number</Label>
+                  <Input 
+                    type="tel"
+                    value={clientPhone} 
+                    onChange={e => setClientPhone(e.target.value)} 
+                    placeholder="e.g. +27 82 123 4567"
+                    className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
+                    disabled={!!selectedClientId}
+                  />
+                  <p className="text-[11px] text-zinc-400">Used for Share on WhatsApp. SoloBid will clean local SA numbers into +27 format.</p>
                 </div>
               </div>
               
@@ -1446,9 +1492,11 @@ export default function QuoteBuilder() {
                     </Button>
                     <Button 
                       variant="outline" 
-                      className="w-full h-11 rounded-xl text-zinc-750 border-zinc-200 font-medium hover:bg-zinc-50 cursor-pointer" 
+                      className="w-full h-11 rounded-xl bg-[#25D366] text-white border-[#25D366] font-semibold hover:bg-[#1fb958] hover:border-[#1fb958] cursor-pointer shadow-md shadow-emerald-950/10" 
                       onClick={handleWhatsAppShare}
+                      disabled={!!pdfBusy}
                     >
+                      {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
                       Share on WhatsApp
                     </Button>
                   </>
