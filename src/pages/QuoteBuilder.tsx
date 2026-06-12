@@ -49,7 +49,7 @@ const quoteSchema = z.object({
   lineItems: z.array(z.object({
     description: z.string().min(1, "Line item description is required"),
     qty: z.preprocess((val) => typeof val === 'string' && val.trim() === '' ? 0 : typeof val === 'string' ? parseFloat(val) : val, z.number().min(0.01, "Quantity must be greater than 0")),
-    unitCost: z.preprocess((val) => typeof val === 'string' && val.trim() === '' ? 0 : typeof val === 'string' ? parseFloat(val) : val, z.number().min(0, "Unit cost cannot be negative")),
+    unitCost: z.preprocess((val) => typeof val === 'string' && val.trim() === '' ? 0 : typeof val === 'string' ? parseFloat(val) : val, z.number().min(0.01, "Unit cost must be greater than 0")),
   })).min(1, "At least one line item is required"),
   expenses: z.array(z.object({
     description: z.string().min(1, "Expense description is required"),
@@ -271,7 +271,7 @@ export default function QuoteBuilder() {
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [taxRate, setTaxRate] = useState<number | string>(profile?.defaultTaxRate || 0);
+  const [taxRate, setTaxRate] = useState<number | string>(profile?.defaultTaxRate ?? 0);
   const [currency, setCurrency] = useState(profile?.defaultCurrency || 'ZAR');
   const [isMilestone, setIsMilestone] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
@@ -501,15 +501,22 @@ export default function QuoteBuilder() {
       const markup = baseCost * (m / 100);
       subtotal += baseCost + markup;
     });
-    
+
+    // Include tracked expenses in subtotal
+    expenses.forEach(exp => {
+      const a = typeof exp.amount === 'number' ? exp.amount : parseFloat(exp.amount) || 0;
+      subtotal += a;
+    });
+
     let effectiveTaxRate = typeof taxRate === 'number' ? taxRate : parseFloat(taxRate) || 0;
+    // Warn user if SA mode overrides their tax rate
     if (currency === 'ZAR' && profile?.saTaxInvoiceMode) {
       effectiveTaxRate = 15;
     }
-    
+
     const tax = subtotal * (effectiveTaxRate / 100);
     const total = subtotal + tax;
-    
+
     return { subtotal, tax, total, effectiveTaxRate };
   };
 
@@ -617,8 +624,9 @@ export default function QuoteBuilder() {
   };
 
   const handleSave = async (status: 'draft' | 'sent' = 'draft') => {
-    if (status === 'sent' && !clientEmail.trim()) {
-      toast.error("Client Email Address Required to Transmit.");
+    // Require at least one contact method when sending
+    if (status === 'sent' && !clientEmail.trim() && !clientPhone.trim()) {
+      toast.error("Add a client WhatsApp number or email address before sending.");
       return;
     }
     executeSave(async () => {
@@ -753,41 +761,50 @@ export default function QuoteBuilder() {
         
         if (status === 'sent') {
           const clientViewUrl = `${window.location.origin}/client/quote/${quoteId}`;
-          
-          try {
-            const response = await authorizedFetch('/api/send-email', {
-              method: 'POST',
-              body: JSON.stringify({
-                to: clientEmail,
-                subject: `Quotation from ${profile.businessName}`,
-                html: `
-                  <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e4e4e7; border-radius: 16px; background-color: #fafafa;">
-                    <div style="text-align: center; margin-bottom: 24px;">
-                      <h2 style="color: #0f766e; margin: 0; font-size: 24px; font-weight: 700;">${profile.businessName}</h2>
-                      <p style="color: #64748b; font-size: 14px; margin: 4px 0 0 0;">Interactive Quotation Request</p>
-                    </div>
-                    <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.01);">
-                      <p style="margin: 0 0 16px 0; color: #1e293b; font-size: 16px;">Dear ${clientName},</p>
-                      <p style="margin: 0 0 24px 0; color: #475569; font-size: 15px; line-height: 1.6;">Thank you for requesting a bid from us. We have finalized your professional quotation with a total cost outline of <strong>${formatCurrency(total, currency)}</strong>.</p>
-                      <div style="text-align: center; margin: 32px 0;">
-                        <a href="${clientViewUrl}" style="background-color: #0f766e; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 10px; font-weight: 600; display: inline-block; font-size: 15px; box-shadow: 0 4px 12px rgba(15,118,110,0.15);">Review Proposal & Accept</a>
+
+          // Send email notification only if client has an email address
+          if (clientEmail.trim()) {
+            try {
+              const response = await authorizedFetch('/api/send-email', {
+                method: 'POST',
+                body: JSON.stringify({
+                  to: clientEmail,
+                  subject: `Quotation from ${profile.businessName}`,
+                  html: `
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e4e4e7; border-radius: 16px; background-color: #fafafa;">
+                      <div style="text-align: center; margin-bottom: 24px;">
+                        <h2 style="color: #0f766e; margin: 0; font-size: 24px; font-weight: 700;">${profile.businessName}</h2>
+                        <p style="color: #64748b; font-size: 14px; margin: 4px 0 0 0;">Quotation</p>
                       </div>
-                      <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">You can view the specific broken-down line breakdown, request revisions, and sign to accept the quotation digitally from the link above.</p>
+                      <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #f1f5f9;">
+                        <p style="margin: 0 0 16px 0; color: #1e293b; font-size: 16px;">Dear ${DOMPurify.sanitize(clientName)},</p>
+                        <p style="margin: 0 0 24px 0; color: #475569; font-size: 15px; line-height: 1.6;">Please find your quotation totalling <strong>${formatCurrency(total, currency)}</strong> attached below.</p>
+                        <div style="text-align: center; margin: 32px 0;">
+                          <a href="${clientViewUrl}" style="background-color: #0f766e; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 10px; font-weight: 600; display: inline-block; font-size: 15px;">Review &amp; Accept Quotation</a>
+                        </div>
+                        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.5;">You can view the full breakdown and sign to accept digitally from the link above.</p>
+                      </div>
+                      <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 24px;">Powered by SoloBid</p>
                     </div>
-                    <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 24px;">Securely generated and audited by SoloBid.</p>
-                  </div>
-                `
-              })
-            });
-            
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.error || `Server status: ${response.status}`);
+                  `
+                })
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const apiError = errorData?.error || `Email server returned ${response.status}`;
+                console.error('[Send Quote] Email API error:', apiError);
+                toast.warning(`Quote saved. Email delivery failed: ${apiError}`);
+              } else {
+                toast.success("Quote saved and client notified via email");
+              }
+            } catch (err: any) {
+              console.error('[Send Quote] Failed to send email:', err);
+              toast.warning(`Quote saved, but email could not be sent: ${err?.message || 'Unknown error'}`);
             }
-            toast.success("Client notified via email");
-          } catch (err: any) {
-            console.error("Error sending email:", err);
-            toast.error(err.message || "Quote saved, but failed to alert client");
+          } else {
+            // No email — prompt to share via WhatsApp
+            toast.success("Quote saved. Share it with your client via WhatsApp below.");
           }
         }
       } catch (error: any) {
@@ -944,78 +961,34 @@ export default function QuoteBuilder() {
       toast.error('Your business profile is still loading. Please try again in a moment.');
       return;
     }
-
-    let whatsappWindow: Window | null = null;
+    if (!id) {
+      toast.error('Save the quote first before sharing on WhatsApp.');
+      return;
+    }
 
     try {
+      setPdfBusy('share');
       const cleanedPhone = formatWhatsAppPhoneNumber(clientPhone);
       validateWhatsAppPhoneNumber(cleanedPhone);
 
       const quote = currentQuoteForPdf();
-      let quoteWithPdf = {
+      const quoteWithMeta = {
         ...quote,
+        id,
         clientPhone,
         contractorBusinessName: profile.businessName,
         lineItems,
-        pdfUrl: getQuotePdfUrl({ ...quote, pdfUrl: quotePdfUrl, quotePdfUrl }),
-        quotePdfUrl: getQuotePdfUrl({ ...quote, pdfUrl: quotePdfUrl, quotePdfUrl }),
       };
 
-      console.info('[WhatsApp Share] Starting quote share', {
-        quoteId: id || quote.id,
-        hasExistingPdfUrl: Boolean(getQuotePdfUrl(quoteWithPdf)),
-        cleanedPhone,
-      });
-
-      if (!getQuotePdfUrl(quoteWithPdf)) {
-        if (!id || !user) {
-          throw new Error('Save the quote before sharing it on WhatsApp so SoloBid can create a secure PDF link.');
-        }
-
-        // Open a tab synchronously from the click so mobile/desktop browsers do not block WhatsApp after PDF generation.
-        whatsappWindow = window.open('about:blank', '_blank');
-        if (whatsappWindow) {
-          whatsappWindow.opener = null;
-          whatsappWindow.document.write('<p style="font-family: sans-serif; padding: 24px;">Preparing your quote for WhatsApp...</p>');
-        }
-        setPdfBusy('share');
-        console.info('[WhatsApp Share] No PDF URL found; generating and uploading quote PDF', { quoteId: id });
-
-        const blob = await buildQuotePdfBlob(quote, profile, lineItems);
-        quoteWithPdf = await uploadQuotePdfAndGetUrl(quote, blob);
-        quoteWithPdf = {
-          ...quoteWithPdf,
-          clientPhone,
-          contractorBusinessName: profile.businessName,
-          lineItems,
-        };
-
-        console.info('[WhatsApp Share] PDF generated and uploaded', {
-          quoteId: id,
-          pdfUrl: getQuotePdfUrl(quoteWithPdf),
-        });
-      }
-
-      const share = generateWhatsAppShareLink(quoteWithPdf);
+      // Use the interactive client view link as the primary share URL (client can approve on their phone)
+      const share = generateWhatsAppShareLink(quoteWithMeta, window.location.origin);
 
       trackWhatsAppShare(id, 'quote_preview');
-      if (whatsappWindow && !whatsappWindow.closed) {
-        whatsappWindow.location.href = share.href;
-      } else {
-        window.open(share.href, '_blank', 'noopener,noreferrer');
-      }
-      toast.success('Quote opened in WhatsApp');
-      console.info('[WhatsApp Share] WhatsApp opened successfully', { quoteId: id || quote.id, phone: share.phone });
+      window.open(share.href, '_blank', 'noopener,noreferrer');
+      toast.success('WhatsApp opened — tap Send to deliver the quote.');
     } catch (error: any) {
-      if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.close();
-      console.error('[WhatsApp Share] Failed to share quote', {
-        quoteId: id,
-        clientPhone,
-        hasProfile: Boolean(profile),
-        hasPdfUrl: Boolean(quotePdfUrl),
-        error,
-      });
-      toast.error(error?.message || 'Could not open WhatsApp share link. Please check the client phone number and PDF link.');
+      console.error('[WhatsApp Share] Failed:', { quoteId: id, clientPhone, error });
+      toast.error(error?.message || 'Could not open WhatsApp. Check the client phone number.');
     } finally {
       setPdfBusy(null);
     }
@@ -1496,7 +1469,7 @@ export default function QuoteBuilder() {
                 <div className="flex justify-between items-center text-zinc-550 border-t border-zinc-50 pt-2.5">
                   <span className="text-zinc-500 flex items-center gap-1">
                     {currency === 'ZAR' && profile?.saTaxInvoiceMode ? (
-                      <span>VAT (15%)</span>
+                      <span title="SA Tax Invoice mode forces 15% VAT. Change in Settings if needed.">VAT (15%) ⓘ</span>
                     ) : (
                       <>
                         <span className="mr-1 shrink-0">Tax</span>
@@ -1530,36 +1503,45 @@ export default function QuoteBuilder() {
               </div>
               
               <div className="pt-6 space-y-2.5 border-t border-zinc-100">
-                <Button 
-                  className="w-full bg-primary hover:bg-[#03362f] text-white font-semibold rounded-2xl h-11.5 text-sm cursor-pointer shadow-md shadow-teal-950/10 active:scale-[0.985]"
-                  size="lg" 
-                  onClick={() => handleSave('sent')} 
+                {id && (
+                  <Button
+                    className="w-full h-12 rounded-2xl bg-[#25D366] text-white border-[#25D366] font-bold hover:bg-[#1fb958] hover:border-[#1fb958] cursor-pointer shadow-md shadow-emerald-950/10 active:scale-[0.985] text-sm"
+                    onClick={handleWhatsAppShare}
+                    disabled={!!pdfBusy}
+                  >
+                    {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
+                    Send via WhatsApp
+                  </Button>
+                )}
+
+                <Button
+                  className="w-full bg-primary hover:bg-[#03362f] text-white font-semibold rounded-2xl h-11 text-sm cursor-pointer shadow-md shadow-teal-950/10 active:scale-[0.985]"
+                  onClick={() => handleSave('sent')}
                   disabled={loading}
                 >
-                  <Send className="w-4.5 h-4.5 mr-2 stroke-[2.5]" /> Send Quote to Client
+                  <Send className="w-4 h-4 mr-2 stroke-[2.5]" /> {clientEmail.trim() ? 'Send via Email' : 'Mark as Sent'}
                 </Button>
-                
+
                 {id && (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      className="w-full h-11 rounded-xl text-zinc-750 border-zinc-200 font-medium hover:bg-zinc-50 cursor-pointer" 
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      className="h-10 rounded-xl text-zinc-700 border-zinc-200 font-medium hover:bg-zinc-50 cursor-pointer text-sm"
+                      onClick={handleCopyLink}
+                    >
+                      {copied ? <Check className="w-4 h-4 mr-1.5 text-green-600" /> : <Copy className="w-4 h-4 mr-1.5 text-zinc-500" />}
+                      Copy Link
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-10 rounded-xl text-zinc-700 border-zinc-200 font-medium hover:bg-zinc-50 cursor-pointer text-sm"
                       asChild
                     >
                       <Link to={`/client/quote/${id}`}>
-                        Preview Client Page
+                        Preview
                       </Link>
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full h-11 rounded-xl bg-[#25D366] text-white border-[#25D366] font-semibold hover:bg-[#1fb958] hover:border-[#1fb958] cursor-pointer shadow-md shadow-emerald-950/10" 
-                      onClick={handleWhatsAppShare}
-                      disabled={!!pdfBusy}
-                    >
-                      {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
-                      Share on WhatsApp
-                    </Button>
-                  </>
+                  </div>
                 )}
               </div>
             </div>

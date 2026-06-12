@@ -53,11 +53,12 @@ export const formatWhatsAppPhoneNumber = (phone?: string, defaultCountryCode = D
 
 export const validateWhatsAppPhoneNumber = (phone: string) => {
   if (!phone) {
-    throw new Error('Add a client WhatsApp number before sharing. Use South African format, e.g. +27 82 123 4567.');
+    throw new Error('Add a client WhatsApp number before sharing, e.g. 082 123 4567 or +27 82 123 4567.');
   }
 
-  if (!/^27\d{9}$/.test(phone)) {
-    throw new Error('The client WhatsApp number looks invalid. Use South African international format, e.g. +27 82 123 4567.');
+  // Accept any international number: 7–15 digits after country code
+  if (!/^\d{7,15}$/.test(phone)) {
+    throw new Error('The client WhatsApp number looks invalid. Use a local SA number like 082 123 4567 or an international format like +27 82 123 4567.');
   }
 };
 
@@ -93,46 +94,50 @@ export const formatQuoteValidity = (quote: WhatsAppShareQuote) => {
   return 'valid for the stated quote period';
 };
 
-export const buildWhatsAppQuoteMessage = (quote: WhatsAppShareQuote, pdfUrl: string) => {
+export const buildWhatsAppQuoteMessage = (quote: WhatsAppShareQuote, viewUrl: string) => {
   const clientName = quote.clientName?.trim() || 'there';
-  const businessName = quote.contractorBusinessName?.trim() || 'SoloBid';
-  const reference = getQuoteShortReference(quote);
+  const businessName = quote.contractorBusinessName?.trim() || 'your contractor';
   const total = formatQuoteTotal(quote.total || 0, quote.currency || 'ZAR');
   const validity = formatQuoteValidity(quote);
 
   return [
     `Hi ${clientName},`,
     '',
-    `Thank you for the opportunity. Please find ${reference} from ${businessName} below.`,
+    `${businessName} has sent you a quotation for *${total}* (${validity}).`,
     '',
-    `Total: ${total}`,
-    `Validity: ${validity}`,
-    `View/download PDF: ${pdfUrl}`,
+    `Tap to view, approve or decline:`,
+    viewUrl,
     '',
-    'Please review the quote and reply ACCEPTED to go ahead, or let me know if you would like any changes.',
-    '',
-    'Kind regards,'
+    'Reply here if you have any questions.'
   ].join('\n');
 };
 
-export function generateWhatsAppShareLink(quote: WhatsAppShareQuote): WhatsAppShareLinkResult {
+export function generateWhatsAppShareLink(quote: WhatsAppShareQuote, clientViewBaseUrl?: string): WhatsAppShareLinkResult {
   const phone = formatWhatsAppPhoneNumber(quote.clientPhone || quote.phone);
 
   validateWhatsAppPhoneNumber(phone);
 
-  const pdfUrl = getQuotePdfUrl(quote);
-  if (!pdfUrl) {
-    throw new Error('No PDF link is available yet. SoloBid could not generate a shareable quote PDF. Please save the quote and try again.');
+  // Prefer the interactive client view link so clients can approve/sign on their phone.
+  // Fall back to a PDF link if available, or raise an error if neither exists.
+  let viewUrl = '';
+  if (clientViewBaseUrl && quote.id && quote.id !== 'draft') {
+    viewUrl = `${clientViewBaseUrl}/client/quote/${quote.id}`;
+  } else {
+    const pdfUrl = getQuotePdfUrl(quote);
+    if (!pdfUrl) {
+      throw new Error('Save the quote first so SoloBid can generate a shareable link.');
+    }
+    validateQuotePdfUrl(pdfUrl);
+    viewUrl = pdfUrl;
   }
-  validateQuotePdfUrl(pdfUrl);
 
-  const message = buildWhatsAppQuoteMessage(quote, pdfUrl);
+  const message = buildWhatsAppQuoteMessage(quote, viewUrl);
 
   return {
     href: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
     phone,
     message,
-    pdfUrl,
+    pdfUrl: viewUrl,
   };
 }
 

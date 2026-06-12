@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { Layout } from './components/Layout';
@@ -10,12 +10,14 @@ import Login from './pages/Login';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import QuoteBuilder from './pages/QuoteBuilder';
-import ClientView from './pages/ClientView';
 import Invoices from './pages/Invoices';
 import Templates from './pages/Templates';
 import Settings from './pages/Settings';
 import Clients from './pages/Clients';
 import RecurringInvoices from './pages/RecurringInvoices';
+
+// Lazy-load ClientView so clients on mobile data only download what they need
+const ClientView = lazy(() => import('./pages/ClientView'));
 
 const LoadingScreen = () => (
   <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 text-center">
@@ -96,8 +98,30 @@ export default function App() {
           <Route path="/" element={<LandingRoute />} />
           <Route path="/login" element={<LandingRoute />} />
           <Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
-          <Route path="/client/estimate/:id" element={<ClientView />} />
-          <Route path="/client/quote/:id" element={<ClientView />} />
+          <Route path="/client/estimate/:id" element={
+            <Suspense fallback={
+              <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 gap-4 px-6 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+                <p className="text-sm font-medium text-zinc-500">Loading your quotation…</p>
+              </div>
+            }>
+              <ClientView />
+            </Suspense>
+          } />
+          <Route path="/client/quote/:id" element={
+            <Suspense fallback={
+              <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 gap-4 px-6 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+                <p className="text-sm font-medium text-zinc-500">Loading your quotation…</p>
+              </div>
+            }>
+              <ClientView />
+            </Suspense>
+          } />
 
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />

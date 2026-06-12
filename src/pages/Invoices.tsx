@@ -193,18 +193,27 @@ export default function Invoices() {
     }
   };
 
+  const resolveEstimateCollection = async (invoice: any): Promise<{ estDoc: any; collectionName: string }> => {
+    // Use stored collection name if available to avoid a sequential double-fetch
+    const hint = invoice.estimateCollectionName as string | undefined;
+    if (hint === 'quotes' || hint === 'estimates') {
+      const estDoc = await getDoc(doc(db, hint, invoice.estimateId));
+      if (estDoc.exists()) return { estDoc, collectionName: hint };
+    }
+    // Fallback: try quotes first, then estimates
+    let estDoc = await getDoc(doc(db, 'quotes', invoice.estimateId));
+    if (estDoc.exists()) return { estDoc, collectionName: 'quotes' };
+    estDoc = await getDoc(doc(db, 'estimates', invoice.estimateId));
+    return { estDoc, collectionName: 'estimates' };
+  };
+
   const handleDownloadPdf = async (invoice: any) => {
     try {
       setPdfProgress(0);
       setGeneratingPdf(invoice.id);
-      
+
       setPdfProgress(20);
-      let estDoc = await getDoc(doc(db, 'quotes', invoice.estimateId));
-      let collectionName = 'quotes';
-      if (!estDoc.exists()) {
-        estDoc = await getDoc(doc(db, 'estimates', invoice.estimateId));
-        collectionName = 'estimates';
-      }
+      const { estDoc, collectionName } = await resolveEstimateCollection(invoice);
       const estimate = estDoc.data();
       
       setPdfProgress(40);
@@ -244,12 +253,7 @@ export default function Invoices() {
   };
 
   const getInvoicePdfBlob = async (invoice: any) => {
-    let estDoc = await getDoc(doc(db, 'quotes', invoice.estimateId));
-    let collectionName = 'quotes';
-    if (!estDoc.exists()) {
-      estDoc = await getDoc(doc(db, 'estimates', invoice.estimateId));
-      collectionName = 'estimates';
-    }
+    const { estDoc, collectionName } = await resolveEstimateCollection(invoice);
     const estimate = estDoc.data();
     const itemsRef = collection(db, collectionName, invoice.estimateId, 'lineItems');
     const itemsSnap = await getDocs(itemsRef);
