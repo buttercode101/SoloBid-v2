@@ -38,6 +38,11 @@ export default function Settings() {
   
   const [formData, setFormData] = useState({
     businessName: profile?.businessName || '',
+    fullName: profile?.fullName || '',
+    industry: profile?.industry || '',
+    mobileNumber: profile?.mobileNumber || '',
+    address: profile?.address || '',
+    businessRegistrationNumber: profile?.businessRegistrationNumber || '',
     defaultLaborRate: profile?.defaultLaborRate?.toString() || '750',
     defaultTaxRate: profile?.defaultTaxRate?.toString() || '15',
     defaultMarkup: profile?.defaultMarkup?.toString() || '20',
@@ -108,6 +113,11 @@ export default function Settings() {
       const profileData = {
         uid: user.uid,
         businessName: formData.businessName,
+        fullName: formData.fullName,
+        industry: formData.industry,
+        mobileNumber: formData.mobileNumber,
+        address: formData.address,
+        businessRegistrationNumber: formData.businessRegistrationNumber,
         logoUrl,
         defaultLaborRate: parseFloat(formData.defaultLaborRate) || 0,
         defaultTaxRate: parseFloat(formData.defaultTaxRate) || 0,
@@ -211,6 +221,11 @@ export default function Settings() {
         
         setFormData({
           businessName: '',
+          fullName: '',
+          industry: '',
+          mobileNumber: '',
+          address: '',
+          businessRegistrationNumber: '',
           defaultLaborRate: '750',
           defaultTaxRate: '15',
           defaultMarkup: '20',
@@ -266,16 +281,73 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="p-6 bg-white space-y-5">
               <form onSubmit={handleSubmit} className="space-y-6 text-left">
-                <div className="space-y-1.5">
-                  <Label htmlFor="businessName" className="text-xs text-zinc-500 font-medium">Official Company Name</Label>
-                  <Input 
-                    id="businessName" 
-                    value={formData.businessName}
-                    onChange={(e) => setFormData({...formData, businessName: e.target.value})}
-                    placeholder="e.g. Acme Contracting Services"
-                    className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
-                    required 
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label htmlFor="businessName" className="text-xs text-zinc-500 font-medium">Official Company Name <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="businessName"
+                      value={formData.businessName}
+                      onChange={(e) => setFormData({...formData, businessName: e.target.value})}
+                      placeholder="e.g. Acme Contracting Services"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="fullName" className="text-xs text-zinc-500 font-medium">Your Full Name (Optional)</Label>
+                    <Input
+                      id="fullName"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                      placeholder="e.g. Mathapelo Phakoe"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="settingsMobile" className="text-xs text-zinc-500 font-medium">WhatsApp Number <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="settingsMobile"
+                      type="tel"
+                      value={formData.mobileNumber}
+                      onChange={(e) => setFormData({...formData, mobileNumber: e.target.value})}
+                      placeholder="e.g. +27 82 123 4567"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="industry" className="text-xs text-zinc-500 font-medium">Industry / Trade (Optional)</Label>
+                    <select
+                      id="industry"
+                      value={formData.industry}
+                      onChange={(e) => setFormData({...formData, industry: e.target.value})}
+                      className="flex h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer"
+                    >
+                      <option value="">— Select trade —</option>
+                      {['Electrical','Plumbing','HVAC','General Contractor','Landscaping','Painting','Carpentry','Roofing','Cleaning','Other'].map(o => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="businessReg" className="text-xs text-zinc-500 font-medium">Business Registration Number (Optional)</Label>
+                    <Input
+                      id="businessReg"
+                      value={formData.businessRegistrationNumber}
+                      onChange={(e) => setFormData({...formData, businessRegistrationNumber: e.target.value})}
+                      placeholder="e.g. 2023/012345/07"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label htmlFor="address" className="text-xs text-zinc-500 font-medium">Business Address (Optional)</Label>
+                    <Input
+                      id="address"
+                      value={formData.address}
+                      onChange={(e) => setFormData({...formData, address: e.target.value})}
+                      placeholder="e.g. 12 Main Street, Pretoria, 0001"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
+                    />
+                  </div>
                 </div>
 
                 <div className="p-4 border border-zinc-100 rounded-2xl bg-zinc-50/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
