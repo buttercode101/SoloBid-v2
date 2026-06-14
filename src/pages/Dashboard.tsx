@@ -274,16 +274,15 @@ export default function Dashboard() {
 
   const handleWhatsAppShare = (quote: any) => {
     try {
-      const share = generateWhatsAppShareLink({
-        ...quote,
-        contractorBusinessName: profile?.businessName,
-      });
-
+      const share = generateWhatsAppShareLink(
+        { ...quote, contractorBusinessName: profile?.businessName },
+        window.location.origin
+      );
       trackWhatsAppShare(quote.id, 'quote_list');
       window.open(share.href, '_blank', 'noopener,noreferrer');
-      toast.success('WhatsApp opened with your quote message');
+      toast.success('WhatsApp opened — tap Send to deliver.');
     } catch (error: any) {
-      toast.error(error?.message || 'Could not open WhatsApp share link');
+      toast.error(error?.message || 'Could not open WhatsApp. Check the client phone number.');
     }
   };
 

@@ -10,10 +10,9 @@ import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../components/InvoicePDF';
-import { Download, Mail, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock, MessageCircle, Printer } from 'lucide-react';
+import { Download, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock, MessageCircle, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCurrencySymbol } from '../lib/currencies';
-import { authorizedFetch } from '../lib/api';
 import { EmptyState } from '../components/EmptyState';
 import { formatZAR, statusBadgeStyles } from '../lib/theme';
 import { sharePdfViaWhatsApp } from '../lib/documentActions';
@@ -283,34 +282,6 @@ export default function Invoices() {
     window.setTimeout(() => window.print(), 150);
   };
 
-  const handleSendInvoice = async (invoice: any) => {
-    try {
-      setGeneratingPdf(invoice.id);
-      
-      const response = await authorizedFetch('/api/send-invoice', {
-        method: 'POST',
-        body: JSON.stringify({ invoiceId: invoice.id })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server status: ${response.status}`);
-      }
-      
-      await response.json();
-      toast.success("Invoice sent to client");
-    } catch (error: any) {
-      console.error("Invoice send error:", {
-        invoiceId: invoice.id,
-        error: error.message,
-        timestamp: new Date().toISOString()
-      });
-      toast.error(error.message || "Failed to transmit invoice");
-    } finally {
-      setGeneratingPdf(null);
-    }
-  };
-
   const handleMarkPaid = async (invoiceId: string) => {
     try {
       await setDoc(doc(db, 'invoices', invoiceId), { 
@@ -452,19 +423,8 @@ export default function Invoices() {
                         {formatCurrency(inv.total || 0, inv.currency || profile?.defaultCurrency || 'ZAR')}
                       </span>
                       <div className="flex gap-1.5">
-                        {inv.status === 'draft' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="h-8.5 rounded-lg text-[11px] border-zinc-200 text-zinc-700 bg-white"
-                            onClick={() => handleSendInvoice(inv)}
-                            loading={generatingPdf === inv.id}
-                          >
-                            <Mail className="w-3.5 h-3.5 mr-1 text-zinc-450" /> Send
-                          </Button>
-                        )}
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="icon"
                           className="h-8.5 w-8.5 rounded-lg text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100"
                           onClick={() => handleDownloadPdf(inv)}
@@ -527,18 +487,7 @@ export default function Invoices() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1.5">
-                          {inv.status === 'draft' && (
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="h-8.5 rounded-lg border-zinc-200 font-semibold text-xs text-zinc-750 bg-white hover:bg-zinc-50 cursor-pointer"
-                              onClick={() => handleSendInvoice(inv)}
-                              loading={generatingPdf === inv.id}
-                            >
-                              <Mail className="w-3.5 h-3.5 mr-1 text-zinc-400" /> Send
-                            </Button>
-                          )}
-                          <Button 
+                          <Button
                             variant="ghost" 
                             size="icon"
                             className="h-8.5 w-8.5 rounded-lg text-zinc-400 hover:text-zinc-950 hover:bg-zinc-50 cursor-pointer"

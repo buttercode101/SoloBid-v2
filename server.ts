@@ -3,9 +3,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
 import { Resend } from "resend";
-import ReactPDF from "@react-pdf/renderer";
-import React from "react";
-import { InvoicePDF } from "./src/components/InvoicePDF.js";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 
@@ -103,127 +100,6 @@ async function createApp() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
-  });
-
-  app.post("/api/send-email", requireAuth, async (req, res) => {
-    try {
-      const { to, subject, html, attachments } = req.body;
-      
-      if (!to || !subject || !html) {
-        return res.status(400).json({ error: "Missing required fields: to, subject, and html are required." });
-      }
-
-      // Basic email validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(to)) {
-        return res.status(400).json({ error: "Invalid email address format." });
-      }
-
-      const data = await resend.emails.send({
-        from: "SoloBid <noreply@solobid.app>",
-        to,
-        subject,
-        html,
-        attachments
-      });
-
-      res.json({ status: "ok", data });
-    } catch (error: any) {
-      console.error("Email sending error:", error);
-      // Don't expose internal Resend API errors directly to the client if possible
-      let errorMessage = "Failed to send email. Please try again later.";
-      if (error.statusCode === 401 || error.message?.includes('Unauthorized')) {
-          errorMessage = "Email service configuration error. Please contact support.";
-      }
-      res.status(500).json({ error: errorMessage });
-    }
-  });
-
-  app.post("/api/send-invoice", requireAuth, async (req, res) => {
-    try {
-      const { invoiceId } = req.body;
-      if (!invoiceId) return res.status(400).json({ error: "Missing invoiceId" });
-
-      const db = admin.firestore();
-      const invoiceDoc = await db.collection("invoices").doc(invoiceId).get();
-      if (!invoiceDoc.exists) return res.status(404).json({ error: "Invoice not found" });
-      
-      const invoice = { id: invoiceDoc.id, ...invoiceDoc.data() } as any;
-      
-      // Security check: ensure the user owns the invoice
-      if (invoice.uid !== (req as any).user.uid) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-      
-      const estimateDoc = await db.collection("estimates").doc(invoice.estimateId).get();
-      const estimate = estimateDoc.data();
-      
-      const userDoc = await db.collection("users").doc(invoice.uid).get();
-      const contractor = userDoc.data();
-      
-      const itemsSnap = await db.collection("estimates").doc(invoice.estimateId).collection("lineItems").get();
-      const lineItems = itemsSnap.docs.map(d => d.data());
-
-      // Generate PDF on server
-      const pdfStream = await ReactPDF.renderToStream(
-        React.createElement(InvoicePDF, { invoice, estimate, contractor, lineItems }) as any
-      );
-      
-      const chunks: any[] = [];
-      pdfStream.on('data', chunk => chunks.push(chunk));
-      pdfStream.on('end', async () => {
-        const pdfBuffer = Buffer.concat(chunks);
-        const base64Pdf = pdfBuffer.toString('base64');
-
-        const invoiceNum = invoice.invoiceNumber || invoice.id.substring(0, 8).toUpperCase();
-
-        const htmlTemplate = `
-          <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-            <h2 style="color: #333;">Invoice from ${contractor?.businessName}</h2>
-            <p>Hi ${invoice.clientName},</p>
-            <p>Please find attached your invoice <strong>#${invoiceNum}</strong> for <strong>$${invoice.total.toFixed(2)}</strong>.</p>
-            <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0;">
-              <p style="margin: 0 0 10px 0;"><strong>Amount Due:</strong> $${invoice.total.toFixed(2)}</p>
-              <p style="margin: 0;"><strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
-            </div>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="#" style="background-color: #18181b; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Pay Online (Coming Soon)</a>
-            </div>
-            <p>Thank you for your business!</p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-            <p style="color: #666; font-size: 14px; text-align: center;">Powered by SoloBid</p>
-          </div>
-        `;
-
-        try {
-          await resend.emails.send({
-            from: "SoloBid <noreply@solobid.app>",
-            to: invoice.clientEmail,
-            subject: `Invoice #${invoiceNum} from ${contractor?.businessName}`,
-            html: htmlTemplate,
-            attachments: [
-              {
-                filename: `Invoice_${invoiceNum}.pdf`,
-                content: base64Pdf
-              }
-            ]
-          });
-          
-          await invoiceDoc.ref.update({ status: 'sent' });
-          res.json({ status: "ok" });
-        } catch (e: any) {
-          console.error("Failed to send email", e);
-          let errorMessage = "Failed to send the invoice email. Please try again later.";
-          if (e.statusCode === 401 || e.message?.includes('Unauthorized')) {
-             errorMessage = "Email service configuration error. Please contact support.";
-          }
-          res.status(500).json({ error: errorMessage });
-        }
-      });
-    } catch (error: any) {
-      console.error("Server error:", error);
-      res.status(500).json({ error: "An unexpected server error occurred while sending the invoice." });
-    }
   });
 
   // Cron route for reminders and recurring invoices

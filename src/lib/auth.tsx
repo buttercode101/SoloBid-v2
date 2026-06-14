@@ -57,12 +57,8 @@ interface AuthContextType {
 }
 
 const REQUIRED_PROFILE_FIELDS: Array<keyof UserProfile> = [
-  'fullName',
   'businessName',
-  'industry',
   'mobileNumber',
-  'country',
-  'defaultCurrency',
 ];
 
 const ONBOARDING_ORDER: OnboardingStep[] = ['welcome', 'profile', 'preferences', 'complete'];
