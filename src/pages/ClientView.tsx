@@ -195,7 +195,7 @@ export default function ClientView() {
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
               <p className="text-xs sm:text-sm font-medium text-zinc-300">
-                Preview Mode. Client-facing layout is active.
+                You're viewing this as your client sees it. They will not see this bar.
               </p>
             </div>
             <Button 

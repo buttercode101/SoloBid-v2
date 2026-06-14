@@ -897,7 +897,7 @@ export default function QuoteBuilder() {
       return;
     }
 
-    // Validate phone before doing anything
+    // Validate phone up front
     const cleanedPhone = formatWhatsAppPhoneNumber(clientPhone);
     try {
       validateWhatsAppPhoneNumber(cleanedPhone);
@@ -913,71 +913,77 @@ export default function QuoteBuilder() {
       return;
     }
 
+    const quoteId = id || uuidv4();
+    const isNewQuote = !id;
+
+    // Offline guard — client link won't resolve until Firestore is written
+    if (!isOnline) {
+      const localDraft = buildOfflineDraft(quoteId, 'sent');
+      saveQuoteDraftLocally(localDraft);
+      if (isNewQuote) {
+        queueQuoteSave(localDraft);
+        navigate(`/quotes/${quoteId}`, { replace: true });
+      }
+      toast.warning("You're offline. Quote saved locally — share via WhatsApp once back online.");
+      return;
+    }
+
     setPdfBusy('share');
     try {
-      // If the quote isn't saved yet, save it first (silently), then open WhatsApp
-      let quoteId = id;
-      if (!quoteId) {
-        quoteId = uuidv4();
-        const localDraft = buildOfflineDraft(quoteId, 'sent');
-        saveQuoteDraftLocally(localDraft);
-
-        if (isOnline) {
-          setLoading(true);
-          const { subtotal, tax, total, effectiveTaxRate } = calculateTotals();
-          const originalCreatedAtStr = quoteCreatedAt || new Date().toISOString();
-          let expiresAt: string | null = null;
-          if (validityDays !== 'never') {
-            const dt = new Date(originalCreatedAtStr);
-            dt.setDate(dt.getDate() + parseInt(validityDays, 10));
-            expiresAt = dt.toISOString();
-          }
-          const quoteData = {
-            uid: user!.uid, clientId: selectedClientId || null,
-            clientName: DOMPurify.sanitize(clientName),
-            clientPhone: DOMPurify.sanitize(clientPhone), notes: DOMPurify.sanitize(notes),
-            taxRate: effectiveTaxRate, subtotal, taxAmount: tax, total, currency,
-            vatAmount: currency === 'ZAR' && profile?.saTaxInvoiceMode ? tax : 0,
-            isMilestone, progressPercent, status: 'sent',
-            contractorBusinessName: profile.businessName || '', contractorLogoUrl: profile.logoUrl || '',
-            contractorTerms: profile.terms || '', updatedAt: new Date().toISOString(),
-            createdAt: originalCreatedAtStr, validityDays, expiresAt
-          };
-          const batch = writeBatch(db);
-          batch.set(doc(db, 'quotes', quoteId), quoteData, { merge: true });
-          for (const item of lineItems) {
-            batch.set(doc(collection(db, 'quotes', quoteId, 'lineItems'), item.id), {
-              ...item,
-              qty: typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 0,
-              unitCost: typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0,
-              markupPercent: typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0,
-            });
-          }
-          for (const expense of expenses) {
-            batch.set(doc(collection(db, 'quotes', quoteId, 'expenses'), expense.id), {
-              ...expense, amount: typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0,
-              uid: user!.uid, quoteId, currency, createdAt: expense.createdAt || new Date().toISOString()
-            });
-          }
-          await batch.commit();
-          removeQuoteDraftLocally(user!.uid, quoteId);
-          setLocalSaveStatus('Synced just now');
-          // Navigate to the new quote URL so the page has an id
-          navigate(`/quotes/${quoteId}`, { replace: true });
-        } else {
-          queueQuoteSave(localDraft);
-          navigate(`/quotes/${quoteId}`, { replace: true });
-        }
+      // Always save to Firestore with status 'sent' before opening WhatsApp.
+      // This ensures: (a) new quotes are created, (b) existing draft quotes are
+      // promoted to 'sent' so the client can approve/sign on the client view page.
+      setLoading(true);
+      const { subtotal, tax, total, effectiveTaxRate } = calculateTotals();
+      const originalCreatedAtStr = quoteCreatedAt || new Date().toISOString();
+      let expiresAt: string | null = null;
+      if (validityDays !== 'never') {
+        const dt = new Date(originalCreatedAtStr);
+        dt.setDate(dt.getDate() + parseInt(validityDays, 10));
+        expiresAt = dt.toISOString();
       }
+      const quoteData = {
+        uid: user!.uid, clientId: selectedClientId || null,
+        clientName: DOMPurify.sanitize(clientName),
+        clientPhone: DOMPurify.sanitize(clientPhone), notes: DOMPurify.sanitize(notes),
+        taxRate: effectiveTaxRate, subtotal, taxAmount: tax, total, currency,
+        vatAmount: currency === 'ZAR' && profile?.saTaxInvoiceMode ? tax : 0,
+        isMilestone, progressPercent, status: 'sent',
+        contractorBusinessName: profile.businessName || '', contractorLogoUrl: profile.logoUrl || '',
+        contractorTerms: profile.terms || '', updatedAt: new Date().toISOString(),
+        createdAt: originalCreatedAtStr, validityDays, expiresAt
+      };
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'quotes', quoteId), quoteData, { merge: true });
+      for (const item of lineItems) {
+        batch.set(doc(collection(db, 'quotes', quoteId, 'lineItems'), item.id), {
+          ...item,
+          qty: typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 0,
+          unitCost: typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0,
+          markupPercent: typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0,
+        });
+      }
+      for (const expense of expenses) {
+        batch.set(doc(collection(db, 'quotes', quoteId, 'expenses'), expense.id), {
+          ...expense, amount: typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0,
+          uid: user!.uid, quoteId, currency, createdAt: expense.createdAt || new Date().toISOString()
+        });
+      }
+      await batch.commit();
+      removeQuoteDraftLocally(user!.uid, quoteId);
+      setLocalSaveStatus('Synced just now');
 
+      if (isNewQuote) navigate(`/quotes/${quoteId}`, { replace: true });
+
+      // Generate link AFTER confirmed Firestore write so client view resolves
       const quote = currentQuoteForPdf();
       const share = generateWhatsAppShareLink(
         { ...quote, id: quoteId, clientPhone, contractorBusinessName: profile.businessName, lineItems },
         window.location.origin
       );
-      trackWhatsAppShare(quoteId, 'quote_preview');
+      trackWhatsAppShare(quoteId, 'quote_builder');
       window.open(share.href, '_blank', 'noopener,noreferrer');
-      toast.success('WhatsApp opened — tap Send to deliver the quote.');
+      toast.success('Quote saved and sent via WhatsApp — tap Send in the app to deliver.');
     } catch (error: any) {
       console.error('[WhatsApp Share] Failed:', { clientPhone, error });
       toast.error(error?.message || 'Could not open WhatsApp. Check the client phone number.');
