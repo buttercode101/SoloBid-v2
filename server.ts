@@ -358,48 +358,66 @@ async function createApp() {
         // Send reminder if 3 days before, on due date, or 7/14 days overdue
         if (diffDays === -3 || diffDays === 0 || diffDays === 7 || diffDays === 14) {
           if (invoice.estimateId) {
-            // It could be an estimateId or recurringId, but we just need clientEmail
             const userDoc = await db.collection("users").doc(invoice.uid).get();
             const contractor = userDoc.data();
-            
-            if (invoice.clientEmail && contractor) {
+            const hasEmail = !!(invoice.clientEmail && contractor);
+            const hasPhone = !!(invoice.clientPhone);
+
+            if ((hasEmail || hasPhone) && contractor) {
               const isOverdue = diffDays > 0;
               const statusText = isOverdue ? 'OVERDUE' : diffDays === 0 ? 'DUE TODAY' : 'DUE SOON';
-              
-              const htmlTemplate = `
-                <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                  <h2 style="color: #333;">Invoice Reminder: ${statusText}</h2>
-                  <p>Hi ${invoice.clientName},</p>
-                  <p>This is a friendly reminder that invoice <strong>#${invoice.invoiceNumber || invoice.id.substring(0, 8).toUpperCase()}</strong> for <strong>$${invoice.total.toFixed(2)}</strong> is ${statusText.toLowerCase()}.</p>
-                  <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                    <p style="margin: 0 0 10px 0;"><strong>Amount Due:</strong> $${invoice.total.toFixed(2)}</p>
-                    <p style="margin: 0;"><strong>Due Date:</strong> ${dueDate.toLocaleDateString()}</p>
-                  </div>
-                  <div style="text-align: center; margin: 30px 0;">
-                    <a href="#" style="background-color: #18181b; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Pay Online (Coming Soon)</a>
-                  </div>
-                  <p>Please arrange for payment at your earliest convenience.</p>
-                  <p>Thank you for your business!</p>
-                  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                  <p style="color: #666; font-size: 14px; text-align: center;">Powered by SoloBid</p>
-                </div>
-              `;
+              const invoiceRef = invoice.invoiceNumber || invoice.id.substring(0, 8).toUpperCase();
+              const appOrigin = process.env.APP_ORIGIN || 'https://solobid.app';
 
-              try {
-                await resend.emails.send({
-                  from: "SoloBid <noreply@solobid.app>",
-                  to: invoice.clientEmail,
-                  subject: `Reminder: Invoice #${invoice.invoiceNumber || invoice.id.substring(0, 8).toUpperCase()} is ${statusText.toLowerCase()}`,
-                  html: htmlTemplate,
-                });
-                
-                if (isOverdue && invoice.status !== 'overdue') {
-                  await docSnap.ref.update({ status: 'overdue' });
+              // Mark overdue status first
+              if (isOverdue && invoice.status !== 'overdue') {
+                await docSnap.ref.update({ status: 'overdue' });
+              }
+
+              // Send email reminder if client has email
+              if (hasEmail) {
+                const htmlTemplate = `
+                  <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                    <h2 style="color: #333;">Invoice Reminder: ${statusText}</h2>
+                    <p>Hi ${invoice.clientName},</p>
+                    <p>This is a friendly reminder that invoice <strong>#${invoiceRef}</strong> for <strong>${invoice.currency === 'ZAR' ? 'R' : ''}${invoice.total.toFixed(2)}</strong> is ${statusText.toLowerCase()}.</p>
+                    <div style="background-color: #f9fafb; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                      <p style="margin: 0 0 10px 0;"><strong>Amount Due:</strong> ${invoice.currency === 'ZAR' ? 'R' : ''}${invoice.total.toFixed(2)}</p>
+                      <p style="margin: 0;"><strong>Due Date:</strong> ${dueDate.toLocaleDateString()}</p>
+                    </div>
+                    <p>Please arrange payment at your earliest convenience.</p>
+                    <p>Thank you for your business!</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                    <p style="color: #666; font-size: 14px; text-align: center;">Powered by SoloBid</p>
+                  </div>
+                `;
+                try {
+                  await resend.emails.send({
+                    from: "SoloBid <noreply@solobid.app>",
+                    to: invoice.clientEmail,
+                    subject: `Reminder: Invoice #${invoiceRef} is ${statusText.toLowerCase()}`,
+                    html: htmlTemplate,
+                  });
+                  sentCount++;
+                } catch (e) {
+                  console.error("Failed to send reminder email:", (e as any).message);
+                  errors.push({ id: docSnap.id, error: `Email failed: ${(e as any).message}` });
                 }
-                sentCount++;
-              } catch (e) {
-                console.error("Failed to send reminder email", e);
-                errors.push({ id: docSnap.id, error: "Failed to send reminder email" });
+              }
+
+              // Generate WhatsApp reminder link and store it on the invoice for the contractor
+              if (hasPhone) {
+                try {
+                  const rawPhone = (invoice.clientPhone as string).replace(/\D/g, '');
+                  const phone = rawPhone.startsWith('0') ? `27${rawPhone.slice(1)}` : rawPhone;
+                  const amount = `${invoice.currency === 'ZAR' ? 'R' : ''}${invoice.total.toFixed(2)}`;
+                  const msg = `Hi ${invoice.clientName}, just a reminder that invoice #${invoiceRef} for *${amount}* is *${statusText}* (due ${dueDate.toLocaleDateString()}). Please arrange payment. — ${contractor.businessName || 'Your contractor'}`;
+                  const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+                  // Store the WhatsApp reminder link on the invoice so the contractor can send it
+                  await docSnap.ref.update({ whatsappReminderLink: waLink, whatsappReminderStatus: statusText, whatsappReminderAt: now.toISOString() });
+                } catch (e) {
+                  console.error("Failed to generate WhatsApp reminder:", (e as any).message);
+                }
               }
             }
           }

@@ -45,6 +45,13 @@ export default function ClientView() {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (estimate && contractor) {
+      document.title = `Quotation from ${contractor.businessName || 'Your Contractor'} — SoloBid`;
+    }
+    return () => { document.title = 'SoloBid'; };
+  }, [estimate, contractor]);
+
   const loadData = async (estimateId: string) => {
     try {
       setLoading(true);
@@ -90,6 +97,10 @@ export default function ClientView() {
       toast.error('This quotation is not currently open for approval.');
       return;
     }
+    if (isExpired) {
+      toast.error('This quotation has expired and can no longer be approved. Contact the contractor for a renewed quote.');
+      return;
+    }
 
     const validationResult = approvalSchema.safeParse({ signatureName, signatureDataUrl, agreed });
     if (!validationResult.success) {
@@ -123,6 +134,10 @@ export default function ClientView() {
   const handleReject = async () => {
     if (estimate?.status !== 'sent') {
       toast.error('This quotation is not currently open for rejection.');
+      return;
+    }
+    if (isExpired) {
+      toast.error('This quotation has already expired.');
       return;
     }
 
@@ -500,9 +515,9 @@ export default function ClientView() {
               <div className="sticky top-20">
                 <Card className="border-zinc-200 shadow-sm border-2">
                   <CardContent className="p-8 text-center space-y-3">
-                    <h3 className="text-xl font-bold text-zinc-900 tracking-tight">Not open for approval</h3>
+                    <h3 className="text-xl font-bold text-zinc-900 tracking-tight">Not yet available</h3>
                     <p className="text-sm text-zinc-500">
-                      This quotation must be sent before a client can approve or decline it.
+                      This quotation hasn't been sent yet. Contact <span className="font-semibold text-zinc-700">{contractor?.businessName || 'the contractor'}</span> directly if you were expecting to receive it.
                     </p>
                   </CardContent>
                 </Card>
@@ -526,6 +541,13 @@ export default function ClientView() {
                         {new Date(estimate.approvedAt).toLocaleString()}
                       </p>
                     </div>
+                    <div className="bg-white/80 rounded-xl p-4 text-left space-y-1 border border-green-100">
+                      <p className="text-sm font-semibold text-green-900">What happens next?</p>
+                      <p className="text-xs text-green-700 leading-relaxed">
+                        {contractor?.businessName || 'The contractor'} has been notified of your approval and will be in touch shortly to confirm the start date and next steps.
+                      </p>
+                    </div>
+                    <p className="text-[11px] text-green-600">You can safely close this page.</p>
                   </CardContent>
                 </Card>
               </div>

@@ -93,7 +93,7 @@ export function SignaturePad({ value, onChange }: SignaturePadProps) {
         )}
         <canvas
           ref={canvasRef}
-          className="h-36 w-full touch-none"
+          className="h-48 sm:h-36 w-full touch-none cursor-crosshair"
           onPointerDown={start}
           onPointerMove={draw}
           onPointerUp={stop}
