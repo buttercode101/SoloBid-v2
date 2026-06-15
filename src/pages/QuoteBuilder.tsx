@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { supabase, fromDbQuote, fromDbLineItem, fromDbExpense, toDbQuote, toDbLineItem, toDbExpense } from '../lib/supabase';
@@ -83,7 +83,7 @@ const sanitizeNumericInput = (val: string): string => {
   return '';
 };
 
-const SortableLineItem = React.memo(function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInput, currency }: any) {
+function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInput, currency }: any) {
   const [isFocused, setIsFocused] = useState(false);
   const {
     attributes,
@@ -250,7 +250,7 @@ const SortableLineItem = React.memo(function SortableLineItem({ item, updateLine
       </div>
     </motion.div>
   );
-});
+}
 
 export default function QuoteBuilder() {
   const { id } = useParams();
@@ -505,15 +505,15 @@ export default function QuoteBuilder() {
     }]);
   };
 
-  const updateLineItem = useCallback((id: string, field: keyof LineItem, value: any) => {
-    setLineItems(prev => prev.map(item =>
+  const updateLineItem = (id: string, field: keyof LineItem, value: any) => {
+    setLineItems(lineItems.map(item => 
       item.id === id ? { ...item, [field]: value } : item
     ));
-  }, []);
+  };
 
-  const removeLineItem = useCallback((id: string) => {
-    setLineItems(prev => prev.filter(item => item.id !== id));
-  }, []);
+  const removeLineItem = (id: string) => {
+    setLineItems(lineItems.filter(item => item.id !== id));
+  };
 
   const calculateTotals = () => {
     let subtotal = 0;
@@ -631,10 +631,10 @@ export default function QuoteBuilder() {
       if (liError) throw liError;
     }
 
-    // Replace all expenses (parallel upsert)
+    // Replace all expenses
     await supabase.from('expenses').delete().eq('quote_id', draft.quoteId);
-    if (draft.expenses.length > 0) {
-      await Promise.all(draft.expenses.map(expense => supabase.from('expenses').upsert({
+    for (const expense of draft.expenses) {
+      await supabase.from('expenses').upsert({
         id: expense.id || crypto.randomUUID(),
         user_id: draft.uid,
         quote_id: draft.quoteId,
@@ -642,7 +642,7 @@ export default function QuoteBuilder() {
         amount: parseFloat(expense.amount as any) || 0,
         currency: expense.currency || 'ZAR',
         receipt_url: expense.receiptUrl || null,
-      })));
+      });
     }
 
     saveQuoteDraftLocally(draft);
@@ -756,10 +756,10 @@ export default function QuoteBuilder() {
           if (liError) throw liError;
         }
 
-        // 3. Replace expenses (delete then upsert in parallel)
+        // 3. Replace expenses (delete then upsert)
         await supabase.from('expenses').delete().eq('quote_id', quoteId);
-        if (expenses.length > 0) {
-          await Promise.all(expenses.map(expense => supabase.from('expenses').upsert({
+        for (const expense of expenses) {
+          await supabase.from('expenses').upsert({
             id: expense.id || crypto.randomUUID(),
             user_id: user.uid,
             quote_id: quoteId,
@@ -767,7 +767,7 @@ export default function QuoteBuilder() {
             amount: typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0,
             currency,
             receipt_url: expense.receiptUrl || null,
-          })));
+          });
         }
 
         // Assign a sequential quote number the first time a quote is sent
@@ -795,8 +795,7 @@ export default function QuoteBuilder() {
     });
   };
 
-  const totals = useMemo(calculateTotals, [lineItems, expenses, taxRate, currency, profile?.saTaxInvoiceMode]);
-  const { subtotal, tax, total, effectiveTaxRate } = totals;
+  const { subtotal, tax, total, effectiveTaxRate } = calculateTotals();
 
   const formatCurrency = (amount: number, curr: string) => {
     if (curr === 'ZAR') {
@@ -805,23 +804,21 @@ export default function QuoteBuilder() {
     return `${getCurrencySymbol(curr)}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const handleVoiceInput = useCallback((itemId: string) => {
+  const handleVoiceInput = (itemId: string) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       toast.error("Browser voice processing not supported");
       return;
     }
-
+    
     const recognition = new SpeechRecognition();
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setLineItems(prev => prev.map(item =>
-        item.id === itemId ? { ...item, description: transcript } : item
-      ));
+      updateLineItem(itemId, 'description', transcript);
     };
     recognition.start();
     toast.info("Listening... Speach converter active.");
-  }, []);
+  };
 
   const addExpense = () => {
     setExpenses([...expenses, {
@@ -1040,10 +1037,10 @@ export default function QuoteBuilder() {
         if (wsLiError) throw wsLiError;
       }
 
-      // 3. Replace expenses (delete then upsert in parallel)
+      // 3. Replace expenses (delete then upsert)
       await supabase.from('expenses').delete().eq('quote_id', quoteId);
-      if (expenses.length > 0) {
-        await Promise.all(expenses.map(expense => supabase.from('expenses').upsert({
+      for (const expense of expenses) {
+        await supabase.from('expenses').upsert({
           id: expense.id || crypto.randomUUID(),
           user_id: user!.uid,
           quote_id: quoteId,
@@ -1051,7 +1048,7 @@ export default function QuoteBuilder() {
           amount: typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0,
           currency,
           receipt_url: expense.receiptUrl || null,
-        })));
+        });
       }
       removeQuoteDraftLocally(user!.uid, quoteId);
       setLocalSaveStatus('Synced just now');
