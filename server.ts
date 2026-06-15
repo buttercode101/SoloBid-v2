@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import { Resend } from "resend";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
@@ -12,25 +13,35 @@ const __dirname = path.dirname(__filename);
 // Initialize Firebase Admin
 import fs from 'fs';
 
+let _firestoreDatabaseId: string | undefined = process.env.FIRESTORE_DATABASE_ID;
+
 if (!admin.apps.length) {
   try {
     let projectId = process.env.FIREBASE_PROJECT_ID || "your-project-id";
     try {
       const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-      if (fs.existsSync(configPath) && !process.env.FIREBASE_PROJECT_ID) {
+      if (fs.existsSync(configPath)) {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        projectId = config.projectId;
+        if (!process.env.FIREBASE_PROJECT_ID) projectId = config.projectId;
+        if (!_firestoreDatabaseId) _firestoreDatabaseId = config.firestoreDatabaseId;
       }
     } catch (e) {
       console.warn("Could not read firebase-applet-config.json for admin init", e);
     }
-    
+
     admin.initializeApp({
       projectId
     });
   } catch (error) {
     console.warn("Failed to initialize Firebase Admin.", error);
   }
+}
+
+// Get a Firestore instance pointing to the correct named database
+function getAdminDb() {
+  return _firestoreDatabaseId
+    ? getFirestore(admin.app(), _firestoreDatabaseId)
+    : getFirestore(admin.app());
 }
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy_key");
@@ -110,7 +121,7 @@ async function createApp() {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const db = admin.firestore();
+      const db = getAdminDb();
       const now = new Date();
       const todayStr = now.toISOString().split('T')[0];
       
@@ -174,7 +185,7 @@ async function createApp() {
             
             transaction.update(userRef, { invoiceCount: newCount });
             
-            const invoiceId = admin.firestore().collection('invoices').doc().id;
+            const invoiceId = getAdminDb().collection('invoices').doc().id;
             const dueDate = new Date();
             dueDate.setDate(dueDate.getDate() + 14);
             
@@ -321,7 +332,7 @@ async function createApp() {
       console.error("Cron error:", error);
       
       try {
-        await admin.firestore().collection('cronLogs').add({
+        await getAdminDb().collection('cronLogs').add({
           type: 'reminders',
           runAt: new Date().toISOString(),
           error: error.message || "Internal server error",
@@ -334,6 +345,122 @@ async function createApp() {
       res.status(500).json({ 
         error: "Internal server error running cron task."
       });
+    }
+  });
+
+  // Rate limiter for client approval actions
+  const approvalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: false,
+  });
+
+  // POST /api/quotes/:id/approve — public, no auth required (quote ID is the access token)
+  app.post('/api/quotes/:id/approve', approvalLimiter, async (req, res) => {
+    const { id } = req.params;
+    if (!id || !/^[a-zA-Z0-9_-]{1,128}$/.test(id)) {
+      return res.status(400).json({ error: 'Invalid quote ID.' });
+    }
+
+    const { signatureName, signatureDataUrl } = req.body;
+
+    if (typeof signatureName !== 'string' || signatureName.trim().length < 2 || signatureName.trim().length > 100) {
+      return res.status(400).json({ error: 'Please enter your full name to sign (2–100 characters).' });
+    }
+    if (typeof signatureDataUrl !== 'string' || signatureDataUrl.length < 20) {
+      return res.status(400).json({ error: 'Please draw your signature before approving.' });
+    }
+    if (!signatureDataUrl.startsWith('data:image/')) {
+      return res.status(400).json({ error: 'Invalid signature format. Please clear and redraw your signature.' });
+    }
+
+    try {
+      const firestoreDb = getAdminDb();
+
+      // Try quotes first, then fall back to legacy estimates collection
+      let quoteRef: any = null;
+      let quote: any = null;
+
+      const quotesSnap = await firestoreDb.collection('quotes').doc(id).get();
+      if (quotesSnap.exists) {
+        quoteRef = quotesSnap.ref;
+        quote = quotesSnap.data()!;
+      } else {
+        const estimatesSnap = await firestoreDb.collection('estimates').doc(id).get();
+        if (estimatesSnap.exists) {
+          quoteRef = estimatesSnap.ref;
+          quote = estimatesSnap.data()!;
+        }
+      }
+
+      if (!quoteRef || !quote) {
+        return res.status(404).json({ error: 'Quote not found.' });
+      }
+      if (quote.status !== 'sent') {
+        return res.status(409).json({ error: 'This quotation is not currently open for approval.' });
+      }
+      if (quote.expiresAt && new Date() > new Date(quote.expiresAt)) {
+        return res.status(410).json({ error: 'This quotation has expired. Contact the contractor for a renewed quote.' });
+      }
+
+      const approvedAt = new Date().toISOString();
+      await quoteRef.update({ status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt });
+
+      return res.json({ success: true, approvedAt });
+    } catch (error: any) {
+      console.error('Error approving quote:', error);
+      return res.status(500).json({ error: 'Failed to approve quotation. Please try again.' });
+    }
+  });
+
+  // POST /api/quotes/:id/decline — public, no auth required
+  app.post('/api/quotes/:id/decline', approvalLimiter, async (req, res) => {
+    const { id } = req.params;
+    if (!id || !/^[a-zA-Z0-9_-]{1,128}$/.test(id)) {
+      return res.status(400).json({ error: 'Invalid quote ID.' });
+    }
+
+    const rejectionReason = typeof req.body.rejectionReason === 'string'
+      ? req.body.rejectionReason.trim().slice(0, 1000)
+      : '';
+
+    try {
+      const firestoreDb = getAdminDb();
+
+      let quoteRef: any = null;
+      let quote: any = null;
+
+      const quotesSnap = await firestoreDb.collection('quotes').doc(id).get();
+      if (quotesSnap.exists) {
+        quoteRef = quotesSnap.ref;
+        quote = quotesSnap.data()!;
+      } else {
+        const estimatesSnap = await firestoreDb.collection('estimates').doc(id).get();
+        if (estimatesSnap.exists) {
+          quoteRef = estimatesSnap.ref;
+          quote = estimatesSnap.data()!;
+        }
+      }
+
+      if (!quoteRef || !quote) {
+        return res.status(404).json({ error: 'Quote not found.' });
+      }
+      if (quote.status !== 'sent') {
+        return res.status(409).json({ error: 'This quotation is not currently open for rejection.' });
+      }
+      if (quote.expiresAt && new Date() > new Date(quote.expiresAt)) {
+        return res.status(410).json({ error: 'This quotation has already expired.' });
+      }
+
+      const rejectedAt = new Date().toISOString();
+      await quoteRef.update({ status: 'rejected', rejectionReason, rejectedAt });
+
+      return res.json({ success: true, rejectedAt });
+    } catch (error: any) {
+      console.error('Error declining quote:', error);
+      return res.status(500).json({ error: 'Failed to decline quotation. Please try again.' });
     }
   });
 

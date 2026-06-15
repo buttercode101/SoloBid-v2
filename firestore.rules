@@ -54,8 +54,8 @@ service cloud.firestore {
         && incoming().signatureName.size() < 100
         && incoming().signatureDataUrl is string
         && incoming().signatureDataUrl.size() > 20
-        && incoming().signatureDataUrl.size() < 500000
-        && incoming().signatureDataUrl.matches('^data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+$')
+        && incoming().signatureDataUrl.size() < 2000000
+        && incoming().signatureDataUrl.matches('^data:image/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+$')
         && incoming().approvedAt is string;
     }
 

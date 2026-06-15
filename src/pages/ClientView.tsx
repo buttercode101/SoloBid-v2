@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -111,21 +111,20 @@ export default function ClientView() {
 
     try {
       setApproving(true);
-      const collectionName = estimate?._collectionName || 'quotes';
-      const docRef = doc(db, collectionName, id!);
-      const approvedAt = new Date().toISOString();
-      await updateDoc(docRef, {
-        status: 'approved',
-        signatureName: signatureName.trim(),
-        signatureDataUrl,
-        approvedAt
+      const response = await fetch(`/api/quotes/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signatureName: signatureName.trim(), signatureDataUrl }),
       });
-      
-      setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to approve quotation.');
+      }
+      setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt: data.approvedAt });
       toast.success("Quotation approved successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error approving:", error);
-      toast.error("Failed to approve quotation. Please refresh the link and try again, or contact the sender.");
+      toast.error(error.message || "Failed to approve quotation. Please refresh the link and try again, or contact the sender.");
     } finally {
       setApproving(false);
     }
@@ -143,21 +142,21 @@ export default function ClientView() {
 
     try {
       setRejecting(true);
-      const collectionName = estimate?._collectionName || 'quotes';
-      const docRef = doc(db, collectionName, id!);
-      const rejectedAt = new Date().toISOString();
       const trimmedReason = rejectionReason.trim();
-      await updateDoc(docRef, {
-        status: 'rejected',
-        rejectionReason: trimmedReason,
-        rejectedAt
+      const response = await fetch(`/api/quotes/${id}/decline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectionReason: trimmedReason }),
       });
-
-      setEstimate({ ...estimate, status: 'rejected', rejectionReason: trimmedReason, rejectedAt });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to decline quotation.');
+      }
+      setEstimate({ ...estimate, status: 'rejected', rejectionReason: trimmedReason, rejectedAt: data.rejectedAt });
       toast.success('Quotation declined. The sender can review your response.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error rejecting:', error);
-      toast.error('Failed to decline quotation. Please refresh the link and try again, or contact the sender.');
+      toast.error(error.message || 'Failed to decline quotation. Please refresh the link and try again, or contact the sender.');
     } finally {
       setRejecting(false);
     }
