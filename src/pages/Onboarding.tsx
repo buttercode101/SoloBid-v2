@@ -162,7 +162,7 @@ export default function Onboarding() {
                 id="businessName"
                 value={formData.businessName}
                 onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                placeholder="e.g. Phakoe Electrical"
+                placeholder="e.g. Remo & Co."
                 className="h-11 rounded-xl"
                 autoFocus
               />
