@@ -21,6 +21,8 @@ export interface UserProfile {
   terms: string;
   invoicePrefix?: string;
   invoiceCount?: number;
+  quotePrefix?: string;
+  quoteCount?: number;
   pdfStyle?: string;
   pdfFont?: string;
   defaultCurrency?: string;

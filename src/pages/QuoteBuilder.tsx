@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, Send, ArrowLeft, Mic, GripVertical, ImagePlus, Copy, Check, FileText, Sparkles, Calendar, Receipt, Milestone, Layers, WifiOff, MessageCircle, Printer, Download, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Save, Send, ArrowLeft, Mic, GripVertical, ImagePlus, Copy, Check, FileText, Sparkles, Calendar, Receipt, Milestone, Layers, WifiOff, MessageCircle, Printer, Download, Loader2, Mail } from 'lucide-react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -262,6 +262,9 @@ export default function QuoteBuilder() {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [quoteNumber, setQuoteNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -293,6 +296,27 @@ export default function QuoteBuilder() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleSendByEmail = async () => {
+    if (!id) { toast.error('Save the quote first before sending by email'); return; }
+    if (!clientEmail.trim()) { toast.error('Add the client email address above first'); return; }
+    try {
+      setIsSendingEmail(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/quotes/${id}/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ clientEmail: clientEmail.trim(), clientName: clientName.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to send email');
+      toast.success(`Quote emailed to ${clientEmail.trim()}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send email');
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -315,10 +339,12 @@ export default function QuoteBuilder() {
       if (client) {
         setClientName(client.name);
         setClientPhone(client.phone || '');
+        setClientEmail(client.email || '');
       }
     } else {
       setClientName('');
       setClientPhone('');
+      setClientEmail('');
     }
   };
 
@@ -422,6 +448,7 @@ export default function QuoteBuilder() {
         const data = fromDbQuote(quoteRow);
         setClientName(data.clientName || '');
         setClientPhone(data.clientPhone || '');
+        setClientEmail(data.clientEmail || '');
         setSelectedClientId(data.clientId || '');
         setNotes(data.notes || '');
         setTaxRate(data.taxRate !== undefined ? data.taxRate : (profile?.defaultTaxRate || 0));
@@ -431,6 +458,7 @@ export default function QuoteBuilder() {
         setQuoteCreatedAt(data.createdAt || null);
         setValidityDays(data.validityDays || '7');
         setQuotePdfUrl(data.pdfUrl || '');
+        setQuoteNumber(data.quoteNumber || '');
 
         const items = (itemRows || []).map(fromDbLineItem) as LineItem[];
         setLineItems(items.length > 0 ? items : []);
@@ -538,6 +566,7 @@ export default function QuoteBuilder() {
         clientId: selectedClientId || null,
         clientName: DOMPurify.sanitize(clientName),
         clientPhone: DOMPurify.sanitize(clientPhone),
+        clientEmail: DOMPurify.sanitize(clientEmail),
         notes: DOMPurify.sanitize(notes),
         taxRate: effectiveTaxRate,
         subtotal,
@@ -682,6 +711,7 @@ export default function QuoteBuilder() {
           clientId: selectedClientId || null,
           clientName: DOMPurify.sanitize(clientName),
           clientPhone: DOMPurify.sanitize(clientPhone),
+          clientEmail: DOMPurify.sanitize(clientEmail),
           notes: DOMPurify.sanitize(notes),
           taxRate: effectiveTaxRate,
           subtotal,
@@ -738,6 +768,12 @@ export default function QuoteBuilder() {
             currency,
             receipt_url: expense.receiptUrl || null,
           });
+        }
+
+        // Assign a sequential quote number the first time a quote is sent
+        if (status === 'sent' && !quoteNumber) {
+          const { data: assignedNum } = await supabase.rpc('assign_quote_number', { p_quote_id: quoteId });
+          if (assignedNum) setQuoteNumber(assignedNum);
         }
 
         removeQuoteDraftLocally(user.uid, quoteId);
@@ -1079,6 +1115,7 @@ export default function QuoteBuilder() {
           <div>
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">
               {id ? 'Edit Bid Proposal' : 'Draft New Quote'}
+              {quoteNumber && <span className="ml-3 text-base font-mono text-zinc-400 tracking-wide">{quoteNumber}</span>}
             </h1>
             <p className="text-zinc-450 text-xs mt-0.5">Fill in the customer details, line items, and tax rate.</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1142,7 +1179,10 @@ export default function QuoteBuilder() {
                 <Printer className="w-4 h-4 mr-2 text-zinc-500" /> Print
               </Button>
               <Button variant="outline" className="h-10 border-[#25D366] bg-[#25D366] text-white rounded-xl px-4 hover:bg-[#1fb958] hover:border-[#1fb958] active:scale-95 transition-all text-sm shadow-sm shadow-emerald-900/10" onClick={handleWhatsAppShare} disabled={!!pdfBusy} title="Share on WhatsApp">
-                {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />} Share on WhatsApp
+                {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />} WhatsApp
+              </Button>
+              <Button variant="outline" className="h-10 border-zinc-200 text-zinc-700 rounded-xl px-4 hover:bg-zinc-50 active:scale-95 transition-all text-sm" onClick={handleSendByEmail} disabled={isSendingEmail || !clientEmail.trim()} title={clientEmail.trim() ? 'Send quote link by email' : 'Add client email first'}>
+                {isSendingEmail ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2 text-zinc-500" />} Email
               </Button>
             </>
           )}
@@ -1259,17 +1299,29 @@ export default function QuoteBuilder() {
                     disabled={!!selectedClientId}
                   />
                 </div>
-                <div className="space-y-1.5 md:col-span-2">
+                <div className="space-y-1.5">
                   <Label className="text-xs text-zinc-500 font-medium">Customer WhatsApp Number</Label>
-                  <Input 
+                  <Input
                     type="tel"
-                    value={clientPhone} 
-                    onChange={e => setClientPhone(e.target.value)} 
+                    value={clientPhone}
+                    onChange={e => setClientPhone(e.target.value)}
                     placeholder="e.g. +27 82 123 4567"
                     className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
                     disabled={!!selectedClientId}
                   />
-                  <p className="text-[11px] text-zinc-400">Used for Share on WhatsApp. SoloBid will clean local SA numbers into +27 format.</p>
+                  <p className="text-[11px] text-zinc-400">Used for Share on WhatsApp.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-zinc-500 font-medium">Customer Email</Label>
+                  <Input
+                    type="email"
+                    value={clientEmail}
+                    onChange={e => setClientEmail(e.target.value)}
+                    placeholder="e.g. client@example.com"
+                    className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
+                    disabled={!!selectedClientId}
+                  />
+                  <p className="text-[11px] text-zinc-400">Used for Send by Email.</p>
                 </div>
               </div>
               

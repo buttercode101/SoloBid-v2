@@ -210,6 +210,45 @@ export default function Templates() {
             { description: 'Breakers, Terminals & Consumables', qty: 1, unitCost: 650, type: 'material', markupPercent: profile?.defaultMarkup || 10 }
           ],
         },
+        {
+          name: 'Influencer Collaboration',
+          description: 'Brand deal quoting for sponsored content, story posts, and usage rights.',
+          lineItems: [
+            { description: 'Sponsored Content Creation Fee', qty: 1, unitCost: 5000, type: 'labor', markupPercent: 0 },
+            { description: 'Usage Rights (30 Days)', qty: 1, unitCost: 1500, type: 'labor', markupPercent: 0 },
+            { description: 'Story Reposts (×3)', qty: 3, unitCost: 800, type: 'labor', markupPercent: 0 },
+            { description: 'Content Revisions Allowance', qty: 1, unitCost: 500, type: 'labor', markupPercent: 0 },
+          ],
+        },
+        {
+          name: 'Photography Shoot',
+          description: 'Half-day shoot package with editing, delivery, and optional rush fee.',
+          lineItems: [
+            { description: 'Half-Day Shoot (up to 4 hours)', qty: 1, unitCost: 3500, type: 'labor', markupPercent: 0 },
+            { description: 'Editing & Retouching (20 images)', qty: 1, unitCost: 1200, type: 'labor', markupPercent: 0 },
+            { description: 'Travel / Location Fee', qty: 1, unitCost: 350, type: 'labor', markupPercent: 0 },
+            { description: 'Rush Delivery (48hr turnaround)', qty: 1, unitCost: 500, type: 'labor', markupPercent: 0 },
+          ],
+        },
+        {
+          name: 'Consulting Package',
+          description: 'Strategy session, written report, and follow-up for consulting engagements.',
+          lineItems: [
+            { description: 'Strategy Session', qty: 2, unitCost: profile?.defaultLaborRate || 800, type: 'labor', markupPercent: 0 },
+            { description: 'Written Recommendations Report', qty: 1, unitCost: 2000, type: 'labor', markupPercent: 0 },
+            { description: 'Follow-Up Call (1 hour)', qty: 1, unitCost: profile?.defaultLaborRate || 800, type: 'labor', markupPercent: 0 },
+          ],
+        },
+        {
+          name: 'Content Creation',
+          description: 'Script writing, video production, thumbnail design, and scheduling.',
+          lineItems: [
+            { description: 'Script Writing & Creative Brief', qty: 1, unitCost: 1500, type: 'labor', markupPercent: 0 },
+            { description: 'Video Production (per minute)', qty: 3, unitCost: 1000, type: 'labor', markupPercent: 0 },
+            { description: 'Thumbnail / Cover Design', qty: 1, unitCost: 500, type: 'labor', markupPercent: 0 },
+            { description: 'Captions & Social Scheduling', qty: 1, unitCost: 400, type: 'labor', markupPercent: 0 },
+          ],
+        },
       ];
 
       for (const def of starterDefs) {
