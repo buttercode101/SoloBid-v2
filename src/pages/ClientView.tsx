@@ -109,15 +109,13 @@ export default function ClientView() {
 
     try {
       setApproving(true);
-      const response = await fetch(`/api/quotes/${id}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signatureName: signatureName.trim(), signatureDataUrl }),
+      const { data, error: rpcError } = await supabase.rpc('approve_quote', {
+        p_quote_id: id,
+        p_signature_name: signatureName.trim(),
+        p_signature_data_url: signatureDataUrl,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to approve quotation.');
-      }
+      if (rpcError) throw rpcError;
+      if (data?.error) throw new Error(data.error);
       setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt: data.approvedAt });
       toast.success("Quotation approved successfully!");
     } catch (error: any) {
@@ -141,15 +139,12 @@ export default function ClientView() {
     try {
       setRejecting(true);
       const trimmedReason = rejectionReason.trim();
-      const response = await fetch(`/api/quotes/${id}/decline`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rejectionReason: trimmedReason }),
+      const { data, error: rpcError } = await supabase.rpc('decline_quote', {
+        p_quote_id: id,
+        p_rejection_reason: trimmedReason,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to decline quotation.');
-      }
+      if (rpcError) throw rpcError;
+      if (data?.error) throw new Error(data.error);
       setEstimate({ ...estimate, status: 'rejected', rejectionReason: trimmedReason, rejectedAt: data.rejectedAt });
       toast.success('Quotation declined. The sender can review your response.');
     } catch (error: any) {
