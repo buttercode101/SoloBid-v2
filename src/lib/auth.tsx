@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth, db } from './firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import type { User } from '@supabase/supabase-js';
+import { supabase, fromDbUser, toDbUser } from './supabase';
 
 export type OnboardingStep = 'welcome' | 'profile' | 'preferences' | 'complete';
 export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'none';
+
+// Supabase User augmented with Firebase-compatible uid alias
+export type AppUser = User & { uid: string };
 
 export interface UserProfile {
   uid: string;
@@ -46,7 +48,7 @@ export interface AuthState {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
   profile: UserProfile | null;
   authState: AuthState;
   loading: boolean;
@@ -69,7 +71,6 @@ export function getProfileCompletion(profile: UserProfile | null): number {
     const value = profile[field];
     return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
   }).length;
-
   return Math.round((completedFields / REQUIRED_PROFILE_FIELDS.length) * 100);
 }
 
@@ -83,7 +84,7 @@ function getNextOnboardingStep(profile: UserProfile | null): OnboardingStep {
   return normalizeOnboardingStep(profile.onboardingStep);
 }
 
-function buildAuthState(user: User | null, profile: UserProfile | null): AuthState {
+function buildAuthState(user: AppUser | null, profile: UserProfile | null): AuthState {
   const profileCompletion = getProfileCompletion(profile);
   const profileComplete = profileCompletion === 100 && Boolean(profile?.profileComplete);
   const onboardingComplete = profileComplete && Boolean(profile?.onboardingComplete);
@@ -96,6 +97,10 @@ function buildAuthState(user: User | null, profile: UserProfile | null): AuthSta
     subscriptionStatus: profile?.subscriptionStatus || 'none',
     nextOnboardingStep: onboardingComplete ? 'complete' : getNextOnboardingStep(profile),
   };
+}
+
+function makeAppUser(user: User): AppUser {
+  return Object.assign(Object.create(Object.getPrototypeOf(user)), user, { uid: user.id });
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -112,7 +117,7 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,10 +125,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = async (uid: string) => {
     try {
       setError(null);
-      const docRef = doc(db, 'users', uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const remoteProfile = docSnap.data() as UserProfile;
+      const { data, error: dbError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', uid)
+        .single();
+
+      if (dbError && dbError.code !== 'PGRST116') throw dbError;
+
+      if (data) {
+        const remoteProfile = fromDbUser(data) as UserProfile;
         localStorage.setItem(`profile_${uid}`, JSON.stringify(remoteProfile));
         setProfile(remoteProfile);
       } else {
@@ -145,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.uid);
+      await fetchProfile(user.id);
     }
   };
 
@@ -154,7 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const now = new Date().toISOString();
     const baseProfile: UserProfile = {
-      uid: user.uid,
+      uid: user.id,
       businessName: '',
       defaultLaborRate: 75,
       defaultTaxRate: 0,
@@ -178,7 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...baseProfile,
       ...profile,
       ...profilePatch,
-      uid: user.uid,
+      uid: user.id,
       updatedAt: now,
       createdAt: profile?.createdAt || profilePatch.createdAt || now,
     } as UserProfile;
@@ -189,10 +200,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     nextProfile.onboardingComplete = nextProfile.profileComplete && Boolean(profilePatch.onboardingComplete ?? nextProfile.onboardingComplete);
 
     setProfile(nextProfile);
-    localStorage.setItem(`profile_${user.uid}`, JSON.stringify(nextProfile));
+    localStorage.setItem(`profile_${user.id}`, JSON.stringify(nextProfile));
 
     try {
-      await setDoc(doc(db, 'users', user.uid), nextProfile, { merge: true });
+      const dbRow = toDbUser(nextProfile);
+      dbRow.id = user.id;
+      const { error: upsertError } = await supabase.from('users').upsert(dbRow);
+      if (upsertError) throw upsertError;
     } catch (saveError) {
       console.error('Error saving profile draft:', saveError);
       setError('Your setup was saved on this device and will be retried when the connection recovers.');
@@ -201,12 +215,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setLoading(true);
       setError(null);
-      if (currentUser) {
-        setUser(currentUser);
-        await fetchProfile(currentUser.uid);
+      if (session?.user) {
+        const appUser = makeAppUser(session.user);
+        setUser(appUser);
+        await fetchProfile(session.user.id);
       } else {
         setUser(null);
         setProfile(null);
@@ -214,11 +229,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const appUser = makeAppUser(session.user);
+        setUser(appUser);
+        fetchProfile(session.user.id).then(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const signOut = async () => {
-    await firebaseSignOut(auth);
+    await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
   };

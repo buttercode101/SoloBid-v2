@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db } from '../lib/firebase';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { supabase, fromDbQuote, fromDbLineItem } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -52,38 +51,37 @@ export default function ClientView() {
     return () => { document.title = 'SoloBid'; };
   }, [estimate, contractor]);
 
-  const loadData = async (estimateId: string) => {
+  const loadData = async (quoteId: string) => {
     try {
       setLoading(true);
-      // Try quotes collection first
-      let docRef = doc(db, 'quotes', estimateId);
-      let docSnap = await getDoc(docRef);
-      let collectionName = 'quotes';
-      
-      if (!docSnap.exists()) {
-        // Fallback to legacy estimates collection
-        docRef = doc(db, 'estimates', estimateId);
-        docSnap = await getDoc(docRef);
-        collectionName = 'estimates';
-      }
-      
-      if (docSnap.exists()) {
-        const estData = docSnap.data();
-        setEstimate({ id: docSnap.id, ...estData, _collectionName: collectionName });
-        
-        setContractor({
-          businessName: estData.contractorBusinessName,
-          logoUrl: estData.contractorLogoUrl,
-          terms: estData.contractorTerms,
-          defaultCurrency: estData.currency || 'ZAR',
-          saTaxInvoiceMode: estData.isSATaxInvoice || false
-        });
+      const { data: quoteRow, error: quoteError } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('id', quoteId)
+        .single();
 
-        // Load line items
-        const itemsRef = collection(db, collectionName, estimateId, 'lineItems');
-        const itemsSnap = await getDocs(itemsRef);
-        setLineItems(itemsSnap.docs.map(d => d.data()));
+      if (quoteError || !quoteRow) {
+        setLoading(false);
+        return;
       }
+
+      const estData = fromDbQuote(quoteRow);
+      setEstimate(estData);
+      setContractor({
+        businessName: estData.contractorBusinessName,
+        logoUrl: estData.contractorLogoUrl,
+        terms: estData.contractorTerms,
+        defaultCurrency: estData.currency || 'ZAR',
+        saTaxInvoiceMode: estData.isSATaxInvoice || false,
+      });
+
+      const { data: itemRows } = await supabase
+        .from('line_items')
+        .select('*')
+        .eq('quote_id', quoteId)
+        .order('sort_order', { ascending: true });
+
+      setLineItems((itemRows || []).map(fromDbLineItem));
     } catch (error) {
       console.error("Error loading quote:", error);
       toast.error("An unexpected error occurred while loading this quote. Please try again or contact the sender.");

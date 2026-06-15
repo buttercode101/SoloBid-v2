@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { supabase, fromDbTemplate, fromDbLineItem } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { FileText, Plus, Trash2, Edit, Loader2, Sparkles, ClipboardCopy, ChevronRight, Layers } from 'lucide-react';
@@ -38,16 +37,38 @@ export default function Templates() {
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
-      collection(db, 'templates'),
-      where('uid', '==', user.uid)
-    );
+    const fetchTemplates = async () => {
+      const { data: tplData } = await supabase
+        .from('templates')
+        .select('*')
+        .eq('user_id', user.uid)
+        .order('created_at', { ascending: false });
+      if (tplData) {
+        const { data: liData } = await supabase
+          .from('line_items')
+          .select('*')
+          .in('template_id', tplData.map(t => t.id));
+        setTemplates(tplData.map(t => fromDbTemplate(t, (liData || []).filter(li => li.template_id === t.id))));
+      }
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    fetchTemplates();
 
-    return () => unsubscribe();
+    const channel = supabase
+      .channel('templates-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'templates', filter: `user_id=eq.${user.uid}` },
+        () => fetchTemplates()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'line_items' },
+        () => fetchTemplates()
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const handleOpenDialog = (template?: any) => {
@@ -73,20 +94,15 @@ export default function Templates() {
 
     try {
       const templateId = editingTemplate ? editingTemplate.id : uuidv4();
-      const templateData = {
+
+      const { error } = await supabase.from('templates').upsert({
         id: templateId,
-        uid: user.uid,
+        user_id: user.uid,
         name: formData.name,
         description: formData.description,
-        lineItems: editingTemplate ? editingTemplate.lineItems : [
-          { id: uuidv4(), description: 'Standard Labor Rate', qty: 1, unitCost: profile?.defaultLaborRate || 750, type: 'labor', markupPercent: 0 },
-          { id: uuidv4(), description: 'Required Project Materials', qty: 1, unitCost: 1500, type: 'material', markupPercent: profile?.defaultMarkup || 15 }
-        ],
-        updatedAt: new Date().toISOString(),
-        ...(editingTemplate ? {} : { createdAt: new Date().toISOString() })
-      };
+      });
 
-      await setDoc(doc(db, 'templates', templateId), templateData, { merge: true });
+      if (error) throw error;
       toast.success(`Template ${editingTemplate ? 'updated' : 'created'}`);
       setIsDialogOpen(false);
     } catch (error) {
@@ -98,7 +114,8 @@ export default function Templates() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'templates', id));
+      const { error } = await supabase.from('templates').delete().eq('id', id);
+      if (error) throw error;
       toast.success("Template deleted");
       setDeleteId(null);
     } catch (error) {
@@ -109,38 +126,48 @@ export default function Templates() {
   const handleUseTemplate = async (template: any) => {
     try {
       const quoteId = uuidv4();
-      
+
       let subtotal = 0;
       for (const item of template.lineItems || []) {
         const baseCost = (item.qty || 1) * (item.unitCost || 0);
         const markup = baseCost * ((item.markupPercent || 0) / 100);
         subtotal += baseCost + markup;
       }
-      
+
       const taxRate = profile?.defaultTaxRate || 0;
       const taxAmount = subtotal * (taxRate / 100);
       const total = subtotal + taxAmount;
-      
-      const quoteData = {
-        uid: user!.uid,
-        clientName: '',
-        clientEmail: '',
+
+      const { error: quoteError } = await supabase.from('quotes').insert({
+        id: quoteId,
+        user_id: user!.uid,
+        client_name: '',
+        client_email: '',
         notes: template.description || '',
-        taxRate,
+        tax_rate: taxRate,
         subtotal,
-        taxAmount,
+        tax_amount: taxAmount,
         total,
         status: 'draft',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      });
 
-      await setDoc(doc(db, 'quotes', quoteId), quoteData);
-      
-      const itemsRef = collection(db, 'quotes', quoteId, 'lineItems');
-      for (const item of template.lineItems || []) {
-        const newItem = { ...item, id: uuidv4() };
-        await setDoc(doc(itemsRef, newItem.id), newItem);
+      if (quoteError) throw quoteError;
+
+      if (template.lineItems?.length > 0) {
+        const lineItemRows = template.lineItems.map((item: any, i: number) => ({
+          id: uuidv4(),
+          quote_id: quoteId,
+          template_id: null,
+          description: item.description,
+          qty: item.qty ?? 1,
+          unit_cost: item.unitCost ?? 0,
+          type: item.type || 'labor',
+          markup_percent: item.markupPercent ?? 0,
+          sort_order: i,
+        }));
+
+        const { error: liError } = await supabase.from('line_items').insert(lineItemRows);
+        if (liError) throw liError;
       }
 
       toast.success("Created new quote draft from current template layout");
@@ -154,52 +181,62 @@ export default function Templates() {
     if (!user) return;
     setIsLoadingStarters(true);
     try {
-      const starterTemplates = [
+      const starterDefs = [
         {
-          id: uuidv4(),
-          uid: user.uid,
           name: 'SA Plumbing Call-Out',
           description: 'Leak inspection, call-out fee, common fittings, and tidy site handover.',
           lineItems: [
-            { id: uuidv4(), description: 'Call-Out & Leak Diagnostic', qty: 1, unitCost: 450, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Qualified Plumber Labour', qty: 2, unitCost: profile?.defaultLaborRate || 650, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'PVC/Copper Fittings & Consumables', qty: 1, unitCost: 380, type: 'material', markupPercent: profile?.defaultMarkup || 15 }
+            { description: 'Call-Out & Leak Diagnostic', qty: 1, unitCost: 450, type: 'labor', markupPercent: 0 },
+            { description: 'Qualified Plumber Labour', qty: 2, unitCost: profile?.defaultLaborRate || 650, type: 'labor', markupPercent: 0 },
+            { description: 'PVC/Copper Fittings & Consumables', qty: 1, unitCost: 380, type: 'material', markupPercent: profile?.defaultMarkup || 15 }
           ],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
         },
         {
-          id: uuidv4(),
-          uid: user.uid,
           name: 'Renovation Room Refresh',
           description: 'Measurement, artisan labour, material allowance, and rubble removal for small renovations.',
           lineItems: [
-            { id: uuidv4(), description: 'Site Measure & Scope Confirmation', qty: 1, unitCost: 1500, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Artisan Labour Hours', qty: 32, unitCost: profile?.defaultLaborRate || 550, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Material Allowance', qty: 1, unitCost: 8500, type: 'material', markupPercent: profile?.defaultMarkup || 15 },
-            { id: uuidv4(), description: 'Rubble Removal & Final Clean', qty: 1, unitCost: 1200, type: 'labor', markupPercent: 0 }
+            { description: 'Site Measure & Scope Confirmation', qty: 1, unitCost: 1500, type: 'labor', markupPercent: 0 },
+            { description: 'Artisan Labour Hours', qty: 32, unitCost: profile?.defaultLaborRate || 550, type: 'labor', markupPercent: 0 },
+            { description: 'Material Allowance', qty: 1, unitCost: 8500, type: 'material', markupPercent: profile?.defaultMarkup || 15 },
+            { description: 'Rubble Removal & Final Clean', qty: 1, unitCost: 1200, type: 'labor', markupPercent: 0 }
           ],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
         },
         {
-          id: uuidv4(),
-          uid: user.uid,
           name: 'Electrical Compliance Visit',
           description: 'DB inspection, fault finding, compliance checks, and replacement consumables.',
           lineItems: [
-            { id: uuidv4(), description: 'Electrical Call-Out & DB Inspection', qty: 1, unitCost: 550, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Fault Finding / Compliance Labour', qty: 3, unitCost: profile?.defaultLaborRate || 650, type: 'labor', markupPercent: 0 },
-            { id: uuidv4(), description: 'Breakers, Terminals & Consumables', qty: 1, unitCost: 650, type: 'material', markupPercent: profile?.defaultMarkup || 10 }
+            { description: 'Electrical Call-Out & DB Inspection', qty: 1, unitCost: 550, type: 'labor', markupPercent: 0 },
+            { description: 'Fault Finding / Compliance Labour', qty: 3, unitCost: profile?.defaultLaborRate || 650, type: 'labor', markupPercent: 0 },
+            { description: 'Breakers, Terminals & Consumables', qty: 1, unitCost: 650, type: 'material', markupPercent: profile?.defaultMarkup || 10 }
           ],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
+        },
       ];
 
-      for (const template of starterTemplates) {
-        await setDoc(doc(db, 'templates', template.id), template);
+      for (const def of starterDefs) {
+        const templateId = uuidv4();
+        const { error: tplError } = await supabase.from('templates').insert({
+          id: templateId,
+          user_id: user.uid,
+          name: def.name,
+          description: def.description,
+        });
+        if (tplError) throw tplError;
+
+        const lineItemRows = def.lineItems.map((item, i) => ({
+          id: uuidv4(),
+          template_id: templateId,
+          quote_id: null,
+          description: item.description,
+          qty: item.qty,
+          unit_cost: item.unitCost,
+          type: item.type,
+          markup_percent: item.markupPercent,
+          sort_order: i,
+        }));
+        const { error: liError } = await supabase.from('line_items').insert(lineItemRows);
+        if (liError) throw liError;
       }
+
       toast.success("Premium starter templates loaded successfully");
     } catch (error) {
       toast.error("Failed to seed premium starter templates");

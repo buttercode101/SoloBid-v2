@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { db, storage } from '../lib/firebase';
-import { doc, setDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase, toDbUser } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -105,9 +103,10 @@ export default function Settings() {
       let logoUrl = profile?.logoUrl || '';
 
       if (logoFile) {
-        const storageRef = ref(storage, `logos/${user.uid}/${logoFile.name}`);
-        const uploadResult = await uploadBytes(storageRef, logoFile);
-        logoUrl = await getDownloadURL(uploadResult.ref);
+        const filePath = `${user.uid}/${Date.now()}_${logoFile.name}`;
+        const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, logoFile, { upsert: true });
+        if (uploadError) throw uploadError;
+        logoUrl = supabase.storage.from('logos').getPublicUrl(filePath).data.publicUrl;
       }
 
       const profileData = {
@@ -133,7 +132,10 @@ export default function Settings() {
         updatedAt: new Date().toISOString(),
       };
 
-      await setDoc(doc(db, 'users', user.uid), profileData, { merge: true });
+      const dbRow = toDbUser({ ...profileData, uid: user.uid });
+      dbRow.id = user.uid;
+      const { error: upsertError } = await supabase.from('users').upsert(dbRow);
+      if (upsertError) throw upsertError;
       await refreshProfile();
       toast.success('Settings saved successfully');
     } catch (error: any) {
@@ -149,76 +151,25 @@ export default function Settings() {
 
     try {
       const isFactoryReset = purgeType === 'profile';
-      
-      const collectionsToPurge = [
-        { name: 'quotes', subcollections: ['lineItems', 'expenses'] },
-        { name: 'estimates', subcollections: ['lineItems', 'expenses'] },
-        { name: 'invoices', subcollections: [] },
-        { name: 'recurringInvoices', subcollections: ['lineItems'] },
-        { name: 'clients', subcollections: [] },
-        { name: 'templates', subcollections: [] }
-      ];
 
-      for (const col of collectionsToPurge) {
-        const q = query(collection(db, col.name), where('uid', '==', user.uid));
-        const snap = await getDocs(q);
-        
-        let batch = writeBatch(db);
-        let batchCount = 0;
-
-        for (const docSnap of snap.docs) {
-          const docId = docSnap.id;
-          
-          for (const subName of col.subcollections) {
-            const subRef = collection(db, col.name, docId, subName);
-            const subSnap = await getDocs(subRef);
-            for (const subDocSnap of subSnap.docs) {
-              batch.delete(subDocSnap.ref);
-              batchCount++;
-              if (batchCount >= 400) {
-                await batch.commit();
-                batch = writeBatch(db);
-                batchCount = 0;
-              }
-            }
-          }
-          
-          batch.delete(docSnap.ref);
-          batchCount++;
-          if (batchCount >= 400) {
-            await batch.commit();
-            batch = writeBatch(db);
-            batchCount = 0;
-          }
-        }
-        
-        if (batchCount > 0) {
-          await batch.commit();
-        }
-      }
+      // Delete all quotes (CASCADE deletes line_items and expenses)
+      await supabase.from('quotes').delete().eq('user_id', user.uid);
+      // Delete invoices, clients, templates, recurring_invoices
+      await supabase.from('invoices').delete().eq('user_id', user.uid);
+      await supabase.from('clients').delete().eq('user_id', user.uid);
+      await supabase.from('templates').delete().eq('user_id', user.uid);
+      await supabase.from('recurring_invoices').delete().eq('user_id', user.uid);
 
       if (isFactoryReset) {
-        const defaultProfile = {
-          uid: user.uid,
-          businessName: '',
-          logoUrl: '',
-          defaultLaborRate: 750,
-          defaultTaxRate: 15,
-          defaultMarkup: 20,
-          terms: '',
-          invoicePrefix: 'INV-',
-          pdfStyle: 'modern',
-          pdfFont: 'Helvetica',
-          defaultCurrency: 'ZAR',
-          country: 'ZA',
-          vatNumber: '',
-          saTaxInvoiceMode: true,
-          invoiceCount: 0,
-          updatedAt: new Date().toISOString(),
-        };
+        await supabase.from('users').update({
+          business_name: '',
+          mobile_number: null,
+          logo_url: null,
+          onboarding_step: 'welcome',
+          onboarding_complete: false,
+          profile_complete: false,
+        }).eq('id', user.uid);
 
-        await setDoc(doc(db, 'users', user.uid), defaultProfile);
-        
         setFormData({
           businessName: '',
           fullName: '',
@@ -238,7 +189,7 @@ export default function Settings() {
           vatNumber: '',
           saTaxInvoiceMode: true,
         });
-        
+
         setLogoFile(null);
         await refreshProfile();
         toast.success("Factory reset complete. All settings and databases wiped perfectly.");
