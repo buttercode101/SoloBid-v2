@@ -15,6 +15,7 @@ import { getCurrencySymbol } from '../lib/currencies';
 import { getUserFriendlyError } from '../lib/errorHandler';
 import { formatZAR, statusBadgeStyles } from '../lib/theme';
 import { generateWhatsAppShareLink, trackWhatsAppShare } from '../lib/whatsapp';
+import { getCache, setCache } from '../lib/pageCache';
 
 const DEMO_QUOTES = [
   { id: 'demo1', clientName: 'Global Tech Solutions', clientEmail: 'contact@globaltech.com', status: 'approved', total: 12500.00, createdAt: new Date().toISOString(), currency: 'USD' },
@@ -148,6 +149,12 @@ export default function Dashboard() {
     let quotesList: any[] = [];
     let invoicesList: any[] = [];
 
+    // Serve cached data instantly to avoid skeleton on back-navigation
+    const cachedQuotes = getCache<any[]>(`dq:${user.uid}`);
+    const cachedStats = getCache<typeof stats>(`ds:${user.uid}`);
+    if (cachedQuotes) { quotesList = cachedQuotes; setRecentQuotes(cachedQuotes); }
+    if (cachedStats) { setStats(cachedStats); setLoading(false); }
+
     const computeAndSetStats = async () => {
       let pending = 0;
       let billed = 0;
@@ -230,7 +237,7 @@ export default function Dashboard() {
         }
       }
 
-      setStats({
+      const nextStats = {
         pendingCount: pending,
         billedThisMonth: billed,
         avgJobValue: approvedCount > 0 ? totalValue / approvedCount : 0,
@@ -238,7 +245,9 @@ export default function Dashboard() {
         billedLastMonth,
         completedJobs,
         outstandingBalance,
-      });
+      };
+      setStats(nextStats);
+      setCache(`ds:${user.uid}`, nextStats);
       setLoading(false);
     };
 
@@ -252,7 +261,7 @@ export default function Dashboard() {
       if (data) {
         quotesList = data.map(fromDbQuote);
         setRecentQuotes(quotesList);
-        await computeAndSetStats();
+        setCache(`dq:${user.uid}`, quotesList);
       }
     };
 
@@ -263,19 +272,27 @@ export default function Dashboard() {
         .eq('user_id', user.uid);
       if (data) {
         invoicesList = data.map(fromDbInvoice);
-        await computeAndSetStats();
       }
     };
 
-    // Initial fetches
-    fetchQuotes().catch((error) => {
-      console.error("Dashboard quotes fetch error:", error);
-      toast.error(getUserFriendlyError(error));
-      setLoading(false);
-    });
-    fetchInvoices().catch((error) => {
-      console.error("Dashboard invoices fetch error:", error);
-    });
+    let realtimeTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const debouncedRefresh = () => {
+      if (realtimeTimer) clearTimeout(realtimeTimer);
+      realtimeTimer = setTimeout(async () => {
+        await Promise.all([fetchQuotes(), fetchInvoices()]);
+        await computeAndSetStats();
+      }, 2000);
+    };
+
+    // Initial load — parallel fetch, single stat computation
+    Promise.all([fetchQuotes(), fetchInvoices()])
+      .then(() => computeAndSetStats())
+      .catch((error) => {
+        console.error("Dashboard fetch error:", error);
+        toast.error(getUserFriendlyError(error));
+        setLoading(false);
+      });
 
     // Realtime subscription for quotes
     const quotesChannel = supabase
@@ -285,9 +302,7 @@ export default function Dashboard() {
         schema: 'public',
         table: 'quotes',
         filter: `user_id=eq.${user.uid}`,
-      }, async () => {
-        await fetchQuotes();
-      })
+      }, debouncedRefresh)
       .subscribe();
 
     // Realtime subscription for invoices
@@ -298,12 +313,11 @@ export default function Dashboard() {
         schema: 'public',
         table: 'invoices',
         filter: `user_id=eq.${user.uid}`,
-      }, async () => {
-        await fetchInvoices();
-      })
+      }, debouncedRefresh)
       .subscribe();
 
     return () => {
+      if (realtimeTimer) clearTimeout(realtimeTimer);
       supabase.removeChannel(quotesChannel);
       supabase.removeChannel(invoicesChannel);
     };
