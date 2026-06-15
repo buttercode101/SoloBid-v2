@@ -221,7 +221,7 @@ export default function ClientView() {
             </div>
             <div>
               <p className="text-sm font-medium text-zinc-900">{contractor?.businessName}</p>
-              <p className="text-xs text-zinc-500">Quotation #{estimate.id.substring(0, 8).toUpperCase()}</p>
+              <p className="text-xs text-zinc-500">Quotation {estimate.quoteNumber || `#${estimate.id.substring(0, 8).toUpperCase()}`}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -264,7 +264,7 @@ export default function ClientView() {
                 </div>
                 <div className="text-right">
                   <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] mb-1">Quotation</h2>
-                  <p className="text-lg font-mono text-zinc-900">#{estimate.id.substring(0, 8).toUpperCase()}</p>
+                  <p className="text-lg font-mono text-zinc-900">{estimate.quoteNumber || `#${estimate.id.substring(0, 8).toUpperCase()}`}</p>
                   <p className="text-xs text-zinc-500 mt-1">{new Date(estimate.updatedAt || estimate.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>

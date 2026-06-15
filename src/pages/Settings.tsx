@@ -25,6 +25,7 @@ const settingsSchema = z.object({
   defaultTaxRate: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, "Tax rate must be a positive number"),
   defaultMarkup: z.string().refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, "Markup must be a positive number"),
   invoicePrefix: z.string().min(1, "Invoice prefix is required"),
+  quotePrefix: z.string().min(1, "Quote prefix is required"),
 });
 
 export default function Settings() {
@@ -46,6 +47,7 @@ export default function Settings() {
     defaultMarkup: profile?.defaultMarkup?.toString() || '20',
     terms: profile?.terms || '',
     invoicePrefix: profile?.invoicePrefix || 'INV-',
+    quotePrefix: profile?.quotePrefix || 'QTE-',
     pdfStyle: profile?.pdfStyle || 'modern',
     pdfFont: profile?.pdfFont || 'Helvetica',
     defaultCurrency: profile?.defaultCurrency || 'ZAR',
@@ -123,6 +125,7 @@ export default function Settings() {
         defaultMarkup: parseFloat(formData.defaultMarkup) || 0,
         terms: formData.terms,
         invoicePrefix: formData.invoicePrefix,
+        quotePrefix: formData.quotePrefix,
         pdfStyle: formData.pdfStyle,
         pdfFont: formData.pdfFont,
         defaultCurrency: formData.defaultCurrency,
@@ -182,6 +185,7 @@ export default function Settings() {
           defaultMarkup: '20',
           terms: '',
           invoicePrefix: 'INV-',
+          quotePrefix: 'QTE-',
           pdfStyle: 'modern',
           pdfFont: 'Helvetica',
           defaultCurrency: 'ZAR',
@@ -427,9 +431,18 @@ export default function Settings() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-zinc-50">
                   <div className="space-y-1.5 animate-none">
+                    <Label htmlFor="quotePrefix" className="text-xs text-zinc-500 font-medium">Quote Prefix</Label>
+                    <Input
+                      id="quotePrefix"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm font-mono uppercase"
+                      value={formData.quotePrefix}
+                      onChange={(e) => setFormData({...formData, quotePrefix: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1.5 animate-none">
                     <Label htmlFor="invoicePrefix" className="text-xs text-zinc-500 font-medium">Invoice Prefix</Label>
-                    <Input 
-                      id="invoicePrefix" 
+                    <Input
+                      id="invoicePrefix"
                       className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm font-mono uppercase"
                       value={formData.invoicePrefix}
                       onChange={(e) => setFormData({...formData, invoicePrefix: e.target.value})}

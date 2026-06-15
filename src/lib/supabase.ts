@@ -25,6 +25,8 @@ export function fromDbUser(row: any): any {
     terms: row.terms || '',
     invoicePrefix: row.invoice_prefix || 'INV-',
     invoiceCount: row.invoice_count ?? 0,
+    quotePrefix: row.quote_prefix || 'QTE-',
+    quoteCount: row.quote_count ?? 0,
     pdfStyle: row.pdf_style || 'modern',
     pdfFont: row.pdf_font || 'Helvetica',
     defaultCurrency: row.default_currency || 'ZAR',
@@ -56,6 +58,8 @@ export function toDbUser(profile: any): any {
   if (profile.terms !== undefined) row.terms = profile.terms;
   if (profile.invoicePrefix !== undefined) row.invoice_prefix = profile.invoicePrefix;
   if (profile.invoiceCount !== undefined) row.invoice_count = profile.invoiceCount;
+  if (profile.quotePrefix !== undefined) row.quote_prefix = profile.quotePrefix;
+  if (profile.quoteCount !== undefined) row.quote_count = profile.quoteCount;
   if (profile.pdfStyle !== undefined) row.pdf_style = profile.pdfStyle;
   if (profile.pdfFont !== undefined) row.pdf_font = profile.pdfFont;
   if (profile.defaultCurrency !== undefined) row.default_currency = profile.defaultCurrency;
@@ -105,6 +109,7 @@ export function fromDbQuote(row: any): any {
     pdfUrl: row.pdf_url,
     pdfUpdatedAt: row.pdf_updated_at,
     isLegacyEstimate: row.is_legacy_estimate,
+    quoteNumber: row.quote_number,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

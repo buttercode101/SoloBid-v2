@@ -5,7 +5,7 @@ import { supabase, fromDbQuote, fromDbInvoice } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Plus, FileText, Banknote, Clock, Search, Download, Copy, Check, BarChart3, Trash2, ArrowUpRight, TrendingUp, MessageCircle } from 'lucide-react';
+import { Plus, FileText, Banknote, Clock, Search, Download, Copy, Check, BarChart3, Trash2, ArrowUpRight, TrendingUp, MessageCircle, AlertCircle, Files } from 'lucide-react';
 import { EmptyState } from '../components/EmptyState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { format } from 'date-fns';
@@ -38,7 +38,8 @@ export default function Dashboard() {
     avgJobValue: 0,
     profitThisMonth: 0,
     billedLastMonth: 0,
-    completedJobs: 0
+    completedJobs: 0,
+    outstandingBalance: 0,
   });
 
   const defaultCurrency = profile?.defaultCurrency || 'ZAR';
@@ -55,6 +56,60 @@ export default function Dashboard() {
     if (!q.expiresAt) return false;
     if (['approved', 'rejected', 'paid', 'converted'].includes(q.status)) return false;
     return new Date() > new Date(q.expiresAt);
+  };
+
+  const handleDuplicateQuote = async (q: any) => {
+    if (!user) return;
+    try {
+      const { v4: uuidv4 } = await import('uuid');
+      const newId = uuidv4();
+
+      const { data: itemRows } = await supabase.from('line_items').select('*').eq('quote_id', q.id).order('sort_order', { ascending: true });
+
+      const { error: qErr } = await supabase.from('quotes').insert({
+        id: newId,
+        user_id: user.uid,
+        client_id: q.clientId || null,
+        client_name: q.clientName || '',
+        client_email: q.clientEmail || '',
+        client_phone: q.clientPhone || '',
+        notes: q.notes || '',
+        tax_rate: q.taxRate ?? 0,
+        subtotal: q.subtotal ?? 0,
+        tax_amount: q.taxAmount ?? 0,
+        total: q.total ?? 0,
+        currency: q.currency || 'ZAR',
+        validity_days: q.validityDays || '7',
+        status: 'draft',
+        contractor_business_name: q.contractorBusinessName || '',
+        contractor_logo_url: q.contractorLogoUrl || '',
+        contractor_terms: q.contractorTerms || '',
+        is_milestone: q.isMilestone || false,
+        progress_percent: q.progressPercent || 0,
+      });
+      if (qErr) throw qErr;
+
+      if (itemRows && itemRows.length > 0) {
+        const liRows = itemRows.map((item: any, i: number) => ({
+          id: uuidv4(),
+          quote_id: newId,
+          description: item.description,
+          qty: item.qty,
+          unit_cost: item.unit_cost,
+          type: item.type,
+          markup_percent: item.markup_percent,
+          sort_order: i,
+        }));
+        const { error: liErr } = await supabase.from('line_items').insert(liRows);
+        if (liErr) throw liErr;
+      }
+
+      toast.success('Quote duplicated — editing new draft');
+      navigate(`/quotes/${newId}`);
+    } catch (err) {
+      console.error('Duplicate error:', err);
+      toast.error('Failed to duplicate quote');
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -83,7 +138,8 @@ export default function Dashboard() {
         avgJobValue: 7933.33,
         profitThisMonth: 12450,
         billedLastMonth: 14200,
-        completedJobs: 3
+        completedJobs: 3,
+        outstandingBalance: 6800,
       });
       setLoading(false);
       return;
@@ -100,6 +156,7 @@ export default function Dashboard() {
       let billedLastMonth = 0;
       let completedJobs = 0;
       let totalExpensesThisMonth = 0;
+      let outstandingBalance = 0;
 
       const now = new Date();
       const currentMonth = now.getMonth();
@@ -133,6 +190,12 @@ export default function Dashboard() {
       }
 
       const invoiceQuoteIds = new Set<string>();
+
+      for (const inv of invoicesList) {
+        if (inv.status !== 'paid' && inv.status !== 'cancelled') {
+          outstandingBalance += inv.total || 0;
+        }
+      }
 
       for (const inv of invoicesList) {
         if (inv.createdAt) {
@@ -173,7 +236,8 @@ export default function Dashboard() {
         avgJobValue: approvedCount > 0 ? totalValue / approvedCount : 0,
         profitThisMonth: billed - totalExpensesThisMonth,
         billedLastMonth,
-        completedJobs
+        completedJobs,
+        outstandingBalance,
       });
       setLoading(false);
     };
@@ -396,13 +460,19 @@ export default function Dashboard() {
       )}
 
       {/* Stats Bento Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         {[
           {
             title: "Billed This Month",
             value: formatCurrency(stats.billedThisMonth),
             icon: Banknote,
             accent: "bg-teal-50 text-teal-900 border-teal-200/50"
+          },
+          {
+            title: "Outstanding",
+            value: formatCurrency(stats.outstandingBalance),
+            icon: AlertCircle,
+            accent: stats.outstandingBalance > 0 ? "bg-amber-50 text-amber-800 border-amber-200/50" : "bg-zinc-50 text-zinc-500 border-zinc-200/50"
           },
           {
             title: "Vs Last Month",
@@ -544,6 +614,17 @@ export default function Dashboard() {
                             <Button
                               size="icon"
                               variant="outline"
+                              className="h-8.5 w-8.5 rounded-lg text-zinc-450 border-zinc-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+                              onClick={() => handleDuplicateQuote(q)}
+                              title="Duplicate Quote"
+                            >
+                              <Files className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          {user && (
+                            <Button
+                              size="icon"
+                              variant="outline"
                               className="h-8.5 w-8.5 rounded-lg text-zinc-450 hover:text-red-650 hover:border-red-150 hover:bg-red-50"
                               onClick={() => setDeleteId(q.id)}
                               title="Delete Quote"
@@ -631,6 +712,17 @@ export default function Dashboard() {
                               >
                                 <ArrowUpRight className="h-3.5 w-3.5" />
                               </Button>
+                              {user && (
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 bg-white border-zinc-200 shadow-sm"
+                                  onClick={() => handleDuplicateQuote(q)}
+                                  title="Duplicate Quote"
+                                >
+                                  <Files className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                               {user && (
                                 <Button
                                   variant="outline"

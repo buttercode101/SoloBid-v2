@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth';
 import { supabase, fromDbClient, fromDbQuote } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Users, Plus, Trash2, Edit, Mail, Phone, MapPin, Notebook, ArrowRight, Eye } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, Mail, Phone, MapPin, Notebook, ArrowRight, Eye, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -19,12 +19,15 @@ import { Textarea } from '../components/ui/textarea';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { motion, AnimatePresence } from 'motion/react';
-import { formatZAR } from '../lib/theme';
+import { formatZAR, statusBadgeStyles } from '../lib/theme';
+import { Link } from 'react-router-dom';
 
 export default function Clients() {
   const { user } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
   const [clientStats, setClientStats] = useState<Record<string, { totalBilled: number; lastJobDate?: string }>>({});
+  const [clientQuotes, setClientQuotes] = useState<Record<string, any[]>>({});
+  const [expandedQuotes, setExpandedQuotes] = useState<Record<string, boolean>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
   
@@ -47,19 +50,37 @@ export default function Clients() {
       if (clientData) setClients(clientData.map(fromDbClient));
 
       if (quotesData) {
+        const mapped = quotesData.map(fromDbQuote);
         const stats: Record<string, { totalBilled: number; lastJobDate?: string }> = {};
-        quotesData.map(fromDbQuote).forEach((quote: any) => {
+        const byClient: Record<string, any[]> = {};
+
+        mapped.forEach((quote: any) => {
           const key = quote.clientId || quote.clientEmail || quote.clientName;
-          if (!key || !['approved', 'converted', 'paid'].includes(quote.status)) return;
-          const current = stats[key] || { totalBilled: 0 };
-          current.totalBilled += quote.total || 0;
-          const jobDate = quote.approvedAt || quote.updatedAt || quote.createdAt;
-          if (jobDate && (!current.lastJobDate || new Date(jobDate) > new Date(current.lastJobDate))) {
-            current.lastJobDate = jobDate;
+          if (!key) return;
+
+          // Build quote history per client id (primary key), fallback to email/name
+          const clientKey = quote.clientId || key;
+          if (!byClient[clientKey]) byClient[clientKey] = [];
+          byClient[clientKey].push(quote);
+
+          if (['approved', 'converted', 'paid'].includes(quote.status)) {
+            const current = stats[key] || { totalBilled: 0 };
+            current.totalBilled += quote.total || 0;
+            const jobDate = quote.approvedAt || quote.updatedAt || quote.createdAt;
+            if (jobDate && (!current.lastJobDate || new Date(jobDate) > new Date(current.lastJobDate))) {
+              current.lastJobDate = jobDate;
+            }
+            stats[key] = current;
           }
-          stats[key] = current;
         });
+
+        // Sort each client's quotes newest first
+        Object.keys(byClient).forEach(k => {
+          byClient[k].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        });
+
         setClientStats(stats);
+        setClientQuotes(byClient);
       }
     };
 
@@ -331,10 +352,42 @@ export default function Clients() {
                     <div className="min-h-[10px]" />
                   )}
 
-                  <div className="p-6">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => handleOpenDialog(client)} 
+                  {(() => {
+                    const quotes = clientQuotes[client.id] || clientQuotes[client.email] || clientQuotes[client.name] || [];
+                    const isExpanded = expandedQuotes[client.id];
+                    const shown = isExpanded ? quotes : quotes.slice(0, 2);
+                    if (quotes.length === 0) return null;
+                    const statusLabel: Record<string, string> = { draft: 'Draft', sent: 'Sent', approved: 'Approved', converted: 'Invoiced', paid: 'Paid', rejected: 'Declined', expired: 'Expired', overdue: 'Overdue' };
+                    const statusStyle: Record<string, string> = { approved: 'bg-emerald-50 text-emerald-700', converted: 'bg-purple-50 text-purple-700', paid: 'bg-emerald-100 text-emerald-800', sent: 'bg-blue-50 text-blue-700', draft: 'bg-zinc-100 text-zinc-500', rejected: 'bg-red-50 text-red-700', expired: 'bg-red-50 text-red-600', overdue: 'bg-amber-50 text-amber-700' };
+                    return (
+                      <div className="border-t border-zinc-100 px-6 py-4 space-y-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                            <FileText className="w-3 h-3" /> Quote History ({quotes.length})
+                          </p>
+                          {quotes.length > 2 && (
+                            <button onClick={() => setExpandedQuotes(prev => ({ ...prev, [client.id]: !isExpanded }))} className="text-[10px] text-primary font-semibold flex items-center gap-0.5">
+                              {isExpanded ? <><ChevronUp className="w-3 h-3" />Less</> : <><ChevronDown className="w-3 h-3" />+{quotes.length - 2} more</>}
+                            </button>
+                          )}
+                        </div>
+                        {shown.map((q: any) => (
+                          <Link key={q.id} to={`/quotes/${q.id}`} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-zinc-50 transition-colors gap-2 group">
+                            <span className="text-xs text-zinc-700 font-medium truncate group-hover:text-primary transition-colors">{q.clientName || 'Quote'}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusStyle[q.status] || 'bg-zinc-100 text-zinc-500'}`}>{statusLabel[q.status] || q.status}</span>
+                              <span className="text-xs font-semibold text-zinc-800 tabular-nums">{formatZAR(q.total || 0)}</span>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  <div className="p-6 pt-0">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleOpenDialog(client)}
                       className="w-full text-zinc-700 hover:text-zinc-900 border-zinc-200 h-9.5 rounded-xl text-xs font-semibold hover:bg-zinc-50 transition-all flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5" />

@@ -84,6 +84,70 @@ async function createApp() {
     res.json({ status: "ok" });
   });
 
+  // Send quote link to client by email
+  app.post("/api/quotes/:id/send-email", requireAuth, async (req: express.Request, res: express.Response) => {
+    try {
+      const { id } = req.params;
+      const userId = (req as any).user.id;
+      const { clientEmail, clientName } = req.body;
+
+      if (!clientEmail || typeof clientEmail !== 'string' || !clientEmail.includes('@')) {
+        return res.status(400).json({ error: 'Valid client email is required' });
+      }
+
+      const { data: quote, error: qErr } = await supabaseAdmin
+        .from('quotes')
+        .select('id, client_name, total, currency, contractor_business_name, quote_number, expires_at')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+
+      if (qErr || !quote) {
+        return res.status(404).json({ error: 'Quote not found or access denied' });
+      }
+
+      const appOrigin = process.env.APP_ORIGIN || 'https://solobids.vercel.app';
+      const quoteUrl = `${appOrigin}/client/quote/${id}`;
+      const currencySymbol = quote.currency === 'ZAR' ? 'R' : quote.currency === 'USD' ? '$' : quote.currency === 'EUR' ? '€' : quote.currency === 'GBP' ? '£' : '';
+      const ref = quote.quote_number || `#${id.substring(0, 8).toUpperCase()}`;
+      const name = clientName || quote.client_name || 'there';
+      const business = quote.contractor_business_name || 'Your service provider';
+      const expiryNote = quote.expires_at ? `<p style="color:#6b7280;font-size:13px;">This quote expires on <strong>${new Date(quote.expires_at).toLocaleDateString(undefined, { dateStyle: 'long' })}</strong>.</p>` : '';
+
+      const html = `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+          <div style="background:#052e26;padding:28px 32px;">
+            <p style="color:#6ee7b7;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:0 0 4px;">SoloBid</p>
+            <h1 style="color:#fff;font-size:22px;font-weight:700;margin:0;">You have a quote to review</h1>
+          </div>
+          <div style="padding:28px 32px;">
+            <p style="color:#111827;font-size:15px;">Hi ${name},</p>
+            <p style="color:#374151;font-size:15px;line-height:1.6;"><strong>${business}</strong> has sent you a quote ${ref} for <strong>${currencySymbol}${(quote.total || 0).toFixed(2)}</strong>. Please review and approve or decline at your convenience.</p>
+            ${expiryNote}
+            <div style="margin:28px 0;text-align:center;">
+              <a href="${quoteUrl}" style="display:inline-block;background:#052e26;color:#fff;font-size:15px;font-weight:600;padding:14px 32px;border-radius:10px;text-decoration:none;">Review Quote ${ref}</a>
+            </div>
+            <p style="color:#9ca3af;font-size:12px;text-align:center;">No account needed. The link above opens the full quote in your browser.</p>
+          </div>
+          <div style="border-top:1px solid #f3f4f6;padding:16px 32px;text-align:center;">
+            <p style="color:#d1d5db;font-size:11px;margin:0;">Powered by <a href="https://solobids.vercel.app" style="color:#6ee7b7;text-decoration:none;">SoloBid</a></p>
+          </div>
+        </div>`;
+
+      await resend.emails.send({
+        from: 'SoloBid <noreply@solobid.app>',
+        to: clientEmail.trim(),
+        subject: `Quote ${ref} from ${business} — ${currencySymbol}${(quote.total || 0).toFixed(2)}`,
+        html,
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error('send-email error:', err);
+      res.status(500).json({ error: err.message || 'Failed to send email' });
+    }
+  });
+
   // Cron route for reminders and recurring invoices
   app.get("/api/cron/reminders", cronLimiter, async (req, res) => {
     try {

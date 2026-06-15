@@ -1,4 +1,4 @@
-const CACHE_NAME = 'solobid-v1';
+const CACHE_NAME = 'solobid-v2';
 const OFFLINE_URL = '/';
 
 self.addEventListener('install', (event) => {
@@ -9,9 +9,8 @@ self.addEventListener('install', (event) => {
         '/index.html',
         '/manifest.json'
       ]);
-    })
+    }).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -24,23 +23,29 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
-  
+
   // Skip cross-origin requests
   if (!event.request.url.startsWith(self.location.origin)) return;
 
+  // Network-first for HTML navigation — always gets fresh HTML after deploys
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // Cache-first for JS/CSS/images (content-hashed, safe to cache indefinitely)
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) {
-        return response;
-      }
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
       return fetch(event.request).catch(() => {
         if (event.request.mode === 'navigate') {
           return caches.match(OFFLINE_URL);
@@ -49,3 +54,4 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
