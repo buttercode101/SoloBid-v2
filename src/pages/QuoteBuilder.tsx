@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { db, storage } from '../lib/firebase';
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase, fromDbQuote, fromDbLineItem, fromDbExpense, toDbQuote, toDbLineItem, toDbExpense } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -304,8 +302,8 @@ export default function QuoteBuilder() {
 
   useEffect(() => {
     if (user) {
-      getDocs(query(collection(db, 'clients'), where('uid', '==', user.uid))).then(snap => {
-        setClients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      supabase.from('clients').select('*').eq('user_id', user.uid).order('name').then(({ data }) => {
+        setClients((data || []).map(row => ({ id: row.id, name: row.name, phone: row.phone, email: row.email, address: row.address })));
       });
     }
   }, [user]);
@@ -407,13 +405,19 @@ export default function QuoteBuilder() {
   const loadQuote = async (quoteId: string) => {
     try {
       setLoading(true);
-      const docRef = doc(db, 'quotes', quoteId);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+
+      const { data: quoteRow, error: quoteError } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('id', quoteId)
+        .single();
+
+      if (quoteError) throw quoteError;
+
+      if (quoteRow) {
+        const data = fromDbQuote(quoteRow);
         setClientName(data.clientName || '');
-        setClientPhone(data.clientPhone || data.phone || '');
+        setClientPhone(data.clientPhone || '');
         setSelectedClientId(data.clientId || '');
         setNotes(data.notes || '');
         setTaxRate(data.taxRate !== undefined ? data.taxRate : (profile?.defaultTaxRate || 0));
@@ -422,16 +426,21 @@ export default function QuoteBuilder() {
         setProgressPercent(data.progressPercent || 0);
         setQuoteCreatedAt(data.createdAt || null);
         setValidityDays(data.validityDays || '7');
-        setQuotePdfUrl(data.pdfUrl || data.quotePdfUrl || data.publicPdfUrl || '');
-        
-        const itemsRef = collection(db, 'quotes', quoteId, 'lineItems');
-        const itemsSnap = await getDocs(itemsRef);
-        const items = itemsSnap.docs.map(d => ({ id: d.id, ...d.data() } as LineItem));
+        setQuotePdfUrl(data.pdfUrl || '');
+
+        const { data: itemRows } = await supabase
+          .from('line_items')
+          .select('*')
+          .eq('quote_id', quoteId)
+          .order('sort_order', { ascending: true });
+        const items = (itemRows || []).map(fromDbLineItem) as LineItem[];
         setLineItems(items.length > 0 ? items : []);
 
-        const expensesRef = collection(db, 'quotes', quoteId, 'expenses');
-        const expensesSnap = await getDocs(expensesRef);
-        const loadedExpenses = expensesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Expense));
+        const { data: expRows } = await supabase
+          .from('expenses')
+          .select('*')
+          .eq('quote_id', quoteId);
+        const loadedExpenses = (expRows || []).map(fromDbExpense) as Expense[];
         setExpenses(loadedExpenses);
       }
     } catch (error) {
@@ -573,27 +582,45 @@ export default function QuoteBuilder() {
   };
 
   const commitQuoteDraft = async (draft: OfflineQuoteDraft) => {
-    const batch = writeBatch(db);
-    const quoteRef = doc(db, 'quotes', draft.quoteId);
-    batch.set(quoteRef, draft.quoteData, { merge: true });
+    // Upsert quote
+    const dbQuote = toDbQuote({ ...draft.quoteData, uid: draft.uid });
+    dbQuote.id = draft.quoteId;
+    const { error: quoteError } = await supabase.from('quotes').upsert(dbQuote);
+    if (quoteError) throw quoteError;
 
-    const itemsRef = collection(db, 'quotes', draft.quoteId, 'lineItems');
-    const existingItemsSnap = await getDocs(itemsRef);
-    const currentItemIds = new Set(draft.lineItems.map(item => item.id));
-    existingItemsSnap.docs.forEach(docSnap => {
-      if (!currentItemIds.has(docSnap.id)) batch.delete(docSnap.ref);
-    });
-    draft.lineItems.forEach(item => batch.set(doc(itemsRef, item.id), item));
+    // Replace all line items
+    await supabase.from('line_items').delete().eq('quote_id', draft.quoteId);
+    if (draft.lineItems.length > 0) {
+      const liRows = draft.lineItems.map((item, index) => ({
+        id: item.id || crypto.randomUUID(),
+        quote_id: draft.quoteId,
+        template_id: null,
+        recurring_invoice_id: null,
+        description: item.description,
+        qty: parseFloat(item.qty as any) || 1,
+        unit_cost: parseFloat(item.unitCost as any) || 0,
+        type: item.type || 'labor',
+        markup_percent: parseFloat(item.markupPercent as any) || 0,
+        sort_order: index,
+      }));
+      const { error: liError } = await supabase.from('line_items').insert(liRows);
+      if (liError) throw liError;
+    }
 
-    const expensesRef = collection(db, 'quotes', draft.quoteId, 'expenses');
-    const existingExpensesSnap = await getDocs(expensesRef);
-    const currentExpenseIds = new Set(draft.expenses.map(exp => exp.id));
-    existingExpensesSnap.docs.forEach(docSnap => {
-      if (!currentExpenseIds.has(docSnap.id)) batch.delete(docSnap.ref);
-    });
-    draft.expenses.forEach(expense => batch.set(doc(expensesRef, expense.id), expense));
+    // Replace all expenses
+    await supabase.from('expenses').delete().eq('quote_id', draft.quoteId);
+    for (const expense of draft.expenses) {
+      await supabase.from('expenses').upsert({
+        id: expense.id || crypto.randomUUID(),
+        user_id: draft.uid,
+        quote_id: draft.quoteId,
+        description: expense.description,
+        amount: parseFloat(expense.amount as any) || 0,
+        currency: expense.currency || 'ZAR',
+        receipt_url: expense.receiptUrl || null,
+      });
+    }
 
-    await batch.commit();
     saveQuoteDraftLocally(draft);
     removeQuoteDraftLocally(draft.uid, draft.quoteId);
   };
@@ -645,7 +672,7 @@ export default function QuoteBuilder() {
 
         setLoading(true);
         const { subtotal, tax, total, effectiveTaxRate } = calculateTotals();
-        
+
         const originalCreatedAtStr = quoteCreatedAt || new Date().toISOString();
         let expiresAt: string | null = null;
         if (validityDays !== 'never') {
@@ -655,7 +682,7 @@ export default function QuoteBuilder() {
           expiresAt = dt.toISOString();
         }
 
-        const quoteData = {
+        const quotePayload = {
           uid: user.uid,
           clientId: selectedClientId || null,
           clientName: DOMPurify.sanitize(clientName),
@@ -679,61 +706,45 @@ export default function QuoteBuilder() {
           expiresAt
         };
 
-        const batch = writeBatch(db);
-        const quoteRef = doc(db, 'quotes', quoteId);
-        
-        batch.set(quoteRef, quoteData, { merge: true });
-        
-        const itemsRef = collection(db, 'quotes', quoteId, 'lineItems');
-        let existingItemIds: string[] = [];
-        if (id) {
-          const existingItemsSnap = await getDocs(itemsRef);
-          existingItemIds = existingItemsSnap.docs.map(doc => doc.id);
-        }
-        const currentItemIds = new Set(lineItems.map(item => item.id));
-        
-        for (const itemId of existingItemIds) {
-          if (!currentItemIds.has(itemId)) {
-            batch.delete(doc(itemsRef, itemId));
-          }
+        // 1. Upsert quote
+        const dbQuote = toDbQuote(quotePayload);
+        dbQuote.id = quoteId;
+        const { error: quoteError } = await supabase.from('quotes').upsert(dbQuote);
+        if (quoteError) throw quoteError;
+
+        // 2. Replace line items (delete then insert)
+        await supabase.from('line_items').delete().eq('quote_id', quoteId);
+        if (lineItems.length > 0) {
+          const liRows = lineItems.map((item, index) => ({
+            id: item.id || crypto.randomUUID(),
+            quote_id: quoteId,
+            template_id: null,
+            recurring_invoice_id: null,
+            description: item.description,
+            qty: typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 1,
+            unit_cost: typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0,
+            type: item.type || 'labor',
+            markup_percent: typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0,
+            sort_order: index,
+          }));
+          const { error: liError } = await supabase.from('line_items').insert(liRows);
+          if (liError) throw liError;
         }
 
-        for (const item of lineItems) {
-          const cleanedItem = {
-            ...item,
-            qty: typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 0,
-            unitCost: typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0,
-            markupPercent: typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0
-          };
-          batch.set(doc(itemsRef, item.id), cleanedItem);
-        }
-
-        const expensesRef = collection(db, 'quotes', quoteId, 'expenses');
-        let existingExpenseIds: string[] = [];
-        if (id) {
-          const existingExpensesSnap = await getDocs(expensesRef);
-          existingExpenseIds = existingExpensesSnap.docs.map(doc => doc.id);
-        }
-        const currentExpenseIds = new Set(expenses.map(exp => exp.id));
-
-        for (const expId of existingExpenseIds) {
-          if (!currentExpenseIds.has(expId)) {
-            batch.delete(doc(expensesRef, expId));
-          }
-        }
-
+        // 3. Replace expenses (delete then upsert)
+        await supabase.from('expenses').delete().eq('quote_id', quoteId);
         for (const expense of expenses) {
-          batch.set(doc(expensesRef, expense.id), {
-            ...expense,
+          await supabase.from('expenses').upsert({
+            id: expense.id || crypto.randomUUID(),
+            user_id: user.uid,
+            quote_id: quoteId,
+            description: expense.description,
             amount: typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0,
-            uid: user.uid,
-            quoteId,
             currency,
-            createdAt: expense.createdAt || new Date().toISOString()
+            receipt_url: expense.receiptUrl || null,
           });
         }
 
-        await batch.commit();
         removeQuoteDraftLocally(user.uid, quoteId);
         setLocalSaveStatus('Synced just now');
 
@@ -796,18 +807,17 @@ export default function QuoteBuilder() {
     setExpenses(expenses.filter(exp => exp.id !== id));
   };
 
-  const handleExpensePhotoUpload = async (id: string, file: File) => {
+  const handleExpensePhotoUpload = async (expenseId: string, file: File) => {
     if (!user) return;
     try {
       const toastId = toast.loading("Saving digital receipt...");
-      const fileExtension = file.name.split('.').pop();
-      const fileName = `receipts/${user.uid}/${id}-${Date.now()}.${fileExtension}`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      
-      updateExpense(id, 'receiptUrl', url);
+      const filePath = `${user.uid}/${id || 'new'}/${expenseId}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const receiptUrl = supabase.storage.from('receipts').getPublicUrl(filePath).data.publicUrl;
+      updateExpense(expenseId, 'receiptUrl', receiptUrl);
       toast.success("Receipt saved securely", { id: toastId });
     } catch (error) {
       console.error("Upload error:", error);
@@ -818,25 +828,41 @@ export default function QuoteBuilder() {
   const handleSaveAsTemplate = () => {
     executeSave(async () => {
       if (!user) return;
-      
+
       try {
         const templateName = window.prompt("Design Template Name:", "My Bid Template");
         if (!templateName) return;
 
         setLoading(true);
         const templateId = uuidv4();
-        
-        const templateData = {
+
+        // Insert template row
+        const { error: tplError } = await supabase.from('templates').insert({
           id: templateId,
-          uid: user.uid,
+          user_id: user.uid,
           name: templateName,
           description: notes || "Line items stored for fast replica bids",
-          lineItems,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
+        });
+        if (tplError) throw tplError;
 
-        await setDoc(doc(db, 'templates', templateId), templateData);
+        // Insert line items linked to template
+        if (lineItems.length > 0) {
+          const liRows = lineItems.map((item, index) => ({
+            id: item.id || crypto.randomUUID(),
+            template_id: templateId,
+            quote_id: null,
+            recurring_invoice_id: null,
+            description: item.description,
+            qty: typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 1,
+            unit_cost: typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0,
+            type: item.type || 'labor',
+            markup_percent: typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0,
+            sort_order: index,
+          }));
+          const { error: liError } = await supabase.from('line_items').insert(liRows);
+          if (liError) throw liError;
+        }
+
         toast.success("Line layout saved as template");
       } catch (error) {
         console.error("Error saving template:", error);
@@ -876,16 +902,18 @@ export default function QuoteBuilder() {
       throw new Error('Save the quote before sharing it on WhatsApp so SoloBid can create a secure PDF link.');
     }
 
-    const fileName = `quotes/${user.uid}/${id}/Quote_${id.substring(0, 8).toUpperCase()}_${Date.now()}.pdf`;
-    const storageRef = ref(storage, fileName);
-    await uploadBytes(storageRef, blob, { contentType: 'application/pdf' });
-    const pdfUrl = await getDownloadURL(storageRef);
+    const filePath = `${user.uid}/${id}/Quote_${id.substring(0, 8).toUpperCase()}_${Date.now()}.pdf`;
+    const { error: uploadError } = await supabase.storage
+      .from('pdfs')
+      .upload(filePath, blob, { contentType: 'application/pdf', upsert: true });
+    if (uploadError) throw uploadError;
 
-    await setDoc(doc(db, 'quotes', id), {
-      pdfUrl,
-      quotePdfUrl: pdfUrl,
-      pdfUpdatedAt: new Date().toISOString(),
-    }, { merge: true });
+    const pdfUrl = supabase.storage.from('pdfs').getPublicUrl(filePath).data.publicUrl;
+
+    await supabase.from('quotes').update({
+      pdf_url: pdfUrl,
+      pdf_updated_at: new Date().toISOString(),
+    }).eq('id', id);
 
     setQuotePdfUrl(pdfUrl);
     return { ...quote, pdfUrl, quotePdfUrl: pdfUrl };
@@ -916,7 +944,7 @@ export default function QuoteBuilder() {
     const quoteId = id || uuidv4();
     const isNewQuote = !id;
 
-    // Offline guard — client link won't resolve until Firestore is written
+    // Offline guard — client link won't resolve until Supabase is written
     if (!isOnline) {
       const localDraft = buildOfflineDraft(quoteId, 'sent');
       saveQuoteDraftLocally(localDraft);
@@ -930,7 +958,7 @@ export default function QuoteBuilder() {
 
     setPdfBusy('share');
     try {
-      // Always save to Firestore with status 'sent' before opening WhatsApp.
+      // Always save to Supabase with status 'sent' before opening WhatsApp.
       // This ensures: (a) new quotes are created, (b) existing draft quotes are
       // promoted to 'sent' so the client can approve/sign on the client view page.
       setLoading(true);
@@ -953,29 +981,50 @@ export default function QuoteBuilder() {
         contractorTerms: profile.terms || '', updatedAt: new Date().toISOString(),
         createdAt: originalCreatedAtStr, validityDays, expiresAt
       };
-      const batch = writeBatch(db);
-      batch.set(doc(db, 'quotes', quoteId), quoteData, { merge: true });
-      for (const item of lineItems) {
-        batch.set(doc(collection(db, 'quotes', quoteId, 'lineItems'), item.id), {
-          ...item,
-          qty: typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 0,
-          unitCost: typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0,
-          markupPercent: typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0,
-        });
+      // 1. Upsert quote
+      const dbQuote = toDbQuote(quoteData);
+      dbQuote.id = quoteId;
+      const { error: wsQuoteError } = await supabase.from('quotes').upsert(dbQuote);
+      if (wsQuoteError) throw wsQuoteError;
+
+      // 2. Replace line items (delete then insert)
+      await supabase.from('line_items').delete().eq('quote_id', quoteId);
+      if (lineItems.length > 0) {
+        const liRows = lineItems.map((item, index) => ({
+          id: item.id || crypto.randomUUID(),
+          quote_id: quoteId,
+          template_id: null,
+          recurring_invoice_id: null,
+          description: item.description,
+          qty: typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 1,
+          unit_cost: typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0,
+          type: item.type || 'labor',
+          markup_percent: typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0,
+          sort_order: index,
+        }));
+        const { error: wsLiError } = await supabase.from('line_items').insert(liRows);
+        if (wsLiError) throw wsLiError;
       }
+
+      // 3. Replace expenses (delete then upsert)
+      await supabase.from('expenses').delete().eq('quote_id', quoteId);
       for (const expense of expenses) {
-        batch.set(doc(collection(db, 'quotes', quoteId, 'expenses'), expense.id), {
-          ...expense, amount: typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0,
-          uid: user!.uid, quoteId, currency, createdAt: expense.createdAt || new Date().toISOString()
+        await supabase.from('expenses').upsert({
+          id: expense.id || crypto.randomUUID(),
+          user_id: user!.uid,
+          quote_id: quoteId,
+          description: expense.description,
+          amount: typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0,
+          currency,
+          receipt_url: expense.receiptUrl || null,
         });
       }
-      await batch.commit();
       removeQuoteDraftLocally(user!.uid, quoteId);
       setLocalSaveStatus('Synced just now');
 
       if (isNewQuote) navigate(`/quotes/${quoteId}`, { replace: true });
 
-      // Generate link AFTER confirmed Firestore write so client view resolves
+      // Generate link AFTER confirmed Supabase write so client view resolves
       const quote = currentQuoteForPdf();
       const share = generateWhatsAppShareLink(
         { ...quote, id: quoteId, clientPhone, contractorBusinessName: profile.businessName, lineItems },
@@ -997,23 +1046,12 @@ export default function QuoteBuilder() {
     if (!id || !user) return;
     try {
       setIsDeleting(true);
-      const batch = writeBatch(db);
-      
-      const itemsRef = collection(db, 'quotes', id, 'lineItems');
-      const itemsSnap = await getDocs(itemsRef);
-      itemsSnap.docs.forEach(docSnap => {
-        batch.delete(docSnap.ref);
-      });
-
-      const expensesRef = collection(db, 'quotes', id, 'expenses');
-      const expensesSnap = await getDocs(expensesRef);
-      expensesSnap.docs.forEach(docSnap => {
-        batch.delete(docSnap.ref);
-      });
-
-      batch.delete(doc(db, 'quotes', id));
-
-      await batch.commit();
+      // Supabase cascades deletes for line_items and expenses via FK constraints,
+      // but explicitly delete them first for safety.
+      await supabase.from('line_items').delete().eq('quote_id', id);
+      await supabase.from('expenses').delete().eq('quote_id', id);
+      const { error: deleteError } = await supabase.from('quotes').delete().eq('id', id);
+      if (deleteError) throw deleteError;
       toast.success("Quote log purged");
       navigate('/');
     } catch (error) {

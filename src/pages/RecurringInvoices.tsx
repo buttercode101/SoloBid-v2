@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, doc, deleteDoc, setDoc, getDocs } from 'firebase/firestore';
+import { supabase, fromDbRecurring, fromDbClient, fromDbTemplate, fromDbLineItem } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { RefreshCw, Plus, Trash2, Edit, Play, Pause, CalendarClock } from 'lucide-react';
@@ -40,25 +39,28 @@ export default function RecurringInvoices() {
     if (!user) return;
 
     // Load recurring invoices
-    const q = query(
-      collection(db, 'recurringInvoices'),
-      where('uid', '==', user.uid)
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setRecurring(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    const fetchRecurring = async () => {
+      const { data } = await supabase.from('recurring_invoices').select('*').eq('user_id', user.uid).order('created_at', { ascending: false });
+      setRecurring((data || []).map(row => fromDbRecurring(row)));
+    };
+    fetchRecurring();
+    const channel = supabase.channel(`recurring-${user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_invoices', filter: `user_id=eq.${user.uid}` }, fetchRecurring)
+      .subscribe();
 
     // Load clients
-    getDocs(query(collection(db, 'clients'), where('uid', '==', user.uid))).then(snap => {
-      setClients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    supabase.from('clients').select('*').eq('user_id', user.uid).then(({ data }) => {
+      setClients((data || []).map(fromDbClient));
     });
 
-    // Load templates
-    getDocs(query(collection(db, 'templates'), where('uid', '==', user.uid))).then(snap => {
-      setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // Load templates with line items
+    supabase.from('templates').select('*').eq('user_id', user.uid).then(async ({ data: tplData }) => {
+      if (!tplData) return;
+      const { data: liData } = await supabase.from('line_items').select('*').in('template_id', tplData.map(t => t.id));
+      setTemplates(tplData.map(t => fromDbTemplate(t, (liData || []).filter(li => li.template_id === t.id))));
     });
 
-    return () => unsubscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const handleSaveRecurring = async (e: React.FormEvent) => {
@@ -75,7 +77,7 @@ export default function RecurringInvoices() {
       }
 
       const recurringId = uuidv4();
-      
+
       // Calculate total from template line items
       const total = template.lineItems.reduce((sum: number, item: any) => {
         const baseCost = item.qty * item.unitCost;
@@ -83,28 +85,35 @@ export default function RecurringInvoices() {
         return sum + baseCost + markup;
       }, 0);
 
-      const recurringData = {
+      const { error } = await supabase.from('recurring_invoices').upsert({
         id: recurringId,
-        uid: user.uid,
-        clientId: client.id,
-        clientName: client.name,
-        clientEmail: client.email || '',
+        user_id: user.uid,
+        client_id: client.id,
+        client_name: client.name,
+        client_email: client.email || '',
         frequency: formData.frequency,
-        nextIssueDate: formData.nextIssueDate,
+        next_issue_date: formData.nextIssueDate,
         status: 'active',
         total: total,
         currency: template.currency || 'ZAR',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      });
+      if (error) throw error;
 
-      await setDoc(doc(db, 'recurringInvoices', recurringId), recurringData);
-      
       // Copy line items
-      const itemsRef = collection(db, 'recurringInvoices', recurringId, 'lineItems');
-      for (const item of template.lineItems || []) {
-        const newItem = { ...item, id: uuidv4() };
-        await setDoc(doc(itemsRef, newItem.id), newItem);
+      if (template.lineItems && template.lineItems.length > 0) {
+        const liRows = template.lineItems.map((item: any) => ({
+          id: crypto.randomUUID(),
+          recurring_invoice_id: recurringId,
+          quote_id: null,
+          template_id: null,
+          description: item.description,
+          qty: parseFloat(item.qty) || 1,
+          unit_cost: parseFloat(item.unitCost) || 0,
+          type: item.type || 'labor',
+          markup_percent: parseFloat(item.markupPercent) || 0,
+          sort_order: item.sortOrder ?? 0,
+        }));
+        await supabase.from('line_items').insert(liRows);
       }
 
       toast.success("Recurring invoice schedule created");
@@ -118,7 +127,7 @@ export default function RecurringInvoices() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'recurringInvoices', id));
+      await supabase.from('recurring_invoices').delete().eq('id', id);
       toast.success("Recurring schedule deleted");
       setDeleteId(null);
     } catch (error) {
@@ -129,7 +138,7 @@ export default function RecurringInvoices() {
   const toggleStatus = async (item: any) => {
     try {
       const newStatus = item.status === 'active' ? 'paused' : 'active';
-      await setDoc(doc(db, 'recurringInvoices', item.id), { status: newStatus }, { merge: true });
+      await supabase.from('recurring_invoices').update({ status: newStatus }).eq('id', item.id);
       toast.success(`Schedule ${newStatus}`);
     } catch (error) {
       toast.error("Failed to update status");

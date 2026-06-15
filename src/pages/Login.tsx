@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { ArrowRight, BadgeCheck, FileText, Loader2, Mail, ReceiptText, ShieldCheck } from 'lucide-react';
-import { auth, googleProvider } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -71,10 +70,13 @@ export default function Login() {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      await signInWithPopup(auth, googleProvider);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign in with Google. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
@@ -91,9 +93,11 @@ export default function Login() {
     try {
       setLoading(true);
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+        if (error) throw error;
       } else {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
       }
     } catch (error: any) {
       toast.error(error.message || 'Authentication failed. Check your details and try again.');

@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, doc, setDoc, getDoc, getDocs, runTransaction } from 'firebase/firestore';
+import { supabase, fromDbInvoice, fromDbQuote, fromDbLineItem } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { v4 as uuidv4 } from 'uuid';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../components/InvoicePDF';
 import { Download, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock, MessageCircle, Printer } from 'lucide-react';
@@ -37,199 +35,75 @@ export default function Invoices() {
   useEffect(() => {
     if (!user) return;
 
-    let invLoaded = false;
-    let quotesLoaded = false;
-    let estLoaded = false;
-
-    const checkLoaded = () => {
-      if (invLoaded && quotesLoaded && estLoaded) setInitialLoading(false);
+    const fetchAll = async () => {
+      const [{ data: invData }, { data: quoteData }] = await Promise.all([
+        supabase.from('invoices').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
+        supabase.from('quotes').select('*').eq('user_id', user.uid).eq('status', 'approved'),
+      ]);
+      setInvoices((invData || []).map(fromDbInvoice));
+      setApprovedEstimates((quoteData || []).map(fromDbQuote));
+      setInitialLoading(false);
     };
 
-    const invQ = query(
-      collection(db, 'invoices'),
-      where('uid', '==', user.uid)
-    );
+    fetchAll();
 
-    const unsubInv = onSnapshot(invQ, (snapshot) => {
-      const invs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      invs.sort((a: any, b: any) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
-      setInvoices(invs);
-      invLoaded = true;
-      checkLoaded();
-    });
+    const invChannel = supabase
+      .channel(`invoices-${user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `user_id=eq.${user.uid}` }, fetchAll)
+      .subscribe();
 
-    let quotesList: any[] = [];
-    let estimatesList: any[] = [];
-
-    const updateApproved = () => {
-      setApprovedEstimates([...quotesList, ...estimatesList]);
-    };
-
-    const quotesQ = query(
-      collection(db, 'quotes'),
-      where('uid', '==', user.uid),
-      where('status', '==', 'approved')
-    );
-
-    const unsubQuotes = onSnapshot(quotesQ, (snapshot) => {
-      quotesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _collectionName: 'quotes' }));
-      quotesLoaded = true;
-      updateApproved();
-      checkLoaded();
-    });
-
-    const estQ = query(
-      collection(db, 'estimates'),
-      where('uid', '==', user.uid),
-      where('status', '==', 'approved')
-    );
-
-    const unsubEst = onSnapshot(estQ, (snapshot) => {
-      estimatesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _collectionName: 'estimates' }));
-      estLoaded = true;
-      updateApproved();
-      checkLoaded();
-    });
+    const quotesChannel = supabase
+      .channel(`invoices-quotes-${user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes', filter: `user_id=eq.${user.uid}` }, fetchAll)
+      .subscribe();
 
     return () => {
-      unsubInv();
-      unsubQuotes();
-      unsubEst();
+      supabase.removeChannel(invChannel);
+      supabase.removeChannel(quotesChannel);
     };
   }, [user]);
 
   const handleConvert = async (estimate: any) => {
     try {
       if (!user?.uid) throw new Error("Authentication required");
-      
       setLoading(true);
-      const invoiceId = uuidv4();
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 14);
-
-      const userRef = doc(db, 'users', user.uid);
-      const collectionName = estimate._collectionName || 'quotes';
-      const estimateRef = doc(db, collectionName, estimate.id);
-      
-      let invoiceNumber = '';
-      
-      await runTransaction(db, async (transaction) => {
-        const [userDoc, estDoc] = await Promise.all([
-          transaction.get(userRef),
-          transaction.get(estimateRef)
-        ]);
-        
-        if (!userDoc.exists()) {
-          throw new Error("Your profile is missing. Please go to Settings and save your profile.");
-        }
-
-        if (!estDoc.exists()) {
-          throw new Error("The quotation could not be found.");
-        }
-        
-        const estData = estDoc.data();
-        if (estData.uid !== user.uid) {
-          throw new Error("You don't have permission to convert this quotation.");
-        }
-
-        if (estData.status === 'converted') {
-          throw new Error("This quotation has already been converted to an invoice.");
-        }
-
-        if (estData.status !== 'approved') {
-          throw new Error("Only approved quotations can be converted to invoices.");
-        }
-        
-        const userData = userDoc.data();
-        const currentCount = userData.invoiceCount || 0;
-        const newCount = currentCount + 1;
-        const prefix = userData.invoicePrefix || 'INV-';
-        invoiceNumber = `${prefix}${newCount.toString().padStart(4, '0')}`;
-        
-        transaction.update(userRef, { invoiceCount: newCount });
-        
-        const invoiceData = {
-          id: invoiceId,
-          uid: user.uid,
-          estimateId: estimate.id,
-          invoiceNumber,
-          clientName: estData.clientName,
-          clientEmail: estData.clientEmail,
-          total: estData.total,
-          currency: estData.currency || 'ZAR',
-          status: 'draft',
-          dueDate: dueDate.toISOString(),
-          createdAt: new Date().toISOString()
-        };
-        
-        const invoiceRef = doc(db, 'invoices', invoiceId);
-        transaction.set(invoiceRef, invoiceData);
-        
-        transaction.update(estimateRef, { status: 'converted' });
+      const { data: invoiceId, error } = await supabase.rpc('convert_quote_to_invoice', {
+        p_quote_id: estimate.id,
+        p_due_date: dueDate.toISOString(),
       });
-      
-      toast.success(`Invoice ${invoiceNumber} created successfully`);
+      if (error) throw new Error(error.message);
+      toast.success('Invoice created successfully');
     } catch (error: any) {
-      const errorMessage = 
-        error.message?.includes("Transaction") 
-          ? "Failed to create invoice. Please try again or contact support."
-          : error.message;
-      
-      console.error("Invoice conversion error:", {
-        estimateId: estimate.id,
-        userId: user?.uid,
-        error: error.message,
-        code: error.code
-      });
-      
-      toast.error(errorMessage);
+      console.error("Invoice conversion error:", error);
+      toast.error(error.message || "Failed to create invoice. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const resolveEstimateCollection = async (invoice: any): Promise<{ estDoc: any; collectionName: string }> => {
-    // Use stored collection name if available to avoid a sequential double-fetch
-    const hint = invoice.estimateCollectionName as string | undefined;
-    if (hint === 'quotes' || hint === 'estimates') {
-      const estDoc = await getDoc(doc(db, hint, invoice.estimateId));
-      if (estDoc.exists()) return { estDoc, collectionName: hint };
-    }
-    // Fallback: try quotes first, then estimates
-    let estDoc = await getDoc(doc(db, 'quotes', invoice.estimateId));
-    if (estDoc.exists()) return { estDoc, collectionName: 'quotes' };
-    estDoc = await getDoc(doc(db, 'estimates', invoice.estimateId));
-    return { estDoc, collectionName: 'estimates' };
+  const fetchQuoteAndLineItems = async (quoteId: string) => {
+    const [{ data: quoteRow }, { data: itemRows }] = await Promise.all([
+      supabase.from('quotes').select('*').eq('id', quoteId).single(),
+      supabase.from('line_items').select('*').eq('quote_id', quoteId).order('sort_order', { ascending: true }),
+    ]);
+    return {
+      estimate: quoteRow ? fromDbQuote(quoteRow) : null,
+      lineItems: (itemRows || []).map(fromDbLineItem),
+    };
   };
 
   const handleDownloadPdf = async (invoice: any) => {
     try {
       setPdfProgress(0);
       setGeneratingPdf(invoice.id);
-
       setPdfProgress(20);
-      const { estDoc, collectionName } = await resolveEstimateCollection(invoice);
-      const estimate = estDoc.data();
-      
-      setPdfProgress(40);
-      const itemsRef = collection(db, collectionName, invoice.estimateId, 'lineItems');
-      const itemsSnap = await getDocs(itemsRef);
-      const lineItems = itemsSnap.docs.map(d => d.data());
-
+      const { estimate, lineItems } = await fetchQuoteAndLineItems(invoice.quoteId || invoice.estimateId);
       setPdfProgress(60);
       const blob = await pdf(
-        <InvoicePDF 
-          invoice={invoice} 
-          estimate={estimate} 
-          contractor={profile} 
-          lineItems={lineItems} 
-        />
+        <InvoicePDF invoice={invoice} estimate={estimate} contractor={profile} lineItems={lineItems} />
       ).toBlob();
-      
       setPdfProgress(100);
       const invoiceNum = invoice.invoiceNumber || invoice.id.substring(0, 8).toUpperCase();
       const url = URL.createObjectURL(blob);
@@ -240,7 +114,6 @@ export default function Invoices() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
       toast.success("Invoice PDF exported");
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -252,11 +125,7 @@ export default function Invoices() {
   };
 
   const getInvoicePdfBlob = async (invoice: any) => {
-    const { estDoc, collectionName } = await resolveEstimateCollection(invoice);
-    const estimate = estDoc.data();
-    const itemsRef = collection(db, collectionName, invoice.estimateId, 'lineItems');
-    const itemsSnap = await getDocs(itemsRef);
-    const lineItems = itemsSnap.docs.map(d => d.data());
+    const { estimate, lineItems } = await fetchQuoteAndLineItems(invoice.quoteId || invoice.estimateId);
     return pdf(<InvoicePDF invoice={invoice} estimate={estimate} contractor={profile} lineItems={lineItems} />).toBlob();
   };
 
@@ -284,10 +153,7 @@ export default function Invoices() {
 
   const handleMarkPaid = async (invoiceId: string) => {
     try {
-      await setDoc(doc(db, 'invoices', invoiceId), { 
-        status: 'paid',
-        paidAt: new Date().toISOString()
-      }, { merge: true });
+      await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', invoiceId);
       toast.success("Invoice record updated to PAID");
     } catch (error) {
       toast.error("Failed to update status");

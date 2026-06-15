@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db } from '../lib/firebase';
-import { doc, getDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { supabase, fromDbQuote, fromDbLineItem } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -52,38 +51,37 @@ export default function ClientView() {
     return () => { document.title = 'SoloBid'; };
   }, [estimate, contractor]);
 
-  const loadData = async (estimateId: string) => {
+  const loadData = async (quoteId: string) => {
     try {
       setLoading(true);
-      // Try quotes collection first
-      let docRef = doc(db, 'quotes', estimateId);
-      let docSnap = await getDoc(docRef);
-      let collectionName = 'quotes';
-      
-      if (!docSnap.exists()) {
-        // Fallback to legacy estimates collection
-        docRef = doc(db, 'estimates', estimateId);
-        docSnap = await getDoc(docRef);
-        collectionName = 'estimates';
-      }
-      
-      if (docSnap.exists()) {
-        const estData = docSnap.data();
-        setEstimate({ id: docSnap.id, ...estData, _collectionName: collectionName });
-        
-        setContractor({
-          businessName: estData.contractorBusinessName,
-          logoUrl: estData.contractorLogoUrl,
-          terms: estData.contractorTerms,
-          defaultCurrency: estData.currency || 'ZAR',
-          saTaxInvoiceMode: estData.isSATaxInvoice || false
-        });
+      const { data: quoteRow, error: quoteError } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('id', quoteId)
+        .single();
 
-        // Load line items
-        const itemsRef = collection(db, collectionName, estimateId, 'lineItems');
-        const itemsSnap = await getDocs(itemsRef);
-        setLineItems(itemsSnap.docs.map(d => d.data()));
+      if (quoteError || !quoteRow) {
+        setLoading(false);
+        return;
       }
+
+      const estData = fromDbQuote(quoteRow);
+      setEstimate(estData);
+      setContractor({
+        businessName: estData.contractorBusinessName,
+        logoUrl: estData.contractorLogoUrl,
+        terms: estData.contractorTerms,
+        defaultCurrency: estData.currency || 'ZAR',
+        saTaxInvoiceMode: estData.isSATaxInvoice || false,
+      });
+
+      const { data: itemRows } = await supabase
+        .from('line_items')
+        .select('*')
+        .eq('quote_id', quoteId)
+        .order('sort_order', { ascending: true });
+
+      setLineItems((itemRows || []).map(fromDbLineItem));
     } catch (error) {
       console.error("Error loading quote:", error);
       toast.error("An unexpected error occurred while loading this quote. Please try again or contact the sender.");
@@ -111,21 +109,20 @@ export default function ClientView() {
 
     try {
       setApproving(true);
-      const collectionName = estimate?._collectionName || 'quotes';
-      const docRef = doc(db, collectionName, id!);
-      const approvedAt = new Date().toISOString();
-      await updateDoc(docRef, {
-        status: 'approved',
-        signatureName: signatureName.trim(),
-        signatureDataUrl,
-        approvedAt
+      const response = await fetch(`/api/quotes/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signatureName: signatureName.trim(), signatureDataUrl }),
       });
-      
-      setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to approve quotation.');
+      }
+      setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt: data.approvedAt });
       toast.success("Quotation approved successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error approving:", error);
-      toast.error("Failed to approve quotation. Please refresh the link and try again, or contact the sender.");
+      toast.error(error.message || "Failed to approve quotation. Please refresh the link and try again, or contact the sender.");
     } finally {
       setApproving(false);
     }
@@ -143,21 +140,21 @@ export default function ClientView() {
 
     try {
       setRejecting(true);
-      const collectionName = estimate?._collectionName || 'quotes';
-      const docRef = doc(db, collectionName, id!);
-      const rejectedAt = new Date().toISOString();
       const trimmedReason = rejectionReason.trim();
-      await updateDoc(docRef, {
-        status: 'rejected',
-        rejectionReason: trimmedReason,
-        rejectedAt
+      const response = await fetch(`/api/quotes/${id}/decline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectionReason: trimmedReason }),
       });
-
-      setEstimate({ ...estimate, status: 'rejected', rejectionReason: trimmedReason, rejectedAt });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to decline quotation.');
+      }
+      setEstimate({ ...estimate, status: 'rejected', rejectionReason: trimmedReason, rejectedAt: data.rejectedAt });
       toast.success('Quotation declined. The sender can review your response.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error rejecting:', error);
-      toast.error('Failed to decline quotation. Please refresh the link and try again, or contact the sender.');
+      toast.error(error.message || 'Failed to decline quotation. Please refresh the link and try again, or contact the sender.');
     } finally {
       setRejecting(false);
     }

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { supabase, fromDbClient, fromDbQuote } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Users, Plus, Trash2, Edit, Mail, Phone, MapPin, Notebook, ArrowRight, Eye } from 'lucide-react';
@@ -40,34 +39,47 @@ export default function Clients() {
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
-      collection(db, 'clients'),
-      where('uid', '==', user.uid)
-    );
+    const fetchData = async () => {
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('user_id', user.uid)
+        .order('created_at', { ascending: false });
+      if (clientData) setClients(clientData.map(fromDbClient));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+      const { data: quotesData } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('user_id', user.uid);
+      if (quotesData) {
+        const stats: Record<string, { totalBilled: number; lastJobDate?: string }> = {};
+        quotesData.map(fromDbQuote).forEach((quote: any) => {
+          const key = quote.clientId || quote.clientEmail || quote.clientName;
+          if (!key || !['approved', 'converted', 'paid'].includes(quote.status)) return;
+          const current = stats[key] || { totalBilled: 0 };
+          current.totalBilled += quote.total || 0;
+          const jobDate = quote.approvedAt || quote.updatedAt || quote.createdAt;
+          if (jobDate && (!current.lastJobDate || new Date(jobDate) > new Date(current.lastJobDate))) {
+            current.lastJobDate = jobDate;
+          }
+          stats[key] = current;
+        });
+        setClientStats(stats);
+      }
+    };
 
-    const quotesQ = query(collection(db, 'quotes'), where('uid', '==', user.uid));
-    const unsubscribeQuotes = onSnapshot(quotesQ, (snapshot) => {
-      const stats: Record<string, { totalBilled: number; lastJobDate?: string }> = {};
-      snapshot.docs.forEach(docSnap => {
-        const quote: any = { id: docSnap.id, ...docSnap.data() };
-        const key = quote.clientId || quote.clientEmail || quote.clientName;
-        if (!key || !['approved', 'converted', 'paid'].includes(quote.status)) return;
-        const current = stats[key] || { totalBilled: 0 };
-        current.totalBilled += quote.total || 0;
-        const jobDate = quote.approvedAt || quote.updatedAt || quote.createdAt;
-        if (jobDate && (!current.lastJobDate || new Date(jobDate) > new Date(current.lastJobDate))) {
-          current.lastJobDate = jobDate;
-        }
-        stats[key] = current;
-      });
-      setClientStats(stats);
-    });
+    fetchData();
 
-    return () => { unsubscribe(); unsubscribeQuotes(); };
+    const channel = supabase
+      .channel('clients-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clients', filter: `user_id=eq.${user.uid}` },
+        () => fetchData()
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const handleOpenDialog = (client?: any) => {
@@ -99,19 +111,18 @@ export default function Clients() {
 
     try {
       const clientId = editingClient ? editingClient.id : uuidv4();
-      const clientData = {
+
+      const { error } = await supabase.from('clients').upsert({
         id: clientId,
-        uid: user.uid,
+        user_id: user.uid,
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         address: formData.address,
         notes: formData.notes,
-        updatedAt: new Date().toISOString(),
-        ...(editingClient ? {} : { createdAt: new Date().toISOString() })
-      };
+      });
 
-      await setDoc(doc(db, 'clients', clientId), clientData, { merge: true });
+      if (error) throw error;
       toast.success(`Client ${editingClient ? 'updated' : 'added'}`);
       setIsDialogOpen(false);
     } catch (error) {
@@ -123,7 +134,8 @@ export default function Clients() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'clients', id));
+      const { error } = await supabase.from('clients').delete().eq('id', id);
+      if (error) throw error;
       toast.success("Client profile removed successfully");
       setDeleteId(null);
     } catch (error) {

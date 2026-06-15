@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { db, storage } from '../lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase, toDbUser } from '../lib/supabase';
 import { ArrowRight, Building2, FileText } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -69,17 +67,28 @@ export default function Onboarding() {
 
   const createDefaultTemplate = async (uid: string) => {
     const templateId = crypto.randomUUID();
-    await setDoc(doc(db, 'templates', templateId), {
+    await supabase.from('templates').upsert({
       id: templateId,
-      uid,
+      user_id: uid,
       name: 'Basic Service Call',
       description: 'Standard diagnostic and minor repair',
-      lineItems: [
-        { id: crypto.randomUUID(), description: 'Diagnostic Fee', qty: 1, unitCost: 85, type: 'labor', markupPercent: 0 },
-        { id: crypto.randomUUID(), description: 'Minor Parts', qty: 1, unitCost: 25, type: 'material', markupPercent: 20 },
-      ],
-      createdAt: new Date().toISOString(),
     });
+    const lineItems = [
+      { id: crypto.randomUUID(), description: 'Diagnostic Fee', qty: 1, unitCost: 85, type: 'labor', markupPercent: 0 },
+      { id: crypto.randomUUID(), description: 'Minor Parts', qty: 1, unitCost: 25, type: 'material', markupPercent: 20 },
+    ];
+    await supabase.from('line_items').insert(lineItems.map(item => ({
+      id: item.id,
+      template_id: templateId,
+      quote_id: null,
+      recurring_invoice_id: null,
+      description: item.description,
+      qty: item.qty,
+      unit_cost: item.unitCost,
+      type: item.type,
+      markup_percent: item.markupPercent || 0,
+      sort_order: 0,
+    })));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,7 +111,7 @@ export default function Onboarding() {
         defaultCurrency: formData.defaultCurrency,
         defaultTaxRate: formData.defaultTaxRate,
         saTaxInvoiceMode: formData.saTaxInvoiceMode,
-        fullName: profile?.fullName || user.displayName || '',
+        fullName: profile?.fullName || user.user_metadata?.full_name || user.email?.split('@')[0] || '',
         defaultLaborRate: profile?.defaultLaborRate ?? 75,
         defaultMarkup: profile?.defaultMarkup ?? 20,
         terms: profile?.terms || 'Payment is due within 14 days of invoice date. All materials remain property of the contractor until paid in full.',

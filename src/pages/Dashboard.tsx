@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { db } from '../lib/firebase';
-import { collection, collectionGroup, query, where, orderBy, limit, onSnapshot, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { supabase, fromDbQuote, fromDbInvoice } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -62,23 +61,9 @@ export default function Dashboard() {
     if (!deleteId || !user) return;
     try {
       setIsDeleting(true);
-      const batch = writeBatch(db);
-      
-      const itemsRef = collection(db, 'quotes', deleteId, 'lineItems');
-      const itemsSnap = await getDocs(itemsRef);
-      itemsSnap.docs.forEach(docSnap => {
-        batch.delete(docSnap.ref);
-      });
-
-      const expensesRef = collection(db, 'quotes', deleteId, 'expenses');
-      const expensesSnap = await getDocs(expensesRef);
-      expensesSnap.docs.forEach(docSnap => {
-        batch.delete(docSnap.ref);
-      });
-
-      batch.delete(doc(db, 'quotes', deleteId));
-
-      await batch.commit();
+      // Supabase CASCADE deletes line_items and expenses automatically
+      const { error } = await supabase.from('quotes').delete().eq('id', deleteId);
+      if (error) throw error;
       toast.success("Quote deleted successfully");
       setDeleteId(null);
     } catch (error) {
@@ -100,7 +85,7 @@ export default function Dashboard() {
         billedLastMonth: 14200,
         completedJobs: 3
       });
-      loading && setLoading(false);
+      setLoading(false);
       return;
     }
 
@@ -125,15 +110,16 @@ export default function Dashboard() {
 
       try {
         const startOfMonth = new Date(currentYear, currentMonth, 1).toISOString();
-        const expensesQuery = query(
-          collectionGroup(db, 'expenses'),
-          where('uid', '==', user.uid),
-          where('createdAt', '>=', startOfMonth)
-        );
-        const expensesSnap = await getDocs(expensesQuery);
-        expensesSnap.forEach(expDoc => {
-          totalExpensesThisMonth += expDoc.data().amount || 0;
-        });
+        const { data: expensesData } = await supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', user.uid)
+          .gte('created_at', startOfMonth);
+        if (expensesData) {
+          expensesData.forEach(exp => {
+            totalExpensesThisMonth += exp.amount || 0;
+          });
+        }
       } catch (err) {
         console.error("Failed to fetch expenses", err);
       }
@@ -192,48 +178,74 @@ export default function Dashboard() {
       setLoading(false);
     };
 
-    const quotesRef = collection(db, 'quotes');
-    const quotesQ = query(
-      quotesRef,
-      where('uid', '==', user.uid)
-    );
+    const fetchQuotes = async () => {
+      const { data } = await supabase
+        .from('quotes')
+        .select('*')
+        .eq('user_id', user.uid)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (data) {
+        quotesList = data.map(fromDbQuote);
+        setRecentQuotes(quotesList);
+        await computeAndSetStats();
+      }
+    };
 
-    const unsubscribeQuotes = onSnapshot(quotesQ, (snapshot) => {
-      quotesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      quotesList.sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
-      quotesList = quotesList.slice(0, 50);
-      setRecentQuotes(quotesList);
-      computeAndSetStats();
-    }, (error) => {
-      console.error("Dashboard quotes subscription error:", error);
+    const fetchInvoices = async () => {
+      const { data } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('user_id', user.uid);
+      if (data) {
+        invoicesList = data.map(fromDbInvoice);
+        await computeAndSetStats();
+      }
+    };
+
+    // Initial fetches
+    fetchQuotes().catch((error) => {
+      console.error("Dashboard quotes fetch error:", error);
       toast.error(getUserFriendlyError(error));
       setLoading(false);
     });
-
-    const invoicesRef = collection(db, 'invoices');
-    const invoicesQ = query(
-      invoicesRef,
-      where('uid', '==', user.uid)
-    );
-
-    const unsubscribeInvoices = onSnapshot(invoicesQ, (snapshot) => {
-      invoicesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      computeAndSetStats();
-    }, (error) => {
-      console.error("Dashboard invoices subscription error:", error);
+    fetchInvoices().catch((error) => {
+      console.error("Dashboard invoices fetch error:", error);
     });
 
+    // Realtime subscription for quotes
+    const quotesChannel = supabase
+      .channel(`dashboard-quotes-${user.uid}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'quotes',
+        filter: `user_id=eq.${user.uid}`,
+      }, async () => {
+        await fetchQuotes();
+      })
+      .subscribe();
+
+    // Realtime subscription for invoices
+    const invoicesChannel = supabase
+      .channel(`dashboard-invoices-${user.uid}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'invoices',
+        filter: `user_id=eq.${user.uid}`,
+      }, async () => {
+        await fetchInvoices();
+      })
+      .subscribe();
+
     return () => {
-      unsubscribeQuotes();
-      unsubscribeInvoices();
+      supabase.removeChannel(quotesChannel);
+      supabase.removeChannel(invoicesChannel);
     };
   }, [user]);
 
-  const filteredQuotes = recentQuotes.filter(q => 
+  const filteredQuotes = recentQuotes.filter(q =>
     (q.clientName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (q.status || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -305,7 +317,7 @@ export default function Dashboard() {
 
   const getStatusBadgeClassAndLabel = (status: string, isExpired: boolean) => {
     const activeStatus = isExpired ? 'expired' : (status || 'draft').toLowerCase();
-    
+
     switch (activeStatus) {
       case 'approved':
         return { style: statusBadgeStyles.approved, label: 'Approved' };
@@ -327,7 +339,7 @@ export default function Dashboard() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
@@ -342,10 +354,10 @@ export default function Dashboard() {
             {user ? "Manage your quotes, track billing, and review active client pipelines." : "Get a high-level view of your business pipeline instantly."}
           </p>
         </div>
-        
-        <Button 
-          asChild 
-          size="lg" 
+
+        <Button
+          asChild
+          size="lg"
           className="w-full md:w-auto bg-primary hover:bg-[#03362f] text-white font-medium shadow-sm active:scale-[0.985] cursor-pointer"
         >
           <Link to="/quotes/new">
@@ -446,11 +458,11 @@ export default function Dashboard() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-9.5 w-9.5 rounded-xl border-zinc-150 bg-white hover:bg-zinc-50 text-zinc-500 cursor-pointer shadow-sm active:scale-95" 
-              onClick={handleExportCSV} 
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9.5 w-9.5 rounded-xl border-zinc-150 bg-white hover:bg-zinc-50 text-zinc-500 cursor-pointer shadow-sm active:scale-95"
+              onClick={handleExportCSV}
               title="Export CSV"
             >
               <Download className="h-4.5 w-4.5" />
@@ -501,37 +513,37 @@ export default function Dashboard() {
                           {formatCurrency(q.total || 0, q.currency)}
                         </span>
                         <div className="flex items-center gap-1.5">
-                          <Button 
-                            size="icon" 
-                            variant="outline" 
-                            className="h-8.5 w-8.5 rounded-lg text-zinc-450 border-zinc-200" 
-                            onClick={() => handleCopyLink(q.id)} 
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8.5 w-8.5 rounded-lg text-zinc-450 border-zinc-200"
+                            onClick={() => handleCopyLink(q.id)}
                             title="Copy Client Link"
                           >
                             {copiedId === q.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                           </Button>
-                          <Button 
-                            size="icon" 
-                            variant="outline" 
-                            className="h-8.5 w-8.5 rounded-lg border-[#25D366] bg-[#25D366] text-white hover:bg-[#1fb958] hover:border-[#1fb958]" 
-                            onClick={() => handleWhatsAppShare(q)} 
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8.5 w-8.5 rounded-lg border-[#25D366] bg-[#25D366] text-white hover:bg-[#1fb958] hover:border-[#1fb958]"
+                            onClick={() => handleWhatsAppShare(q)}
                             title="Share on WhatsApp"
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
                           </Button>
-                          <Button 
-                            size="icon" 
-                            variant="outline" 
-                            className="h-8.5 w-8.5 rounded-lg text-zinc-450 border-zinc-200 hover:bg-teal-100/40 hover:text-primary hover:border-primary/20" 
-                            onClick={() => navigate(`/quotes/${q.id}`)} 
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8.5 w-8.5 rounded-lg text-zinc-450 border-zinc-200 hover:bg-teal-100/40 hover:text-primary hover:border-primary/20"
+                            onClick={() => navigate(`/quotes/${q.id}`)}
                             title="Edit Quote"
                           >
                             <ArrowUpRight className="w-3.5 h-3.5" />
                           </Button>
                           {user && (
-                            <Button 
-                              size="icon" 
-                              variant="outline" 
+                            <Button
+                              size="icon"
+                              variant="outline"
                               className="h-8.5 w-8.5 rounded-lg text-zinc-450 hover:text-red-650 hover:border-red-150 hover:bg-red-50"
                               onClick={() => setDeleteId(q.id)}
                               title="Delete Quote"
@@ -592,27 +604,27 @@ export default function Dashboard() {
                           </td>
                           <td className="px-6 py-4.5 text-right">
                             <div className="flex items-center justify-end gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
+                              <Button
+                                variant="outline"
+                                size="icon"
                                 className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-zinc-800 bg-white border-zinc-200 shadow-sm"
                                 onClick={() => handleCopyLink(q.id)}
                                 title="Copy Secure Client Link"
                               >
                                 {copiedId === q.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                               </Button>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
+                              <Button
+                                variant="outline"
+                                size="icon"
                                 className="h-8.5 w-8.5 rounded-xl border-[#25D366] bg-[#25D366] text-white hover:bg-[#1fb958] hover:border-[#1fb958] shadow-sm"
                                 onClick={() => handleWhatsAppShare(q)}
                                 title="Share on WhatsApp"
                               >
                                 <MessageCircle className="h-3.5 w-3.5" />
                               </Button>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
+                              <Button
+                                variant="outline"
+                                size="icon"
                                 className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-primary bg-white border-zinc-200 hover:bg-teal-100/40 hover:border-primary/20 shadow-sm"
                                 onClick={() => navigate(`/quotes/${q.id}`)}
                                 title="Edit and Revise Quote"
@@ -620,9 +632,9 @@ export default function Dashboard() {
                                 <ArrowUpRight className="h-3.5 w-3.5" />
                               </Button>
                               {user && (
-                                <Button 
-                                  variant="outline" 
-                                  size="icon" 
+                                <Button
+                                  variant="outline"
+                                  size="icon"
                                   className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200 bg-white border-zinc-200 shadow-sm"
                                   onClick={() => setDeleteId(q.id)}
                                   title="Delete Permanent Archive"
