@@ -40,17 +40,12 @@ export default function Clients() {
     if (!user) return;
 
     const fetchData = async () => {
-      const { data: clientData } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('user_id', user.uid)
-        .order('created_at', { ascending: false });
+      const [{ data: clientData }, { data: quotesData }] = await Promise.all([
+        supabase.from('clients').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
+        supabase.from('quotes').select('*').eq('user_id', user.uid),
+      ]);
       if (clientData) setClients(clientData.map(fromDbClient));
 
-      const { data: quotesData } = await supabase
-        .from('quotes')
-        .select('*')
-        .eq('user_id', user.uid);
       if (quotesData) {
         const stats: Record<string, { totalBilled: number; lastJobDate?: string }> = {};
         quotesData.map(fromDbQuote).forEach((quote: any) => {

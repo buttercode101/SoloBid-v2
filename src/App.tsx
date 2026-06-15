@@ -6,17 +6,15 @@ import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
 import { FileText, Loader2 } from 'lucide-react';
 
-import Login from './pages/Login';
-import Onboarding from './pages/Onboarding';
-import Dashboard from './pages/Dashboard';
-import QuoteBuilder from './pages/QuoteBuilder';
-import Invoices from './pages/Invoices';
-import Templates from './pages/Templates';
-import Settings from './pages/Settings';
-import Clients from './pages/Clients';
-import RecurringInvoices from './pages/RecurringInvoices';
-
-// Lazy-load ClientView so clients on mobile data only download what they need
+const Login = lazy(() => import('./pages/Login'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const QuoteBuilder = lazy(() => import('./pages/QuoteBuilder'));
+const Invoices = lazy(() => import('./pages/Invoices'));
+const Templates = lazy(() => import('./pages/Templates'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Clients = lazy(() => import('./pages/Clients'));
+const RecurringInvoices = lazy(() => import('./pages/RecurringInvoices'));
 const ClientView = lazy(() => import('./pages/ClientView'));
 
 const LoadingScreen = () => (
@@ -94,6 +92,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
+        <Suspense fallback={<LoadingScreen />}>
         <Routes>
           <Route path="/" element={<LandingRoute />} />
           <Route path="/login" element={<LandingRoute />} />
@@ -140,6 +139,7 @@ export default function App() {
 
           <Route path="*" element={<NotFoundRoute />} />
         </Routes>
+        </Suspense>
         <Toaster />
       </Router>
     </AuthProvider>

@@ -406,11 +406,15 @@ export default function QuoteBuilder() {
     try {
       setLoading(true);
 
-      const { data: quoteRow, error: quoteError } = await supabase
-        .from('quotes')
-        .select('*')
-        .eq('id', quoteId)
-        .single();
+      const [
+        { data: quoteRow, error: quoteError },
+        { data: itemRows },
+        { data: expRows },
+      ] = await Promise.all([
+        supabase.from('quotes').select('*').eq('id', quoteId).single(),
+        supabase.from('line_items').select('*').eq('quote_id', quoteId).order('sort_order', { ascending: true }),
+        supabase.from('expenses').select('*').eq('quote_id', quoteId),
+      ]);
 
       if (quoteError) throw quoteError;
 
@@ -428,18 +432,9 @@ export default function QuoteBuilder() {
         setValidityDays(data.validityDays || '7');
         setQuotePdfUrl(data.pdfUrl || '');
 
-        const { data: itemRows } = await supabase
-          .from('line_items')
-          .select('*')
-          .eq('quote_id', quoteId)
-          .order('sort_order', { ascending: true });
         const items = (itemRows || []).map(fromDbLineItem) as LineItem[];
         setLineItems(items.length > 0 ? items : []);
 
-        const { data: expRows } = await supabase
-          .from('expenses')
-          .select('*')
-          .eq('quote_id', quoteId);
         const loadedExpenses = (expRows || []).map(fromDbExpense) as Expense[];
         setExpenses(loadedExpenses);
       }
