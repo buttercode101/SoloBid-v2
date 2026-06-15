@@ -1,7 +1,7 @@
 {
   "name": "SoloBid",
   "short_name": "SoloBid",
-  "description": "Estimates and invoicing for solo contractors",
+  "description": "Professional quotes, client sign-off, and invoices — for freelancers, creators, and consultants.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

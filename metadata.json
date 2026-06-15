@@ -1,6 +1,6 @@
 {
   "name": "SoloBid",
-  "description": "Exhaustive Quote & Invoice Builder for Solo Contractors with Real-time Sync and PDF Generation",
+  "description": "Quote it. Sign it. Get paid. — Fast quoting and invoicing for freelancers, creators, and consultants.",
   "requestFramePermissions": [
     "camera",
     "microphone"
