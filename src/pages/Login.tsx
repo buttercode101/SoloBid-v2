@@ -118,24 +118,24 @@ export default function Login() {
           <p className="mb-6 text-sm font-black uppercase tracking-[0.32em] text-emerald-100">SoloBid</p>
 
           <h1 className="max-w-2xl text-5xl font-black leading-[0.95] tracking-[-0.06em] text-white sm:text-6xl md:text-7xl">
-            Quote it.<br />Approve it.<br />Invoice it.
+            Quote it.<br />Sign it.<br />Get paid.
           </h1>
 
           <p className="mt-8 max-w-xl text-base leading-8 text-emerald-50/80 sm:text-lg">
-            Fast, focused quoting and invoicing for solo contractors who need professional documents ready from day one.
+            Professional quotes. Client approval. Invoice — done. In minutes.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <FeatureBadge>Fast Quotes</FeatureBadge>
-            <FeatureBadge>Instant Invoices</FeatureBadge>
+            <FeatureBadge>Built-in Templates</FeatureBadge>
+            <FeatureBadge>Client Sign-off</FeatureBadge>
           </div>
 
           <div className="mt-8 flex items-center justify-center gap-3 text-sm font-semibold text-emerald-50/80 sm:text-base">
-            <span>Build</span>
+            <span>Quote</span>
             <ArrowRight className="h-4 w-4 text-emerald-300" />
-            <span>Approve</span>
+            <span>Sign</span>
             <ArrowRight className="h-4 w-4 text-emerald-300" />
-            <span>Invoice</span>
+            <span>Get Paid</span>
           </div>
         </section>
 
