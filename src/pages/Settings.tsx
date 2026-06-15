@@ -254,7 +254,7 @@ export default function Settings() {
                       id="fullName"
                       value={formData.fullName}
                       onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                      placeholder="e.g. Mathapelo Phakoe"
+                      placeholder="e.g. Thabo Smit"
                       className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
                     />
                   </div>
