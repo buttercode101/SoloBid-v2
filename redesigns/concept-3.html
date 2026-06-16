@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SoloBid — Quote it. Sign it. Get paid.</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a1412; color: #f4f4f5; margin: 0; padding: 0; overflow-x: hidden; }
+
+    /* Scroll animations */
+    .animate-on-scroll { opacity: 0; transform: translateY(32px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    .animate-on-scroll.visible { opacity: 1; transform: translateY(0); }
+    .stagger-1 { transition-delay: 0.1s; }
+    .stagger-2 { transition-delay: 0.2s; }
+    .stagger-3 { transition-delay: 0.3s; }
+    .stagger-4 { transition-delay: 0.4s; }
+    .stagger-5 { transition-delay: 0.5s; }
+    .scale-in { opacity: 0; transform: scale(0.9); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .scale-in.visible { opacity: 1; transform: scale(1); }
+
+    /* Gradient text */
+    .gradient-text {
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Bento grid */
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: auto;
+      gap: 16px;
+    }
+    .bento-wide { grid-column: span 8; }
+    .bento-narrow { grid-column: span 4; }
+    .bento-half { grid-column: span 6; }
+    .bento-third { grid-column: span 4; }
+    @media (max-width: 1024px) {
+      .bento-wide, .bento-narrow, .bento-half, .bento-third { grid-column: span 12; }
+      .bento-grid { grid-template-columns: 1fr; }
+    }
+    @media (min-width: 640px) and (max-width: 1023px) {
+      .bento-grid { grid-template-columns: repeat(6, 1fr); }
+      .bento-wide { grid-column: span 6; }
+      .bento-narrow { grid-column: span 6; }
+      .bento-half { grid-column: span 6; }
+      .bento-third { grid-column: span 3; }
+    }
+
+    /* Bento card hover */
+    .bento-card {
+      border-radius: 20px;
+      padding: 28px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      overflow: hidden;
+      position: relative;
+    }
+    .bento-card:hover { transform: translateY(-4px); box-shadow: 0 24px 64px rgba(16,185,129,0.12); }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 16px 32px;
+      background: rgba(10,20,18,0.7);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(16,185,129,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Orb / glow effects */
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+    }
+
+    /* Counter animation */
+    @keyframes countUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .counter-reveal { animation: countUp 0.6s ease forwards; }
+
+    /* Pulse ring */
+    @keyframes pulseRing {
+      0%   { transform: scale(1); opacity: 0.6; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+    .pulse-ring {
+      position: absolute;
+      border-radius: 50%;
+      animation: pulseRing 2s ease-out infinite;
+    }
+
+    /* Signature draw animation */
+    @keyframes drawLine {
+      from { width: 0; }
+      to   { width: 100%; }
+    }
+    .sig-line-anim { animation: drawLine 1.4s ease forwards; animation-delay: 0.4s; width: 0; }
+
+    /* Sparkline bar grow */
+    @keyframes growBar {
+      from { height: 0; }
+      to   { height: var(--bar-h); }
+    }
+    .bar-anim { animation: growBar 0.8s ease forwards; }
+    .bar-anim:nth-child(1) { animation-delay: 0.1s; }
+    .bar-anim:nth-child(2) { animation-delay: 0.2s; }
+    .bar-anim:nth-child(3) { animation-delay: 0.3s; }
+    .bar-anim:nth-child(4) { animation-delay: 0.4s; }
+    .bar-anim:nth-child(5) { animation-delay: 0.5s; }
+    .bar-anim:nth-child(6) { animation-delay: 0.6s; }
+    .bar-anim:nth-child(7) { animation-delay: 0.7s; }
+
+    /* Particle dots */
+    @keyframes floatDot {
+      0%, 100% { transform: translateY(0) scale(1); opacity: 0.5; }
+      50%       { transform: translateY(-20px) scale(1.2); opacity: 1; }
+    }
+    .dot-particle { position: absolute; border-radius: 50%; animation: floatDot var(--dur, 4s) ease-in-out infinite; animation-delay: var(--delay, 0s); }
+
+    /* Step timeline line */
+    .step-line {
+      position: absolute;
+      top: 32px;
+      left: calc(50% + 24px);
+      right: calc(-50% + 24px);
+      height: 2px;
+      background: linear-gradient(90deg, #10b981, #06b6d4);
+      opacity: 0.4;
+    }
+
+    /* Pro card glow border */
+    .pro-card {
+      background: linear-gradient(#111827, #111827) padding-box,
+                  linear-gradient(135deg, #10b981, #06b6d4) border-box;
+      border: 2px solid transparent;
+      box-shadow: 0 0 40px rgba(16,185,129,0.15);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0a1412; }
+    ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 3px; }
+
+    /* Hero browser mockup */
+    .browser-mockup {
+      background: #111827;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      overflow: hidden;
+      box-shadow: 0 40px 120px rgba(0,0,0,0.6);
+    }
+    .browser-topbar {
+      background: #1f2937;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .browser-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Floating stat pill */
+    .stat-pill {
+      background: rgba(17,24,39,0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(16,185,129,0.25);
+      border-radius: 12px;
+      padding: 10px 16px;
+      position: absolute;
+      white-space: nowrap;
+    }
+
+    /* Phone frame */
+    .phone-frame {
+      width: 200px;
+      background: #1a1a1a;
+      border-radius: 32px;
+      padding: 12px;
+      border: 3px solid #333;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .phone-notch {
+      width: 60px; height: 6px;
+      background: #333;
+      border-radius: 4px;
+      margin: 0 auto 12px;
+    }
+    .phone-screen {
+      background: #0d1f1c;
+      border-radius: 20px;
+      overflow: hidden;
+      padding: 12px;
+    }
+    .phone-home {
+      width: 40px; height: 4px;
+      background: #333;
+      border-radius: 2px;
+      margin: 10px auto 0;
+    }
+
+    /* Testimonial stars */
+    .stars { color: #f59e0b; letter-spacing: 2px; }
+
+    /* Annual toggle */
+    .toggle-pill {
+      background: #1f2937;
+      border-radius: 99px;
+      padding: 4px;
+      display: inline-flex;
+      gap: 4px;
+    }
+    .toggle-option {
+      padding: 6px 16px;
+      border-radius: 99px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .toggle-active {
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: white;
+    }
+
+    /* Emerald gradient bg utility */
+    .emerald-gradient { background: linear-gradient(135deg, #10b981, #06b6d4); }
+    .emerald-gradient-text { background: linear-gradient(135deg, #10b981, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* Stamp */
+    @keyframes stampIn {
+      0%   { transform: scale(2) rotate(-8deg); opacity: 0; }
+      60%  { transform: scale(0.95) rotate(6deg); opacity: 1; }
+      100% { transform: scale(1) rotate(5deg); opacity: 1; }
+    }
+    .paid-stamp { animation: stampIn 0.5s cubic-bezier(0.36,0.07,0.19,0.97) forwards; animation-delay: 0.8s; opacity: 0; }
+  </style>
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<nav>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <!-- Geometric S mark -->
+    <div style="width:34px;height:34px;background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M14 6C14 4.34 12.66 3 11 3H7C5.34 3 4 4.34 4 6C4 7.66 5.34 9 7 9H13C14.66 9 16 10.34 16 12C16 13.66 14.66 15 13 15H9C7.34 15 6 13.66 6 12" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.5px;">SoloBid</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:32px;">
+    <a href="#features" style="color:#a1a1aa;font-size:14px;text-decoration:none;font-weight:500;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#a1a1aa'">Features</a>
+    <a href="#how-it-works" style="color:#a1a1aa;font-size:14px;text-decoration:none;font-weight:500;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#a1a1aa'">How it works</a>
+    <a href="#pricing" style="color:#a1a1aa;font-size:14px;text-decoration:none;font-weight:500;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#a1a1aa'">Pricing</a>
+    <a href="#" style="background:linear-gradient(135deg,#10b981,#06b6d4);color:#fff;padding:8px 20px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Get Started</a>
+  </div>
+</nav>
+
+<!-- ===================== HERO ===================== -->
+<section style="position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:120px 32px 80px;overflow:hidden;">
+
+  <!-- Orbs -->
+  <div class="orb" style="width:600px;height:600px;background:radial-gradient(circle,rgba(16,185,129,0.18),transparent 70%);top:-100px;left:-150px;"></div>
+  <div class="orb" style="width:500px;height:500px;background:radial-gradient(circle,rgba(6,182,212,0.12),transparent 70%);bottom:-50px;right:-100px;"></div>
+  <div class="orb" style="width:300px;height:300px;background:radial-gradient(circle,rgba(16,185,129,0.1),transparent 70%);top:40%;left:50%;transform:translate(-50%,-50%);"></div>
+
+  <div style="max-width:1280px;width:100%;margin:0 auto;position:relative;z-index:2;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;" class="hero-grid">
+
+      <!-- Left: Text -->
+      <div>
+        <div class="animate-on-scroll stagger-1" style="display:inline-flex;align-items:center;gap:8px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:99px;padding:6px 14px;margin-bottom:32px;">
+          <div style="width:6px;height:6px;background:#10b981;border-radius:50%;position:relative;">
+            <div class="pulse-ring" style="width:100%;height:100%;border:2px solid #10b981;top:0;left:0;"></div>
+          </div>
+          <span style="font-family:monospace;font-size:12px;color:#10b981;letter-spacing:0.5px;">// freelance toolkit</span>
+        </div>
+
+        <h1 class="animate-on-scroll stagger-2" style="font-size:clamp(52px,7vw,88px);font-weight:900;line-height:1.0;letter-spacing:-3px;margin:0 0 16px;">
+          Quote it.<br>
+          <span style="background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Get Paid.</span>
+        </h1>
+
+        <p class="animate-on-scroll stagger-3" style="font-size:18px;color:#a1a1aa;line-height:1.7;margin:0 0 36px;max-width:440px;">
+          Quote it. Sign it. Get paid. — The all-in-one quoting &amp; invoicing toolkit built for tradespeople who work solo and move fast.
+        </p>
+
+        <div class="animate-on-scroll stagger-4" style="display:flex;gap:14px;flex-wrap:wrap;">
+          <a href="#" style="background:linear-gradient(135deg,#10b981,#06b6d4);color:#fff;padding:14px 28px;border-radius:10px;font-weight:700;font-size:16px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+            Start Free <span>→</span>
+          </a>
+          <a href="#" style="border:1px solid rgba(255,255,255,0.15);color:#d4d4d8;padding:14px 28px;border-radius:10px;font-weight:600;font-size:16px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.03);transition:all 0.2s;" onmouseover="this.style.borderColor='rgba(16,185,129,0.5)';this.style.color='#10b981'" onmouseout="this.style.borderColor='rgba(255,255,255,0.15)';this.style.color='#d4d4d8'">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M10 8l6 4-6 4V8z" fill="currentColor"/></svg>
+            Watch Demo
+          </a>
+        </div>
+
+        <!-- Floating stats -->
+        <div class="animate-on-scroll stagger-5" style="display:flex;gap:24px;margin-top:48px;flex-wrap:wrap;">
+          <div style="text-align:center;">
+            <div style="font-size:28px;font-weight:900;background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;" id="stat-users">500+</div>
+            <div style="font-size:12px;color:#71717a;font-family:monospace;margin-top:2px;">active users</div>
+          </div>
+          <div style="width:1px;background:rgba(255,255,255,0.1);"></div>
+          <div style="text-align:center;">
+            <div style="font-size:28px;font-weight:900;background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">$2M+</div>
+            <div style="font-size:12px;color:#71717a;font-family:monospace;margin-top:2px;">quoted total</div>
+          </div>
+          <div style="width:1px;background:rgba(255,255,255,0.1);"></div>
+          <div style="text-align:center;">
+            <div style="font-size:28px;font-weight:900;background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">2 min</div>
+            <div style="font-size:12px;color:#71717a;font-family:monospace;margin-top:2px;">avg. quote time</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Browser mockup -->
+      <div class="scale-in stagger-2" style="position:relative;">
+        <!-- Glow behind mockup -->
+        <div style="position:absolute;inset:-40px;background:radial-gradient(ellipse at center,rgba(16,185,129,0.15),transparent 70%);pointer-events:none;"></div>
+
+        <div class="browser-mockup" style="transform:perspective(1200px) rotateY(-6deg) rotateX(2deg);">
+          <!-- Topbar -->
+          <div class="browser-topbar">
+            <div class="browser-dot" style="background:#ef4444;"></div>
+            <div class="browser-dot" style="background:#f59e0b;"></div>
+            <div class="browser-dot" style="background:#10b981;"></div>
+            <div style="flex:1;margin-left:12px;background:#111827;border-radius:4px;height:22px;display:flex;align-items:center;padding:0 10px;">
+              <span style="font-size:11px;color:#4b5563;font-family:monospace;">app.solobid.co/quotes/Q-2024-089</span>
+            </div>
+          </div>
+
+          <!-- App UI -->
+          <div style="display:grid;grid-template-columns:200px 1fr;min-height:360px;">
+            <!-- Sidebar -->
+            <div style="background:#0d1b19;padding:20px 14px;border-right:1px solid rgba(255,255,255,0.05);">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;">
+                <div style="width:26px;height:26px;background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:6px;"></div>
+                <span style="font-size:13px;font-weight:700;color:#fff;">SoloBid</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;">
+                <div style="padding:7px 10px;border-radius:7px;background:rgba(16,185,129,0.15);display:flex;align-items:center;gap:8px;">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="#10b981" stroke-width="2" stroke-linecap="round"/></svg>
+                  <span style="font-size:12px;color:#10b981;font-weight:600;">Quotes</span>
+                </div>
+                <div style="padding:7px 10px;border-radius:7px;display:flex;align-items:center;gap:8px;">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M3 10h18M7 15h1m4 0h1M3 6l9-3 9 3M5 10v8a2 2 0 002 2h10a2 2 0 002-2v-8" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/></svg>
+                  <span style="font-size:12px;color:#6b7280;">Invoices</span>
+                </div>
+                <div style="padding:7px 10px;border-radius:7px;display:flex;align-items:center;gap:8px;">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/></svg>
+                  <span style="font-size:12px;color:#6b7280;">Clients</span>
+                </div>
+                <div style="padding:7px 10px;border-radius:7px;display:flex;align-items:center;gap:8px;">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/></svg>
+                  <span style="font-size:12px;color:#6b7280;">Dashboard</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Main area -->
+            <div style="padding:20px;background:#111827;">
+              <!-- Header -->
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <div>
+                  <div style="font-size:11px;color:#6b7280;font-family:monospace;margin-bottom:4px;">// quote detail</div>
+                  <div style="font-size:16px;font-weight:700;color:#fff;">Q-2024-089</div>
+                </div>
+                <div style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:99px;padding:4px 12px;font-size:11px;color:#10b981;font-weight:600;">Approved ✓</div>
+              </div>
+
+              <!-- Client info -->
+              <div style="background:#1f2937;border-radius:8px;padding:12px;margin-bottom:12px;">
+                <div style="font-size:11px;color:#6b7280;margin-bottom:6px;font-family:monospace;">CLIENT</div>
+                <div style="font-size:14px;font-weight:600;color:#fff;">Apex Plumbing Co.</div>
+                <div style="font-size:11px;color:#9ca3af;margin-top:2px;">apex@plumbing.com</div>
+              </div>
+
+              <!-- Line items -->
+              <div style="background:#1f2937;border-radius:8px;overflow:hidden;margin-bottom:12px;">
+                <div style="display:grid;grid-template-columns:1fr auto;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:11px;color:#6b7280;font-family:monospace;">DESCRIPTION</span>
+                  <span style="font-size:11px;color:#6b7280;font-family:monospace;">AMOUNT</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr auto;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <div>
+                    <div style="font-size:12px;color:#e5e7eb;">Labor — 4hrs × $85</div>
+                  </div>
+                  <span style="font-size:12px;color:#fff;font-family:monospace;">$340.00</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr auto;padding:9px 12px;">
+                  <div>
+                    <div style="font-size:12px;color:#e5e7eb;">Materials</div>
+                  </div>
+                  <span style="font-size:12px;color:#fff;font-family:monospace;">$127.50</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr auto;padding:10px 12px;background:rgba(16,185,129,0.08);border-top:1px solid rgba(16,185,129,0.2);">
+                  <span style="font-size:13px;font-weight:700;color:#fff;">Total</span>
+                  <span style="font-size:13px;font-weight:800;color:#10b981;font-family:monospace;">$467.50</span>
+                </div>
+              </div>
+
+              <!-- Action row -->
+              <div style="display:flex;gap:8px;">
+                <button style="flex:1;background:linear-gradient(135deg,#10b981,#06b6d4);color:#fff;border:none;border-radius:7px;padding:8px;font-size:11px;font-weight:600;cursor:pointer;">Send to Client</button>
+                <button style="flex:1;background:#1f2937;color:#9ca3af;border:1px solid rgba(255,255,255,0.08);border-radius:7px;padding:8px;font-size:11px;cursor:pointer;">Convert to Invoice</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Floating stat pills -->
+        <div class="stat-pill animate-on-scroll stagger-3" style="top:-20px;right:-20px;">
+          <div style="font-size:11px;color:#6b7280;font-family:monospace;">avg. sign time</div>
+          <div style="font-size:18px;font-weight:800;color:#10b981;">4.2 hrs</div>
+        </div>
+        <div class="stat-pill animate-on-scroll stagger-4" style="bottom:40px;left:-30px;">
+          <div style="font-size:11px;color:#6b7280;font-family:monospace;">this month</div>
+          <div style="font-size:18px;font-weight:800;color:#fff;">$4,820</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== HOW IT WORKS ===================== -->
+<section id="how-it-works" style="padding:100px 32px;position:relative;overflow:hidden;">
+  <div style="max-width:1280px;margin:0 auto;">
+    <!-- Label -->
+    <div class="animate-on-scroll" style="text-align:center;margin-bottom:16px;">
+      <span style="font-family:monospace;font-size:13px;color:#10b981;background:rgba(16,185,129,0.1);padding:6px 14px;border-radius:99px;border:1px solid rgba(16,185,129,0.2);">// how it works</span>
+    </div>
+
+    <h2 class="animate-on-scroll stagger-1" style="text-align:center;font-size:clamp(36px,5vw,60px);font-weight:900;letter-spacing:-2px;margin:0 0 16px;">
+      Three steps.<br><span style="background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Zero friction.</span>
+    </h2>
+    <p class="animate-on-scroll stagger-2" style="text-align:center;color:#71717a;font-size:17px;margin:0 0 72px;">From first call to final payment — SoloBid handles it all.</p>
+
+    <!-- Steps grid -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;position:relative;" class="steps-grid">
+
+      <!-- Step 1 -->
+      <div class="animate-on-scroll stagger-1 bento-card" style="background:#111827;border:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <span style="font-family:monospace;font-size:24px;font-weight:900;background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">01</span>
+        </div>
+        <h3 style="font-size:20px;font-weight:700;margin:0 0 8px;">Choose a Template</h3>
+        <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 20px;">Pick from a library of trade-specific quote templates — plumbing, electrical, roofing, and more.</p>
+
+        <!-- Template gallery mini mockup -->
+        <div style="background:#0d1b19;border-radius:10px;padding:12px;">
+          <div style="font-size:10px;color:#6b7280;font-family:monospace;margin-bottom:8px;">SELECT TEMPLATE</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="background:#1f2937;border-radius:7px;padding:10px;border:1px solid rgba(16,185,129,0.3);">
+              <div style="width:24px;height:24px;background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:5px;margin-bottom:6px;"></div>
+              <div style="font-size:10px;color:#10b981;font-weight:600;">Plumbing</div>
+              <div style="font-size:9px;color:#4b5563;margin-top:2px;">12 items</div>
+            </div>
+            <div style="background:#1f2937;border-radius:7px;padding:10px;">
+              <div style="width:24px;height:24px;background:#374151;border-radius:5px;margin-bottom:6px;"></div>
+              <div style="font-size:10px;color:#9ca3af;font-weight:600;">Electrical</div>
+              <div style="font-size:9px;color:#4b5563;margin-top:2px;">8 items</div>
+            </div>
+            <div style="background:#1f2937;border-radius:7px;padding:10px;">
+              <div style="width:24px;height:24px;background:#374151;border-radius:5px;margin-bottom:6px;"></div>
+              <div style="font-size:10px;color:#9ca3af;font-weight:600;">Roofing</div>
+              <div style="font-size:9px;color:#4b5563;margin-top:2px;">15 items</div>
+            </div>
+            <div style="background:#1f2937;border-radius:7px;padding:10px;">
+              <div style="width:24px;height:24px;background:#374151;border-radius:5px;margin-bottom:6px;"></div>
+              <div style="font-size:10px;color:#9ca3af;font-weight:600;">Painting</div>
+              <div style="font-size:9px;color:#4b5563;margin-top:2px;">9 items</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="animate-on-scroll stagger-2 bento-card" style="background:#111827;border:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <span style="font-family:monospace;font-size:24px;font-weight:900;background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">02</span>
+        </div>
+        <h3 style="font-size:20px;font-weight:700;margin:0 0 8px;">Client Signs Instantly</h3>
+        <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 20px;">Send via WhatsApp or SMS. Your client taps a link and e-signs from their phone in seconds.</p>
+
+        <!-- Phone chat mockup -->
+        <div style="display:flex;justify-content:center;">
+          <div class="phone-frame" style="width:160px;">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <div style="font-size:9px;color:#6b7280;font-family:monospace;text-align:center;margin-bottom:8px;">WhatsApp</div>
+              <!-- Incoming bubble -->
+              <div style="background:#1f2937;border-radius:10px 10px 10px 2px;padding:8px;margin-bottom:6px;max-width:90%;">
+                <div style="font-size:9px;color:#e5e7eb;line-height:1.5;">Hi! Your quote from Apex Plumbing — $467.50</div>
+                <div style="margin-top:4px;background:rgba(16,185,129,0.2);border-radius:5px;padding:4px 6px;border:1px solid rgba(16,185,129,0.3);">
+                  <div style="font-size:8px;color:#10b981;font-weight:600;">Tap to sign →</div>
+                </div>
+              </div>
+              <!-- Reply bubble -->
+              <div style="background:linear-gradient(135deg,rgba(16,185,129,0.3),rgba(6,182,212,0.2));border-radius:10px 10px 2px 10px;padding:6px 8px;margin-left:auto;max-width:80%;">
+                <div style="font-size:9px;color:#e5e7eb;">Signed! ✓</div>
+              </div>
+            </div>
+            <div class="phone-home"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 — white contrast card -->
+      <div class="animate-on-scroll stagger-3 bento-card" style="background:#fff;border:1px solid rgba(0,0,0,0.06);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <span style="font-family:monospace;font-size:24px;font-weight:900;background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">03</span>
+        </div>
+        <h3 style="font-size:20px;font-weight:700;margin:0 0 8px;color:#111827;">Invoice &amp; Get Paid</h3>
+        <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 20px;">Convert your quote to invoice in one click. Stripe payment, bank transfer — your choice.</p>
+
+        <!-- Invoice with PAID stamp -->
+        <div style="background:#f9fafb;border-radius:10px;padding:14px;border:1px solid #e5e7eb;position:relative;overflow:hidden;">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;">
+            <div>
+              <div style="font-size:10px;color:#6b7280;font-family:monospace;">INVOICE #INV-089</div>
+              <div style="font-size:13px;font-weight:700;color:#111827;margin-top:2px;">Apex Plumbing Co.</div>
+            </div>
+            <div style="font-size:16px;font-weight:800;color:#111827;">$467.50</div>
+          </div>
+          <div style="height:1px;background:#e5e7eb;margin-bottom:8px;"></div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:3px;">
+            <span>Labor (4hrs × $85)</span><span style="color:#111827;font-weight:600;">$340.00</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;">
+            <span>Materials</span><span style="color:#111827;font-weight:600;">$127.50</span>
+          </div>
+
+          <!-- PAID stamp -->
+          <div class="paid-stamp" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(5deg);border:3px solid #10b981;border-radius:8px;padding:6px 16px;color:#10b981;font-size:20px;font-weight:900;letter-spacing:4px;opacity:0.85;">PAID</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== BENTO FEATURES ===================== -->
+<section id="features" style="padding:100px 32px;background:rgba(0,0,0,0.2);">
+  <div style="max-width:1280px;margin:0 auto;">
+    <div class="animate-on-scroll" style="text-align:center;margin-bottom:16px;">
+      <span style="font-family:monospace;font-size:13px;color:#10b981;background:rgba(16,185,129,0.1);padding:6px 14px;border-radius:99px;border:1px solid rgba(16,185,129,0.2);">// features</span>
+    </div>
+    <h2 class="animate-on-scroll stagger-1" style="text-align:center;font-size:clamp(32px,4.5vw,54px);font-weight:900;letter-spacing:-2px;margin:0 0 60px;">
+      Everything you need.<br><span style="background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Nothing you don't.</span>
+    </h2>
+
+    <div class="bento-grid">
+
+      <!-- WIDE: Dashboard -->
+      <div class="bento-wide bento-card animate-on-scroll scale-in" style="background:#111827;border:1px solid rgba(255,255,255,0.07);min-height:320px;">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px;">
+          <div>
+            <div style="font-family:monospace;font-size:11px;color:#10b981;margin-bottom:6px;">// dashboard</div>
+            <h3 style="font-size:22px;font-weight:800;margin:0;">Clean Dashboard</h3>
+            <p style="color:#6b7280;font-size:14px;margin:6px 0 0;">Everything at a glance — quotes, revenue, sign status.</p>
+          </div>
+          <div style="background:rgba(16,185,129,0.1);border-radius:8px;padding:8px 12px;font-family:monospace;font-size:12px;color:#10b981;border:1px solid rgba(16,185,129,0.2);">LIVE</div>
+        </div>
+
+        <!-- Metrics row -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+          <div style="background:#1f2937;border-radius:10px;padding:12px;">
+            <div style="font-size:10px;color:#6b7280;font-family:monospace;">ACTIVE</div>
+            <div style="font-size:26px;font-weight:800;color:#fff;margin:4px 0;">5</div>
+            <div style="font-size:10px;color:#10b981;">+2 this week</div>
+          </div>
+          <div style="background:#1f2937;border-radius:10px;padding:12px;">
+            <div style="font-size:10px;color:#6b7280;font-family:monospace;">SIGNED</div>
+            <div style="font-size:26px;font-weight:800;color:#10b981;margin:4px 0;">3</div>
+            <div style="font-size:10px;color:#6b7280;">60% rate</div>
+          </div>
+          <div style="background:#1f2937;border-radius:10px;padding:12px;">
+            <div style="font-size:10px;color:#6b7280;font-family:monospace;">PENDING</div>
+            <div style="font-size:26px;font-weight:800;color:#f59e0b;margin:4px 0;">$2,340</div>
+            <div style="font-size:10px;color:#6b7280;">2 invoices</div>
+          </div>
+          <div style="background:#1f2937;border-radius:10px;padding:12px;">
+            <div style="font-size:10px;color:#6b7280;font-family:monospace;">EARNED</div>
+            <div style="font-size:26px;font-weight:800;color:#fff;margin:4px 0;">$8.4k</div>
+            <div style="font-size:10px;color:#10b981;">↑ 14% MoM</div>
+          </div>
+        </div>
+
+        <!-- Bar chart sparkline -->
+        <div style="background:#1f2937;border-radius:10px;padding:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span style="font-size:11px;color:#6b7280;font-family:monospace;">REVENUE TREND</span>
+            <span style="font-size:11px;color:#10b981;font-family:monospace;">Last 7 days</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:6px;height:60px;">
+            <div class="bar-anim" style="--bar-h:30px;flex:1;background:rgba(16,185,129,0.3);border-radius:4px 4px 0 0;height:0;transition:height 0.8s ease;"></div>
+            <div class="bar-anim" style="--bar-h:45px;flex:1;background:rgba(16,185,129,0.4);border-radius:4px 4px 0 0;height:0;"></div>
+            <div class="bar-anim" style="--bar-h:25px;flex:1;background:rgba(16,185,129,0.3);border-radius:4px 4px 0 0;height:0;"></div>
+            <div class="bar-anim" style="--bar-h:55px;flex:1;background:rgba(16,185,129,0.5);border-radius:4px 4px 0 0;height:0;"></div>
+            <div class="bar-anim" style="--bar-h:40px;flex:1;background:rgba(16,185,129,0.4);border-radius:4px 4px 0 0;height:0;"></div>
+            <div class="bar-anim" style="--bar-h:60px;flex:1;background:linear-gradient(to top,#10b981,#06b6d4);border-radius:4px 4px 0 0;height:0;"></div>
+            <div class="bar-anim" style="--bar-h:48px;flex:1;background:rgba(16,185,129,0.5);border-radius:4px 4px 0 0;height:0;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;">
+            <span style="font-size:9px;color:#4b5563;font-family:monospace;">MON</span>
+            <span style="font-size:9px;color:#4b5563;font-family:monospace;">TUE</span>
+            <span style="font-size:9px;color:#4b5563;font-family:monospace;">WED</span>
+            <span style="font-size:9px;color:#4b5563;font-family:monospace;">THU</span>
+            <span style="font-size:9px;color:#4b5563;font-family:monospace;">FRI</span>
+            <span style="font-size:9px;color:#10b981;font-family:monospace;">SAT</span>
+            <span style="font-size:9px;color:#4b5563;font-family:monospace;">SUN</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- NARROW: WhatsApp -->
+      <div class="bento-narrow bento-card animate-on-scroll scale-in stagger-1" style="background:#111827;border:1px solid rgba(255,255,255,0.07);display:flex;flex-direction:column;align-items:center;">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-family:monospace;font-size:11px;color:#10b981;margin-bottom:6px;">// integrations</div>
+          <h3 style="font-size:18px;font-weight:800;margin:0 0 6px;">WhatsApp &amp; SMS</h3>
+          <p style="color:#6b7280;font-size:13px;margin:0;">Clients sign right from the chat they're already in.</p>
+        </div>
+
+        <div class="phone-frame">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06);">
+              <div style="width:24px;height:24px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+              </div>
+              <div>
+                <div style="font-size:9px;color:#fff;font-weight:600;">SoloBid</div>
+                <div style="font-size:8px;color:#6b7280;">online now</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="background:#1f2937;border-radius:8px 8px 8px 2px;padding:7px 9px;font-size:9px;color:#e5e7eb;line-height:1.5;max-width:90%;">
+                Your quote Q-2024-089 is ready! Total: <strong style="color:#10b981;">$467.50</strong><br>
+                <span style="color:#10b981;text-decoration:underline;">Tap to review &amp; sign →</span>
+              </div>
+              <div style="background:rgba(16,185,129,0.25);border-radius:8px 8px 2px 8px;padding:7px 9px;font-size:9px;color:#e5e7eb;margin-left:auto;max-width:80%;">
+                Looks good! Signed ✓
+              </div>
+            </div>
+          </div>
+          <div class="phone-home"></div>
+        </div>
+      </div>
+
+      <!-- HALF: Digital Signatures -->
+      <div class="bento-half bento-card animate-on-scroll scale-in stagger-2" style="background:#111827;border:1px solid rgba(255,255,255,0.07);">
+        <div style="font-family:monospace;font-size:11px;color:#10b981;margin-bottom:6px;">// e-sign</div>
+        <h3 style="font-size:20px;font-weight:800;margin:0 0 8px;">Digital Signatures</h3>
+        <p style="color:#6b7280;font-size:14px;margin:0 0 24px;">Legally binding. One tap. No printing, no scanning, no fuss.</p>
+
+        <!-- Sig line animation -->
+        <div style="background:#0d1b19;border-radius:10px;padding:20px;">
+          <div style="font-size:10px;color:#6b7280;font-family:monospace;margin-bottom:12px;">CLIENT SIGNATURE</div>
+          <div style="position:relative;height:48px;border-bottom:2px solid rgba(16,185,129,0.4);margin-bottom:8px;">
+            <!-- SVG signature drawing -->
+            <svg style="position:absolute;bottom:0;left:0;width:100%;height:48px;" viewBox="0 0 260 48" fill="none">
+              <path class="sig-line-anim" d="M10 38 C30 10, 50 45, 70 28 C90 11, 100 40, 120 32 C140 24, 160 36, 180 28 C200 20, 215 35, 240 30" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" style="stroke-dasharray:300;stroke-dashoffset:300;animation:drawSig 1.4s ease forwards 0.4s;"/>
+            </svg>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:10px;color:#4b5563;font-family:monospace;">Jake M. — Apex Plumbing Co.</span>
+            <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:99px;padding:3px 10px;font-size:10px;color:#10b981;font-family:monospace;">VERIFIED ✓</span>
+          </div>
+        </div>
+
+        <style>
+          @keyframes drawSig {
+            to { stroke-dashoffset: 0; }
+          }
+        </style>
+      </div>
+
+      <!-- HALF: Your Branding -->
+      <div class="bento-half bento-card animate-on-scroll scale-in stagger-3" style="background:#111827;border:1px solid rgba(255,255,255,0.07);">
+        <div style="font-family:monospace;font-size:11px;color:#10b981;margin-bottom:6px;">// white-label</div>
+        <h3 style="font-size:20px;font-weight:800;margin:0 0 8px;">Your Branding</h3>
+        <p style="color:#6b7280;font-size:14px;margin:0 0 24px;">Add your logo, brand colors, and business name. Clients see your brand, not ours.</p>
+
+        <div style="background:#0d1b19;border-radius:10px;padding:16px;">
+          <!-- Logo preview -->
+          <div style="background:#1f2937;border-radius:8px;padding:12px;margin-bottom:12px;display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;">AP</div>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#fff;">Apex Plumbing Co.</div>
+              <div style="font-size:11px;color:#6b7280;">apex@plumbing.com</div>
+            </div>
+          </div>
+
+          <!-- Color picker -->
+          <div style="font-size:10px;color:#6b7280;font-family:monospace;margin-bottom:8px;">BRAND COLORS</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div style="width:28px;height:28px;background:#10b981;border-radius:50%;border:3px solid rgba(255,255,255,0.3);cursor:pointer;"></div>
+            <div style="width:28px;height:28px;background:#3b82f6;border-radius:50%;cursor:pointer;"></div>
+            <div style="width:28px;height:28px;background:#f59e0b;border-radius:50%;cursor:pointer;"></div>
+            <div style="width:28px;height:28px;background:#ef4444;border-radius:50%;cursor:pointer;"></div>
+            <div style="width:28px;height:28px;background:#8b5cf6;border-radius:50%;cursor:pointer;"></div>
+            <div style="width:28px;height:28px;background:linear-gradient(135deg,#374151,#6b7280);border-radius:50%;border:2px dashed #4b5563;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- THIRD: Templates -->
+      <div class="bento-third bento-card animate-on-scroll scale-in stagger-1" style="background:#111827;border:1px solid rgba(255,255,255,0.07);">
+        <div style="font-family:monospace;font-size:11px;color:#10b981;margin-bottom:6px;">// templates</div>
+        <h3 style="font-size:18px;font-weight:800;margin:0 0 6px;">Ready Templates</h3>
+        <p style="color:#6b7280;font-size:13px;margin:0 0 16px;">20+ trade-specific templates to start from.</p>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="background:#1f2937;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:#e5e7eb;">Plumbing Repair</span>
+            <span style="font-size:10px;color:#10b981;background:rgba(16,185,129,0.1);padding:2px 8px;border-radius:99px;">Popular</span>
+          </div>
+          <div style="background:#1f2937;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:#e5e7eb;">Electrical Fit-out</span>
+            <span style="font-size:10px;color:#6b7280;">New</span>
+          </div>
+          <div style="background:#1f2937;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:#e5e7eb;">Roof Repair Quote</span>
+            <span style="font-size:10px;color:#6b7280;">—</span>
+          </div>
+          <div style="background:#1f2937;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:#e5e7eb;">Interior Painting</span>
+            <span style="font-size:10px;color:#6b7280;">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- THIRD: Auto Invoice -->
+      <div class="bento-third bento-card animate-on-scroll scale-in stagger-2" style="background:#111827;border:1px solid rgba(255,255,255,0.07);">
+        <div style="font-family:monospace;font-size:11px;color:#10b981;margin-bottom:6px;">// billing</div>
+        <h3 style="font-size:18px;font-weight:800;margin:0 0 6px;">Auto Invoice</h3>
+        <p style="color:#6b7280;font-size:13px;margin:0 0 16px;">Quote approved? Invoice generated — instantly.</p>
+
+        <!-- Invoice preview mini -->
+        <div style="background:#1f2937;border-radius:8px;padding:12px;border:1px solid rgba(255,255,255,0.05);">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:10px;color:#6b7280;font-family:monospace;">INV-2024-089</span>
+            <span style="font-size:10px;color:#f59e0b;font-family:monospace;">DUE 7 DAYS</span>
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,0.05);margin-bottom:8px;"></div>
+          <div style="font-size:11px;color:#e5e7eb;margin-bottom:4px;">Apex Plumbing Co.</div>
+          <div style="font-size:18px;font-weight:800;color:#fff;margin-bottom:8px;">$467.50</div>
+          <div style="background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:6px;padding:6px;text-align:center;font-size:11px;font-weight:600;color:#fff;">Pay Now via Stripe</div>
+        </div>
+      </div>
+
+      <!-- THIRD: Speed stat -->
+      <div class="bento-third bento-card animate-on-scroll scale-in stagger-3" style="background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(6,182,212,0.08));border:1px solid rgba(16,185,129,0.2);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;min-height:200px;">
+        <div style="font-family:monospace;font-size:11px;color:#10b981;margin-bottom:12px;">// speed</div>
+        <div style="font-size:72px;font-weight:900;line-height:1;background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">2</div>
+        <div style="font-size:20px;font-weight:700;color:#fff;margin-top:4px;">min</div>
+        <div style="font-size:13px;color:#6b7280;margin-top:8px;line-height:1.4;">average time<br>to create a quote</div>
+        <div style="margin-top:16px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:99px;padding:4px 14px;font-size:11px;color:#10b981;font-family:monospace;">lightning fast ⚡</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===================== SOCIAL PROOF ===================== -->
+<section style="padding:100px 32px;position:relative;overflow:hidden;">
+  <!-- Orb -->
+  <div class="orb" style="width:400px;height:400px;background:radial-gradient(circle,rgba(16,185,129,0.08),transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+
+  <div style="max-width:1280px;margin:0 auto;position:relative;z-index:2;">
+    <div class="animate-on-scroll" style="text-align:center;margin-bottom:16px;">
+      <span style="font-family:monospace;font-size:13px;color:#10b981;background:rgba(16,185,129,0.1);padding:6px 14px;border-radius:99px;border:1px solid rgba(16,185,129,0.2);">// trusted by tradespeople</span>
+    </div>
+
+    <!-- Counter -->
+    <div class="animate-on-scroll stagger-1" style="text-align:center;margin-bottom:64px;">
+      <div style="display:inline-flex;align-items:center;gap:16px;">
+        <span id="main-counter" style="font-size:clamp(64px,10vw,120px);font-weight:900;line-height:1;background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">500+</span>
+      </div>
+      <p style="font-size:20px;color:#a1a1aa;margin:8px 0 0;font-weight:500;">tradespeople trust SoloBid</p>
+    </div>
+
+    <!-- Testimonials -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;" class="testimonials-grid">
+
+      <div class="bento-card animate-on-scroll stagger-1" style="background:#111827;border:1px solid rgba(255,255,255,0.07);">
+        <div class="stars" style="font-size:14px;margin-bottom:14px;">★★★★★</div>
+        <p style="font-size:16px;color:#e5e7eb;line-height:1.6;margin:0 0 20px;font-style:italic;">"SoloBid paid for itself in week one. I used to lose jobs because my quotes looked amateur. Not anymore."</p>
+        <div style="display:flex;align-items:center;gap:10px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
+          <div style="width:36px;height:36px;background:linear-gradient(135deg,#f59e0b,#ef4444);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;">JM</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#fff;">Jake M.</div>
+            <div style="font-size:12px;color:#6b7280;">Electrician, Melbourne</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bento-card animate-on-scroll stagger-2" style="background:#111827;border:1px solid rgba(16,185,129,0.15);">
+        <div class="stars" style="font-size:14px;margin-bottom:14px;">★★★★★</div>
+        <p style="font-size:16px;color:#e5e7eb;line-height:1.6;margin:0 0 20px;font-style:italic;">"I send quotes from my van now. Client gets it, signs it, I start work the same morning. Game changer."</p>
+        <div style="display:flex;align-items:center;gap:10px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
+          <div style="width:36px;height:36px;background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;">ST</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#fff;">Sarah T.</div>
+            <div style="font-size:12px;color:#6b7280;">Plumber, Sydney</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bento-card animate-on-scroll stagger-3" style="background:#111827;border:1px solid rgba(255,255,255,0.07);">
+        <div class="stars" style="font-size:14px;margin-bottom:14px;">★★★★★</div>
+        <p style="font-size:16px;color:#e5e7eb;line-height:1.6;margin:0 0 20px;font-style:italic;">"Clients sign same day, every time. I haven't chased a single invoice since switching to SoloBid."</p>
+        <div style="display:flex;align-items:center;gap:10px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
+          <div style="width:36px;height:36px;background:linear-gradient(135deg,#8b5cf6,#ec4899);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;">MR</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#fff;">Marcus R.</div>
+            <div style="font-size:12px;color:#6b7280;">General Contractor, Brisbane</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PRICING ===================== -->
+<section id="pricing" style="padding:100px 32px;background:rgba(0,0,0,0.15);">
+  <div style="max-width:900px;margin:0 auto;">
+    <div class="animate-on-scroll" style="text-align:center;margin-bottom:16px;">
+      <span style="font-family:monospace;font-size:13px;color:#10b981;background:rgba(16,185,129,0.1);padding:6px 14px;border-radius:99px;border:1px solid rgba(16,185,129,0.2);">// pricing</span>
+    </div>
+    <h2 class="animate-on-scroll stagger-1" style="text-align:center;font-size:clamp(32px,4.5vw,54px);font-weight:900;letter-spacing:-2px;margin:0 0 16px;">
+      Simple, honest pricing.
+    </h2>
+    <p class="animate-on-scroll stagger-2" style="text-align:center;color:#71717a;font-size:17px;margin:0 0 16px;">No surprises. No contracts. Cancel any time.</p>
+
+    <!-- Annual toggle -->
+    <div class="animate-on-scroll stagger-3" style="display:flex;justify-content:center;margin-bottom:48px;">
+      <div class="toggle-pill">
+        <div class="toggle-option" style="color:#6b7280;">Monthly</div>
+        <div class="toggle-option toggle-active">Annual <span style="font-size:10px;background:rgba(255,255,255,0.2);padding:1px 6px;border-radius:99px;margin-left:4px;">Save 20%</span></div>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" class="pricing-grid">
+
+      <!-- Free -->
+      <div class="bento-card animate-on-scroll stagger-1" style="background:#111827;border:1px solid rgba(255,255,255,0.08);">
+        <div style="font-family:monospace;font-size:11px;color:#6b7280;margin-bottom:12px;">FREE PLAN</div>
+        <div style="font-size:48px;font-weight:900;color:#fff;line-height:1;">$0</div>
+        <div style="font-size:14px;color:#6b7280;margin:4px 0 24px;">Free forever</div>
+        <div style="height:1px;background:rgba(255,255,255,0.06);margin-bottom:20px;"></div>
+        <ul style="list-style:none;padding:0;margin:0 0 28px;display:flex;flex-direction:column;gap:10px;">
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Up to 5 quotes/month
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            PDF quotes &amp; invoices
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Basic templates
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#52525b;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke="#52525b" stroke-width="2" stroke-linecap="round"/></svg>
+            E-signatures
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#52525b;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke="#52525b" stroke-width="2" stroke-linecap="round"/></svg>
+            WhatsApp sharing
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#52525b;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke="#52525b" stroke-width="2" stroke-linecap="round"/></svg>
+            Custom branding
+          </li>
+        </ul>
+        <a href="#" style="display:block;text-align:center;background:#1f2937;color:#d4d4d8;padding:12px;border-radius:9px;font-weight:600;font-size:14px;text-decoration:none;border:1px solid rgba(255,255,255,0.08);transition:all 0.2s;" onmouseover="this.style.borderColor='rgba(16,185,129,0.3)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)'">
+          Get Started Free
+        </a>
+      </div>
+
+      <!-- Pro -->
+      <div class="bento-card animate-on-scroll stagger-2 pro-card" style="background:#111827;position:relative;">
+        <!-- Popular badge -->
+        <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#10b981,#06b6d4);padding:4px 20px;border-radius:99px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap;">Most Popular</div>
+
+        <div style="font-family:monospace;font-size:11px;color:#10b981;margin-bottom:12px;">PRO PLAN</div>
+        <div style="display:flex;align-items:end;gap:4px;line-height:1;">
+          <div style="font-size:48px;font-weight:900;color:#fff;">$19</div>
+          <div style="font-size:14px;color:#6b7280;padding-bottom:8px;">/mo</div>
+        </div>
+        <div style="font-size:14px;color:#6b7280;margin:4px 0 24px;">Billed annually · $228/yr</div>
+        <div style="height:1px;background:rgba(16,185,129,0.2);margin-bottom:20px;"></div>
+        <ul style="list-style:none;padding:0;margin:0 0 28px;display:flex;flex-direction:column;gap:10px;">
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <strong style="color:#fff;">Unlimited</strong>&nbsp;quotes &amp; invoices
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Digital e-signatures
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            WhatsApp &amp; SMS sharing
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Custom branding &amp; logo
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Stripe payment integration
+          </li>
+          <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:#d4d4d8;">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Priority support
+          </li>
+        </ul>
+        <a href="#" style="display:block;text-align:center;background:linear-gradient(135deg,#10b981,#06b6d4);color:#fff;padding:13px;border-radius:9px;font-weight:700;font-size:15px;text-decoration:none;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+          Start Pro Free →
+        </a>
+        <p style="text-align:center;font-size:11px;color:#6b7280;margin:10px 0 0;font-family:monospace;">14-day free trial · No card required</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FINAL CTA ===================== -->
+<section style="padding:120px 32px;position:relative;overflow:hidden;background:linear-gradient(135deg,#064e3b,#0c4a6e,#0a1412);">
+  <!-- Particle dots -->
+  <div class="dot-particle" style="width:6px;height:6px;background:#10b981;top:20%;left:10%;--dur:5s;--delay:0s;"></div>
+  <div class="dot-particle" style="width:4px;height:4px;background:#06b6d4;top:60%;left:20%;--dur:4s;--delay:1s;"></div>
+  <div class="dot-particle" style="width:8px;height:8px;background:#10b981;top:30%;right:15%;--dur:6s;--delay:0.5s;opacity:0.4;"></div>
+  <div class="dot-particle" style="width:5px;height:5px;background:#06b6d4;top:70%;right:25%;--dur:5s;--delay:2s;"></div>
+  <div class="dot-particle" style="width:4px;height:4px;background:#10b981;top:80%;left:60%;--dur:4.5s;--delay:0.8s;"></div>
+  <div class="dot-particle" style="width:6px;height:6px;background:#10b981;top:15%;left:45%;--dur:5.5s;--delay:1.5s;opacity:0.3;"></div>
+  <div class="dot-particle" style="width:3px;height:3px;background:#06b6d4;top:85%;left:80%;--dur:4s;--delay:0.3s;"></div>
+  <div class="dot-particle" style="width:7px;height:7px;background:#10b981;top:50%;left:5%;--dur:6s;--delay:2.5s;opacity:0.35;"></div>
+
+  <!-- Orb -->
+  <div class="orb" style="width:700px;height:700px;background:radial-gradient(circle,rgba(16,185,129,0.15),transparent 60%);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+
+  <div style="position:relative;z-index:2;text-align:center;max-width:800px;margin:0 auto;">
+    <div class="animate-on-scroll" style="display:inline-block;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:99px;padding:6px 20px;margin-bottom:28px;">
+      <span style="font-family:monospace;font-size:12px;color:#10b981;">// get started today</span>
+    </div>
+
+    <h2 class="animate-on-scroll stagger-1" style="font-size:clamp(40px,6vw,80px);font-weight:900;letter-spacing:-2.5px;line-height:1.05;color:#fff;margin:0 0 20px;">
+      Start getting paid<br>in minutes.
+    </h2>
+
+    <p class="animate-on-scroll stagger-2" style="font-size:18px;color:rgba(255,255,255,0.6);margin:0 0 40px;line-height:1.6;">
+      Join 500+ tradespeople who quote faster, sign easier,<br>and get paid on time — every time.
+    </p>
+
+    <div class="animate-on-scroll stagger-3" style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
+      <a href="#" style="background:#0a1412;color:#fff;padding:16px 36px;border-radius:10px;font-weight:700;font-size:17px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;transition:all 0.2s;border:1px solid rgba(255,255,255,0.1);" onmouseover="this.style.background='#111827'" onmouseout="this.style.background='#0a1412'">
+        Start Free →
+      </a>
+      <a href="#" style="border:1px solid rgba(255,255,255,0.25);color:#fff;padding:16px 36px;border-radius:10px;font-weight:600;font-size:17px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='transparent'">
+        Book a Demo
+      </a>
+    </div>
+
+    <p class="animate-on-scroll stagger-4" style="font-size:13px;color:rgba(255,255,255,0.35);margin:20px 0 0;font-family:monospace;">
+      No credit card · Free plan forever · Setup in 2 minutes
+    </p>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer style="background:#060e0c;padding:64px 32px 32px;border-top:1px solid rgba(255,255,255,0.04);">
+  <div style="max-width:1280px;margin:0 auto;">
+
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:48px;" class="footer-grid">
+
+      <!-- Brand col -->
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path d="M14 6C14 4.34 12.66 3 11 3H7C5.34 3 4 4.34 4 6C4 7.66 5.34 9 7 9H13C14.66 9 16 10.34 16 12C16 13.66 14.66 15 13 15H9C7.34 15 6 13.66 6 12" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <span style="font-size:17px;font-weight:800;color:#fff;">SoloBid</span>
+        </div>
+        <p style="color:#52525b;font-size:14px;line-height:1.7;max-width:260px;margin:0 0 20px;">Quote it. Sign it. Get paid. — The freelancer toolkit that actually gets out of your way.</p>
+        <!-- Social icons -->
+        <div style="display:flex;gap:12px;">
+          <a href="#" style="width:32px;height:32px;background:#111827;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background 0.2s;" onmouseover="this.style.background='rgba(16,185,129,0.2)'" onmouseout="this.style.background='#111827'">
+            <svg width="15" height="15" fill="#6b7280" viewBox="0 0 24 24"><path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"/></svg>
+          </a>
+          <a href="#" style="width:32px;height:32px;background:#111827;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background 0.2s;" onmouseover="this.style.background='rgba(16,185,129,0.2)'" onmouseout="this.style.background='#111827'">
+            <svg width="15" height="15" fill="#6b7280" viewBox="0 0 24 24"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2" fill="#6b7280"/></svg>
+          </a>
+          <a href="#" style="width:32px;height:32px;background:#111827;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background 0.2s;" onmouseover="this.style.background='rgba(16,185,129,0.2)'" onmouseout="this.style.background='#111827'">
+            <svg width="15" height="15" fill="none" stroke="#6b7280" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Product -->
+      <div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280;margin-bottom:16px;letter-spacing:0.5px;">PRODUCT</div>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;">
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Features</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Pricing</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Templates</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Integrations</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Changelog</a></li>
+        </ul>
+      </div>
+
+      <!-- Company -->
+      <div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280;margin-bottom:16px;letter-spacing:0.5px;">COMPANY</div>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;">
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">About</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Blog</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Careers</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Contact</a></li>
+        </ul>
+      </div>
+
+      <!-- Legal -->
+      <div>
+        <div style="font-family:monospace;font-size:11px;color:#6b7280;margin-bottom:16px;letter-spacing:0.5px;">LEGAL</div>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;">
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Privacy Policy</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Terms of Service</a></li>
+          <li><a href="#" style="color:#71717a;font-size:14px;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#71717a'">Cookie Policy</a></li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Bottom bar -->
+    <div style="padding-top:24px;border-top:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <p style="font-size:13px;color:#3f3f46;margin:0;font-family:monospace;">© 2024 SoloBid. All rights reserved.</p>
+      <p style="font-size:13px;color:#3f3f46;margin:0;font-family:monospace;">Made for tradespeople who move fast ⚡</p>
+    </div>
+
+  </div>
+</footer>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script>
+  // IntersectionObserver scroll animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(el => {
+      if (el.isIntersecting) {
+        el.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.animate-on-scroll, .scale-in').forEach(el => observer.observe(el));
+
+  // Bar chart animation trigger (when bento section is in view)
+  const barsObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.querySelectorAll('.bar-anim').forEach(bar => {
+          const targetH = bar.style.getPropertyValue('--bar-h');
+          bar.style.height = targetH;
+        });
+        barsObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.2 });
+
+  document.querySelectorAll('.bento-wide').forEach(el => barsObserver.observe(el));
+
+  // Animated number counter
+  function animateCounter(el, target, prefix, suffix, duration) {
+    let start = 0;
+    const step = target / (duration / 16);
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= target) {
+        start = target;
+        clearInterval(timer);
+      }
+      el.textContent = prefix + Math.floor(start) + suffix;
+    }, 16);
+  }
+
+  const counterObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const el = entry.target;
+        animateCounter(el, 500, '', '+', 1800);
+        counterObserver.unobserve(el);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  const mainCounter = document.getElementById('main-counter');
+  if (mainCounter) counterObserver.observe(mainCounter);
+
+  // Responsive nav: hide links on small screens
+  function handleResize() {
+    const navLinks = document.querySelector('.nav-links');
+    // simple placeholder — full mobile nav would need hamburger toggle
+  }
+
+  // Hero grid responsive
+  const heroGrid = document.querySelector('.hero-grid');
+  function adjustHeroGrid() {
+    if (heroGrid) {
+      if (window.innerWidth < 900) {
+        heroGrid.style.gridTemplateColumns = '1fr';
+      } else {
+        heroGrid.style.gridTemplateColumns = '1fr 1fr';
+      }
+    }
+  }
+  adjustHeroGrid();
+  window.addEventListener('resize', adjustHeroGrid);
+
+  // Steps grid responsive
+  const stepsGrid = document.querySelector('.steps-grid');
+  function adjustStepsGrid() {
+    if (stepsGrid) {
+      if (window.innerWidth < 768) {
+        stepsGrid.style.gridTemplateColumns = '1fr';
+      } else {
+        stepsGrid.style.gridTemplateColumns = 'repeat(3,1fr)';
+      }
+    }
+  }
+  adjustStepsGrid();
+  window.addEventListener('resize', adjustStepsGrid);
+
+  // Testimonials grid responsive
+  const testimonialsGrid = document.querySelector('.testimonials-grid');
+  function adjustTestimonialsGrid() {
+    if (testimonialsGrid) {
+      if (window.innerWidth < 768) {
+        testimonialsGrid.style.gridTemplateColumns = '1fr';
+      } else if (window.innerWidth < 1024) {
+        testimonialsGrid.style.gridTemplateColumns = '1fr 1fr';
+      } else {
+        testimonialsGrid.style.gridTemplateColumns = 'repeat(3,1fr)';
+      }
+    }
+  }
+  adjustTestimonialsGrid();
+  window.addEventListener('resize', adjustTestimonialsGrid);
+
+  // Pricing grid responsive
+  const pricingGrid = document.querySelector('.pricing-grid');
+  function adjustPricingGrid() {
+    if (pricingGrid) {
+      if (window.innerWidth < 640) {
+        pricingGrid.style.gridTemplateColumns = '1fr';
+      } else {
+        pricingGrid.style.gridTemplateColumns = '1fr 1fr';
+      }
+    }
+  }
+  adjustPricingGrid();
+  window.addEventListener('resize', adjustPricingGrid);
+
+  // Footer grid responsive
+  const footerGrid = document.querySelector('.footer-grid');
+  function adjustFooterGrid() {
+    if (footerGrid) {
+      if (window.innerWidth < 640) {
+        footerGrid.style.gridTemplateColumns = '1fr 1fr';
+      } else if (window.innerWidth < 1024) {
+        footerGrid.style.gridTemplateColumns = '1fr 1fr 1fr';
+      } else {
+        footerGrid.style.gridTemplateColumns = '2fr 1fr 1fr 1fr';
+      }
+    }
+  }
+  adjustFooterGrid();
+  window.addEventListener('resize', adjustFooterGrid);
+
+  // Smooth scroll for nav links
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function(e) {
+      const href = this.getAttribute('href');
+      if (href === '#') return;
+      e.preventDefault();
+      const target = document.querySelector(href);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // Pricing toggle
+  document.querySelectorAll('.toggle-option').forEach(option => {
+    option.addEventListener('click', function() {
+      document.querySelectorAll('.toggle-option').forEach(o => o.classList.remove('toggle-active'));
+      this.classList.add('toggle-active');
+    });
+  });
+
+  // Nav scroll shadow
+  window.addEventListener('scroll', () => {
+    const nav = document.querySelector('nav');
+    if (window.scrollY > 20) {
+      nav.style.boxShadow = '0 4px 24px rgba(0,0,0,0.3)';
+    } else {
+      nav.style.boxShadow = 'none';
+    }
+  });
+</script>
+
+</body>
+</html>
