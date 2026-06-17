@@ -250,7 +250,102 @@ async function createApp() {
         }
       }
 
-      // 2. Process Reminders
+      // 2. Process Recurring Quotes
+      const { data: recurringQuoteRows } = await supabaseAdmin
+        .from('recurring_quotes')
+        .select('*, clients(name, email, address)')
+        .eq('status', 'active')
+        .lte('next_issue_date', todayStr);
+
+      for (const rq of (recurringQuoteRows || [])) {
+        try {
+          if (!rq.user_id) { errors.push({ id: rq.id, error: "Missing user_id" }); continue; }
+
+          // Get user profile for quote numbering
+          const { data: userData } = await supabaseAdmin
+            .from('users')
+            .select('quote_count, quote_prefix')
+            .eq('id', rq.user_id)
+            .single();
+
+          if (!userData) { errors.push({ id: rq.id, error: `User ${rq.user_id} not found` }); continue; }
+
+          // Fetch template quote
+          const { data: templateQuote } = await supabaseAdmin
+            .from('quotes')
+            .select('*')
+            .eq('id', rq.template_quote_id)
+            .single();
+
+          if (!templateQuote) { errors.push({ id: rq.id, error: `Template quote ${rq.template_quote_id} not found` }); continue; }
+
+          // Fetch template quote line items
+          const { data: templateLineItems } = await supabaseAdmin
+            .from('line_items')
+            .select('*')
+            .eq('quote_id', rq.template_quote_id);
+
+          const newCount = (userData.quote_count || 0) + 1;
+          const prefix = userData.quote_prefix || 'QTE-';
+          const quoteNumber = `${prefix}${newCount.toString().padStart(4, '0')}`;
+          const newQuoteId = crypto.randomUUID();
+
+          const clientData = rq.clients;
+          const { error: qErr } = await supabaseAdmin.from('quotes').insert({
+            id: newQuoteId,
+            user_id: rq.user_id,
+            client_id: rq.client_id,
+            client_name: rq.client_name || (clientData?.name ?? ''),
+            client_email: clientData?.email ?? null,
+            client_address: clientData?.address ?? null,
+            quote_number: quoteNumber,
+            status: 'draft',
+            subtotal: templateQuote.subtotal ?? 0,
+            tax_amount: templateQuote.tax_amount ?? 0,
+            total: templateQuote.total ?? 0,
+            tax_rate: templateQuote.tax_rate ?? 0,
+            currency: templateQuote.currency || 'ZAR',
+            is_sa_tax_invoice: templateQuote.is_sa_tax_invoice,
+            notes: templateQuote.notes,
+          });
+          if (qErr) throw new Error(qErr.message);
+
+          // Copy line items
+          if (templateLineItems && templateLineItems.length > 0) {
+            const newLineItems = templateLineItems.map((li: any) => ({
+              id: crypto.randomUUID(),
+              quote_id: newQuoteId,
+              template_id: null,
+              recurring_invoice_id: null,
+              description: li.description,
+              qty: li.qty,
+              unit_cost: li.unit_cost,
+              type: li.type,
+              markup_percent: li.markup_percent,
+              sort_order: li.sort_order,
+            }));
+            await supabaseAdmin.from('line_items').insert(newLineItems);
+          }
+
+          await supabaseAdmin.from('users').update({ quote_count: newCount }).eq('id', rq.user_id);
+
+          const nextDate = new Date(rq.next_issue_date);
+          if (rq.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+          else if (rq.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+          else if (rq.frequency === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
+
+          await supabaseAdmin.from('recurring_quotes').update({
+            next_issue_date: nextDate.toISOString().split('T')[0],
+            updated_at: new Date().toISOString(),
+          }).eq('id', rq.id);
+
+          generatedCount++;
+        } catch (error) {
+          errors.push({ id: rq.id, error: (error as any).message || "Unknown error" });
+        }
+      }
+
+      // 3. Process Reminders
       const { data: invoiceRows } = await supabaseAdmin
         .from('invoices')
         .select('*, users!inner(business_name)')
@@ -449,6 +544,94 @@ async function createApp() {
     } catch (error: any) {
       console.error('Error declining quote:', error);
       return res.status(500).json({ error: 'Failed to decline quotation. Please try again.' });
+    }
+  });
+
+  // Mark invoice as paid (called after client-side Paystack success)
+  app.post('/api/invoices/:id/mark-paid', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reference } = req.body;
+      const uid = (req as any).user.id;
+
+      // Verify the invoice belongs to this user
+      const { data: invoice } = await supabaseAdmin
+        .from('invoices')
+        .select('id, user_id, status')
+        .eq('id', id)
+        .eq('user_id', uid)
+        .single();
+
+      if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+      await supabaseAdmin
+        .from('invoices')
+        .update({ status: 'paid', paid_at: new Date().toISOString(), paystack_reference: reference })
+        .eq('id', id);
+
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to mark invoice as paid' });
+    }
+  });
+
+  // Paystack webhook (for server-side payment confirmation)
+  app.post('/api/webhooks/paystack', express.raw({ type: 'application/json' }), async (req, res) => {
+    // Respond immediately
+    res.status(200).json({ received: true });
+
+    try {
+      const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+      if (!paystackSecret) return;
+
+      const signature = req.headers['x-paystack-signature'] as string;
+      const body = req.body;
+
+      const hash = require('crypto')
+        .createHmac('sha512', paystackSecret)
+        .update(body)
+        .digest('hex');
+
+      if (hash !== signature) {
+        console.warn('[Paystack webhook] Invalid signature');
+        return;
+      }
+
+      const event = JSON.parse(body.toString());
+
+      if (event.event === 'charge.success') {
+        const reference = event.data.reference;
+        const metadata = event.data.metadata || {};
+        const invoiceId = metadata.invoiceId;
+
+        if (!invoiceId) return;
+
+        // Idempotency check
+        const { data: existing } = await supabaseAdmin
+          .from('webhook_logs')
+          .select('id')
+          .eq('reference', reference)
+          .single();
+
+        if (existing) return; // Already processed
+
+        // Log webhook
+        await supabaseAdmin.from('webhook_logs').insert({
+          provider: 'paystack',
+          reference,
+          payload: event.data,
+          status: 'processed',
+        });
+
+        // Update invoice
+        await supabaseAdmin
+          .from('invoices')
+          .update({ status: 'paid', paid_at: new Date().toISOString(), paystack_reference: reference })
+          .eq('id', invoiceId)
+          .in('status', ['sent', 'overdue']);
+      }
+    } catch (err) {
+      console.error('[Paystack webhook] Error:', err);
     }
   });
 

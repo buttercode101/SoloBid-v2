@@ -31,6 +31,10 @@ export interface UserProfile {
   address?: string;
   saTaxInvoiceMode?: boolean;
   country?: string;
+  bankName?: string;
+  accountNumber?: string;
+  accountType?: string;
+  branchCode?: string;
   onboardingStep?: OnboardingStep;
   onboardingComplete?: boolean;
   profileComplete?: boolean;

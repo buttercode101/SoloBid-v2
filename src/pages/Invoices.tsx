@@ -8,12 +8,14 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../components/InvoicePDF';
-import { Download, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock, MessageCircle, Printer } from 'lucide-react';
+import { Download, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock, MessageCircle, Printer, CreditCard } from 'lucide-react';
+import { initializePaystackPayment, generatePaymentReference } from '../lib/paystack';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCurrencySymbol } from '../lib/currencies';
 import { EmptyState } from '../components/EmptyState';
 import { formatZAR, statusBadgeStyles } from '../lib/theme';
 import { sharePdfViaWhatsApp } from '../lib/documentActions';
+import { AttachmentUploader, type Attachment } from '../components/AttachmentUploader';
 
 export default function Invoices() {
   const { user, profile } = useAuth();
@@ -24,6 +26,8 @@ export default function Invoices() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
   const [pdfProgress, setPdfProgress] = useState<number | null>(null);
+  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [invoiceAttachments, setInvoiceAttachments] = useState<Record<string, Attachment[]>>({});
 
   const formatCurrency = (amount: number, curr: string) => {
     if (curr === 'ZAR') {
@@ -151,12 +155,74 @@ export default function Invoices() {
     window.setTimeout(() => window.print(), 150);
   };
 
+  const handlePayNow = async (inv: any) => {
+    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+    if (!publicKey) {
+      toast.error('Paystack is not configured. Add VITE_PAYSTACK_PUBLIC_KEY to your environment.');
+      return;
+    }
+    const email = inv.clientEmail;
+    if (!email) {
+      toast.error('No client email on this invoice. Cannot initiate payment.');
+      return;
+    }
+    const reference = generatePaymentReference(inv.invoiceNumber || inv.id.substring(0, 8).toUpperCase());
+    try {
+      await initializePaystackPayment({
+        email,
+        amountZAR: inv.total || 0,
+        reference,
+        invoiceId: inv.id,
+        publicKey,
+        onSuccess: async (ref) => {
+          try {
+            const token = (await supabase.auth.getSession()).data.session?.access_token;
+            const resp = await fetch(`/api/invoices/${inv.id}/mark-paid`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ reference: ref }),
+            });
+            if (!resp.ok) throw new Error('Server error');
+            toast.success('Payment recorded!');
+          } catch {
+            toast.error('Payment succeeded but failed to update invoice. Please refresh.');
+          }
+        },
+        onClose: () => {
+          toast.info('Payment cancelled.');
+        },
+      });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to initialize payment');
+    }
+  };
+
   const handleMarkPaid = async (invoiceId: string) => {
     try {
       await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', invoiceId);
       toast.success("Invoice record updated to PAID");
     } catch (error) {
       toast.error("Failed to update status");
+    }
+  };
+
+  const handleToggleAttachments = async (invoiceId: string) => {
+    if (expandedInvoiceId === invoiceId) {
+      setExpandedInvoiceId(null);
+      return;
+    }
+    setExpandedInvoiceId(invoiceId);
+    if (!invoiceAttachments[invoiceId]) {
+      const { data: rows } = await supabase.from('quote_attachments').select('*').eq('invoice_id', invoiceId);
+      const mapped: Attachment[] = (rows || []).map((r: any) => ({
+        id: r.id,
+        fileName: r.file_name,
+        filePath: r.file_path,
+        fileType: r.file_type,
+        fileSize: r.file_size,
+        url: supabase.storage.from('quote-attachments').getPublicUrl(r.file_path).data.publicUrl,
+      }));
+      setInvoiceAttachments(prev => ({ ...prev, [invoiceId]: mapped }));
     }
   };
 
@@ -306,8 +372,8 @@ export default function Invoices() {
                           <Printer className="w-3.5 h-3.5" />
                         </Button>
                         {inv.status !== 'paid' && (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             className="h-8.5 rounded-lg text-[11px] border-zinc-200 text-zinc-700 bg-white hover:bg-emerald-50 hover:text-emerald-700"
                             onClick={() => handleMarkPaid(inv.id)}
@@ -315,8 +381,37 @@ export default function Invoices() {
                             Mark Paid
                           </Button>
                         )}
+                        {(inv.status === 'sent' || inv.status === 'overdue') && (
+                          <Button
+                            size="sm"
+                            className="h-8.5 rounded-lg text-[11px] bg-primary text-white hover:bg-[#03362f] flex items-center gap-1"
+                            onClick={() => handlePayNow(inv)}
+                          >
+                            <CreditCard className="w-3 h-3" />
+                            Pay Now
+                          </Button>
+                        )}
                       </div>
                     </div>
+                  {user && (
+                    <div className="pt-3 border-t border-zinc-100 mt-2">
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-primary hover:underline mb-2 flex items-center gap-1"
+                        onClick={() => handleToggleAttachments(inv.id)}
+                      >
+                        {expandedInvoiceId === inv.id ? "Hide Attachments" : "Site Photos \& Attachments"}
+                      </button>
+                      {expandedInvoiceId === inv.id && (
+                        <AttachmentUploader
+                          invoiceId={inv.id}
+                          userId={user.uid}
+                          attachments={invoiceAttachments[inv.id] || []}
+                          onAttachmentsChange={(atts) => setInvoiceAttachments(prev => ({ ...prev, [inv.id]: atts }))}
+                        />
+                      )}
+                    </div>
+                  )}
                   </div>
                 ))}
               </div>
@@ -370,13 +465,23 @@ export default function Invoices() {
                             <Printer className="w-4 h-4" />
                           </Button>
                           {inv.status !== 'paid' && (
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               className="h-8.5 rounded-lg border-zinc-200 font-bold text-xs text-zinc-700 bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 cursor-pointer transition-all active:scale-95"
                               onClick={() => handleMarkPaid(inv.id)}
                             >
                               Mark Paid
+                            </Button>
+                          )}
+                          {(inv.status === 'sent' || inv.status === 'overdue') && (
+                            <Button
+                              size="sm"
+                              className="h-8.5 rounded-lg font-bold text-xs bg-primary text-white hover:bg-[#03362f] cursor-pointer transition-all active:scale-95 flex items-center gap-1.5"
+                              onClick={() => handlePayNow(inv)}
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              Pay Now
                             </Button>
                           )}
                         </div>

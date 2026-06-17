@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoloBid - Offline</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #09090b; color: #fafafa;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; margin: 0; text-align: center; padding: 2rem;
+    }
+    .icon { font-size: 4rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #a1a1aa; margin-bottom: 1.5rem; }
+    button {
+      background: #18181b; border: 1px solid #27272a; color: #fafafa;
+      padding: 0.75rem 1.5rem; border-radius: 0.5rem; cursor: pointer;
+      font-size: 0.875rem;
+    }
+    button:hover { background: #27272a; }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="icon">📱</div>
+    <h1>You're offline</h1>
+    <p>Your quote drafts are saved locally.<br>Connect to sync your work.</p>
+    <button onclick="window.location.reload()">Try again</button>
+  </div>
+</body>
+</html>
