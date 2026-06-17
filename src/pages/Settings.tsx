@@ -31,6 +31,13 @@ const settingsSchema = z.object({
 export default function Settings() {
   const { user, profile, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankFormData, setBankFormData] = useState({
+    bankName: profile?.bankName || '',
+    accountNumber: profile?.accountNumber || '',
+    accountType: profile?.accountType || 'Cheque',
+    branchCode: profile?.branchCode || '',
+  });
   const [purgeType, setPurgeType] = useState<'profile' | 'data' | null>(null);
   const [resetConfirmInput, setResetConfirmInput] = useState('');
   const [isPurging, setIsPurging] = useState(false);
@@ -210,8 +217,32 @@ export default function Settings() {
     }
   };
 
+  const handleBankSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    try {
+      setBankLoading(true);
+      const dbRow = toDbUser({
+        uid: user.uid,
+        bankName: bankFormData.bankName,
+        accountNumber: bankFormData.accountNumber,
+        accountType: bankFormData.accountType,
+        branchCode: bankFormData.branchCode,
+      });
+      dbRow.id = user.uid;
+      const { error } = await supabase.from('users').upsert(dbRow);
+      if (error) throw error;
+      await refreshProfile();
+      toast.success('Bank details saved');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save bank details');
+    } finally {
+      setBankLoading(false);
+    }
+  };
+
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
@@ -490,6 +521,72 @@ export default function Settings() {
                 <div className="pt-2">
                   <Button type="submit" disabled={loading} className="h-10.5 bg-primary hover:bg-[#03362f] text-white font-medium rounded-xl text-sm transition-all shadow-sm active:scale-95 px-8">
                     {loading ? 'Saving Settings...' : 'Save Settings'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+          {/* Payment Methods — Bank Details */}
+          <Card className="rounded-3xl border border-zinc-150 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
+            <CardHeader className="p-6 border-b border-zinc-50 flex flex-row items-center justify-between bg-zinc-50/10">
+              <div>
+                <CardTitle className="text-lg font-semibold text-zinc-900 flex items-center gap-2">
+                  <Landmark className="w-5 h-5 text-primary" />
+                  Payment Methods
+                </CardTitle>
+                <CardDescription className="text-zinc-400 text-xs">Bank Details for EFT Payments — Add your bank details so clients can pay via EFT.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 bg-white">
+              <form onSubmit={handleBankSubmit} className="space-y-4 text-left">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankName" className="text-xs text-zinc-500 font-medium">Bank Name</Label>
+                    <Input
+                      id="bankName"
+                      value={bankFormData.bankName}
+                      onChange={(e) => setBankFormData({ ...bankFormData, bankName: e.target.value })}
+                      placeholder="e.g. FNB, Absa, Standard Bank"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="accountNumber" className="text-xs text-zinc-500 font-medium">Account Number</Label>
+                    <Input
+                      id="accountNumber"
+                      value={bankFormData.accountNumber}
+                      onChange={(e) => setBankFormData({ ...bankFormData, accountNumber: e.target.value })}
+                      placeholder="e.g. 62012345678"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="accountType" className="text-xs text-zinc-500 font-medium">Account Type</Label>
+                    <select
+                      id="accountType"
+                      value={bankFormData.accountType}
+                      onChange={(e) => setBankFormData({ ...bankFormData, accountType: e.target.value })}
+                      className="flex h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer"
+                    >
+                      <option value="Cheque">Cheque</option>
+                      <option value="Current">Current</option>
+                      <option value="Savings">Savings</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="branchCode" className="text-xs text-zinc-500 font-medium">Branch Code</Label>
+                    <Input
+                      id="branchCode"
+                      value={bankFormData.branchCode}
+                      onChange={(e) => setBankFormData({ ...bankFormData, branchCode: e.target.value })}
+                      placeholder="e.g. 250655"
+                      className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <Button type="submit" disabled={bankLoading} className="h-10.5 bg-primary hover:bg-[#03362f] text-white font-medium rounded-xl text-sm transition-all shadow-sm active:scale-95 px-8">
+                    {bankLoading ? 'Saving...' : 'Save Bank Details'}
                   </Button>
                 </div>
               </form>

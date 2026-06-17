@@ -35,6 +35,10 @@ export function fromDbUser(row: any): any {
     address: row.address,
     saTaxInvoiceMode: row.sa_tax_invoice_mode,
     country: row.country || 'ZA',
+    bankName: row.bank_name,
+    accountNumber: row.account_number,
+    accountType: row.account_type,
+    branchCode: row.branch_code,
     onboardingStep: row.onboarding_step,
     onboardingComplete: row.onboarding_complete,
     profileComplete: row.profile_complete,
@@ -72,7 +76,27 @@ export function toDbUser(profile: any): any {
   if (profile.onboardingComplete !== undefined) row.onboarding_complete = profile.onboardingComplete;
   if (profile.profileComplete !== undefined) row.profile_complete = profile.profileComplete;
   if (profile.subscriptionStatus !== undefined) row.subscription_status = profile.subscriptionStatus;
+  if (profile.bankName !== undefined) row.bank_name = profile.bankName;
+  if (profile.accountNumber !== undefined) row.account_number = profile.accountNumber;
+  if (profile.accountType !== undefined) row.account_type = profile.accountType;
+  if (profile.branchCode !== undefined) row.branch_code = profile.branchCode;
   return row;
+}
+
+
+export function fromDbAttachment(row: any): any {
+  if (!row) return null;
+  return {
+    id: row.id,
+    uid: row.user_id,
+    quoteId: row.quote_id,
+    invoiceId: row.invoice_id,
+    fileName: row.file_name,
+    filePath: row.file_path,
+    fileType: row.file_type,
+    fileSize: row.file_size,
+    uploadedAt: row.uploaded_at,
+  };
 }
 
 export function fromDbQuote(row: any): any {
@@ -110,6 +134,7 @@ export function fromDbQuote(row: any): any {
     pdfUpdatedAt: row.pdf_updated_at,
     isLegacyEstimate: row.is_legacy_estimate,
     quoteNumber: row.quote_number,
+    clientVatNumber: row.client_vat_number,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -147,6 +172,7 @@ export function toDbQuote(quote: any): any {
   if (quote.pdfUrl !== undefined) row.pdf_url = quote.pdfUrl;
   if (quote.pdfUpdatedAt !== undefined) row.pdf_updated_at = quote.pdfUpdatedAt;
   if (quote.isLegacyEstimate !== undefined) row.is_legacy_estimate = quote.isLegacyEstimate;
+  if (quote.clientVatNumber !== undefined) row.client_vat_number = quote.clientVatNumber;
   return row;
 }
 
@@ -218,6 +244,7 @@ export function fromDbClient(row: any): any {
     phone: row.phone,
     address: row.address,
     notes: row.notes,
+    vatNumber: row.vat_number,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -232,6 +259,7 @@ export function toDbClient(client: any): any {
   if (client.phone !== undefined) row.phone = client.phone;
   if (client.address !== undefined) row.address = client.address;
   if (client.notes !== undefined) row.notes = client.notes;
+  if (client.vatNumber !== undefined) row.vat_number = client.vatNumber;
   return row;
 }
 
@@ -254,6 +282,8 @@ export function fromDbInvoice(row: any): any {
     whatsappReminderLink: row.whatsapp_reminder_link,
     whatsappReminderStatus: row.whatsapp_reminder_status,
     whatsappReminderAt: row.whatsapp_reminder_at,
+    clientVatNumber: row.client_vat_number,
+    paystackReference: row.paystack_reference,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -273,6 +303,7 @@ export function toDbInvoice(inv: any): any {
   if (inv.status !== undefined) row.status = inv.status;
   if (inv.dueDate !== undefined) row.due_date = inv.dueDate;
   if (inv.paidAt !== undefined) row.paid_at = inv.paidAt;
+  if (inv.paystackReference !== undefined) row.paystack_reference = inv.paystackReference;
   return row;
 }
 
@@ -286,6 +317,21 @@ export function fromDbTemplate(row: any, lineItems?: any[]): any {
     lineItems: (lineItems || []).map(fromDbLineItem),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+export function fromDbRecurringQuote(row: any): any {
+  if (!row) return null;
+  return {
+    id: row.id,
+    uid: row.user_id,
+    clientId: row.client_id,
+    clientName: row.client_name || '',
+    templateQuoteId: row.template_quote_id,
+    frequency: row.frequency || 'monthly',
+    nextIssueDate: row.next_issue_date,
+    status: row.status || 'active',
+    createdAt: row.created_at,
   };
 }
 

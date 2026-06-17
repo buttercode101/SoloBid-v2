@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { supabase, fromDbRecurring, fromDbClient, fromDbTemplate, fromDbLineItem } from '../lib/supabase';
+import { supabase, fromDbRecurring, fromDbRecurringQuote, fromDbClient, fromDbTemplate, fromDbLineItem, fromDbQuote } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { RefreshCw, Plus, Trash2, Edit, Play, Pause, CalendarClock } from 'lucide-react';
+import { RefreshCw, Plus, Trash2, Edit, Play, Pause, CalendarClock, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -23,14 +23,25 @@ import { EmptyState } from '../components/EmptyState';
 
 export default function RecurringInvoices() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'invoices' | 'quotes'>('invoices');
   const [recurring, setRecurring] = useState<any[]>([]);
+  const [recurringQuotes, setRecurringQuotes] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [quotes, setQuotes] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
+  const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
+
   const [formData, setFormData] = useState({
     clientId: '',
     templateId: '',
+    frequency: 'monthly',
+    nextIssueDate: format(new Date(), 'yyyy-MM-dd'),
+  });
+
+  const [quoteFormData, setQuoteFormData] = useState({
+    clientId: '',
+    templateQuoteId: '',
     frequency: 'monthly',
     nextIssueDate: format(new Date(), 'yyyy-MM-dd'),
   });
@@ -48,6 +59,16 @@ export default function RecurringInvoices() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_invoices', filter: `user_id=eq.${user.uid}` }, fetchRecurring)
       .subscribe();
 
+    // Load recurring quotes
+    const fetchRecurringQuotes = async () => {
+      const { data } = await supabase.from('recurring_quotes').select('*').eq('user_id', user.uid).order('created_at', { ascending: false });
+      setRecurringQuotes((data || []).map(fromDbRecurringQuote));
+    };
+    fetchRecurringQuotes();
+    const quoteChannel = supabase.channel(`recurring-quotes-${user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_quotes', filter: `user_id=eq.${user.uid}` }, fetchRecurringQuotes)
+      .subscribe();
+
     // Load clients
     supabase.from('clients').select('*').eq('user_id', user.uid).then(({ data }) => {
       setClients((data || []).map(fromDbClient));
@@ -60,7 +81,15 @@ export default function RecurringInvoices() {
       setTemplates(tplData.map(t => fromDbTemplate(t, (liData || []).filter(li => li.template_id === t.id))));
     });
 
-    return () => { supabase.removeChannel(channel); };
+    // Load quotes for recurring quote templates
+    supabase.from('quotes').select('id, client_name, quote_number, total').eq('user_id', user.uid).order('created_at', { ascending: false }).then(({ data }) => {
+      setQuotes((data || []).map(fromDbQuote));
+    });
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(quoteChannel);
+    };
   }, [user]);
 
   const handleSaveRecurring = async (e: React.FormEvent) => {
@@ -123,13 +152,52 @@ export default function RecurringInvoices() {
     }
   };
 
+  const handleSaveRecurringQuote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    try {
+      const client = clients.find(c => c.id === quoteFormData.clientId);
+      if (!client || !quoteFormData.templateQuoteId) {
+        toast.error("Please select a client and a template quote");
+        return;
+      }
+      const { error } = await supabase.from('recurring_quotes').insert({
+        id: uuidv4(),
+        user_id: user.uid,
+        client_id: client.id,
+        client_name: client.name,
+        template_quote_id: quoteFormData.templateQuoteId,
+        frequency: quoteFormData.frequency,
+        next_issue_date: quoteFormData.nextIssueDate,
+        status: 'active',
+      });
+      if (error) throw error;
+      toast.success("Recurring quote schedule created");
+      setIsQuoteDialogOpen(false);
+      setQuoteFormData({ clientId: '', templateQuoteId: '', frequency: 'monthly', nextIssueDate: format(new Date(), 'yyyy-MM-dd') });
+    } catch (error) {
+      toast.error("Failed to save recurring quote");
+    }
+  };
+
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     try {
       await supabase.from('recurring_invoices').delete().eq('id', id);
       toast.success("Recurring schedule deleted");
       setDeleteId(null);
+    } catch (error) {
+      toast.error("Failed to delete");
+    }
+  };
+
+  const handleDeleteQuote = async (id: string) => {
+    try {
+      await supabase.from('recurring_quotes').delete().eq('id', id);
+      toast.success("Recurring quote schedule deleted");
+      setDeleteQuoteId(null);
     } catch (error) {
       toast.error("Failed to delete");
     }
@@ -145,14 +213,25 @@ export default function RecurringInvoices() {
     }
   };
 
+  const toggleQuoteStatus = async (item: any) => {
+    try {
+      const newStatus = item.status === 'active' ? 'paused' : 'active';
+      await supabase.from('recurring_quotes').update({ status: newStatus }).eq('id', item.id);
+      toast.success(`Schedule ${newStatus}`);
+    } catch (error) {
+      toast.error("Failed to update status");
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Recurring Invoices</h1>
-          <p className="text-zinc-500">Automate your billing for ongoing services.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Recurring Schedules</h1>
+          <p className="text-zinc-500">Automate your billing and quoting for ongoing services.</p>
         </div>
-        
+
+        {activeTab === 'invoices' ? (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -228,85 +307,216 @@ export default function RecurringInvoices() {
             </form>
           </DialogContent>
         </Dialog>
+      ) : (
+        <Dialog open={isQuoteDialogOpen} onOpenChange={setIsQuoteDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" /> New Recurring Quote
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>New Recurring Quote</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSaveRecurringQuote} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="rq-client">Client *</Label>
+                <select
+                  id="rq-client"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={quoteFormData.clientId}
+                  onChange={(e) => setQuoteFormData({...quoteFormData, clientId: e.target.value})}
+                  required
+                  aria-label="Select client"
+                >
+                  <option value="">Select a client...</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rq-template">Template Quote *</Label>
+                <select
+                  id="rq-template"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={quoteFormData.templateQuoteId}
+                  onChange={(e) => setQuoteFormData({...quoteFormData, templateQuoteId: e.target.value})}
+                  required
+                >
+                  <option value="">Select a quote...</option>
+                  {quotes.map(q => (
+                    <option key={q.id} value={q.id}>{q.quoteNumber || q.id.substring(0, 8).toUpperCase()} — {q.clientName}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-500">The selected quote's line items will be copied for each generated quote.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rq-frequency">Frequency *</Label>
+                <select
+                  id="rq-frequency"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={quoteFormData.frequency}
+                  onChange={(e) => setQuoteFormData({...quoteFormData, frequency: e.target.value})}
+                  required
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rq-nextIssueDate">First Issue Date *</Label>
+                <Input
+                  id="rq-nextIssueDate"
+                  type="date"
+                  value={quoteFormData.nextIssueDate}
+                  onChange={(e) => setQuoteFormData({...quoteFormData, nextIssueDate: e.target.value})}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full">Create Schedule</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Active Schedules</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recurring.length === 0 ? (
-            <EmptyState
-              icon={<CalendarClock className="w-8 h-8" />}
-              title="No schedules active"
-              description="Automate your billing by creating a recurring schedule. Perfect for retainers and subscriptions."
-              action={{
-                label: "Create Schedule",
-                onClick: () => setIsDialogOpen(true)
-              }}
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-zinc-500 uppercase bg-zinc-50">
-                  <tr>
-                    <th className="px-4 py-3 rounded-tl-md">Client</th>
-                    <th className="px-4 py-3">Frequency</th>
-                    <th className="px-4 py-3">Next Issue</th>
-                    <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right rounded-tr-md">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recurring.map((item) => (
-                    <tr key={item.id} className="border-b last:border-0 hover:bg-zinc-50 transition-colors">
-                      <td className="px-4 py-3 font-medium">
-                        {item.clientName}
-                      </td>
-                      <td className="px-4 py-3 capitalize">
-                        {item.frequency}
-                      </td>
-                      <td className="px-4 py-3">
-                        {item.nextIssueDate ? format(new Date(item.nextIssueDate), 'MMM d, yyyy') : 'No date set'}
-                      </td>
-                      <td className="px-4 py-3 font-medium">
-                        {getCurrencySymbol(item.currency || 'ZAR')}{(item.total || 0).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize
-                          ${item.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-zinc-100 text-zinc-800'}`}>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => toggleStatus(item)}
-                            title={item.status === 'active' ? 'Pause' : 'Resume'}
-                          >
-                            {item.status === 'active' ? <Pause className="w-4 h-4 text-zinc-500" /> : <Play className="w-4 h-4 text-green-600" />}
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => setDeleteId(item.id)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </td>
+      {/* Tab switcher */}
+      <div className="flex gap-2 border-b border-zinc-200 pb-0">
+        <button
+          onClick={() => setActiveTab('invoices')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'invoices' ? 'border-primary text-primary' : 'border-transparent text-zinc-500 hover:text-zinc-800'}`}
+        >
+          Recurring Invoices
+        </button>
+        <button
+          onClick={() => setActiveTab('quotes')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'quotes' ? 'border-primary text-primary' : 'border-transparent text-zinc-500 hover:text-zinc-800'}`}
+        >
+          Recurring Quotes
+        </button>
+      </div>
+
+      {activeTab === 'invoices' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Active Schedules</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recurring.length === 0 ? (
+              <EmptyState
+                icon={<CalendarClock className="w-8 h-8" />}
+                title="No schedules active"
+                description="Automate your billing by creating a recurring schedule. Perfect for retainers and subscriptions."
+                action={{
+                  label: "Create Schedule",
+                  onClick: () => setIsDialogOpen(true)
+                }}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-zinc-500 uppercase bg-zinc-50">
+                    <tr>
+                      <th className="px-4 py-3 rounded-tl-md">Client</th>
+                      <th className="px-4 py-3">Frequency</th>
+                      <th className="px-4 py-3">Next Issue</th>
+                      <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right rounded-tr-md">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </thead>
+                  <tbody>
+                    {recurring.map((item) => (
+                      <tr key={item.id} className="border-b last:border-0 hover:bg-zinc-50 transition-colors">
+                        <td className="px-4 py-3 font-medium">{item.clientName}</td>
+                        <td className="px-4 py-3 capitalize">{item.frequency}</td>
+                        <td className="px-4 py-3">{item.nextIssueDate ? format(new Date(item.nextIssueDate), 'MMM d, yyyy') : 'No date set'}</td>
+                        <td className="px-4 py-3 font-medium">{getCurrencySymbol(item.currency || 'ZAR')}{(item.total || 0).toFixed(2)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${item.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-zinc-100 text-zinc-800'}`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => toggleStatus(item)} title={item.status === 'active' ? 'Pause' : 'Resume'}>
+                              {item.status === 'active' ? <Pause className="w-4 h-4 text-zinc-500" /> : <Play className="w-4 h-4 text-green-600" />}
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteId(item.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'quotes' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recurring Quote Schedules</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recurringQuotes.length === 0 ? (
+              <EmptyState
+                icon={<FileText className="w-8 h-8" />}
+                title="No recurring quotes set up"
+                description="Automatically generate quotes on a recurring schedule for ongoing clients."
+                action={{
+                  label: "New Recurring Quote",
+                  onClick: () => setIsQuoteDialogOpen(true)
+                }}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-zinc-500 uppercase bg-zinc-50">
+                    <tr>
+                      <th className="px-4 py-3 rounded-tl-md">Client</th>
+                      <th className="px-4 py-3">Frequency</th>
+                      <th className="px-4 py-3">Next Issue</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right rounded-tr-md">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recurringQuotes.map((item) => (
+                      <tr key={item.id} className="border-b last:border-0 hover:bg-zinc-50 transition-colors">
+                        <td className="px-4 py-3 font-medium">{item.clientName}</td>
+                        <td className="px-4 py-3 capitalize">{item.frequency}</td>
+                        <td className="px-4 py-3">{item.nextIssueDate ? format(new Date(item.nextIssueDate), 'MMM d, yyyy') : 'No date set'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${item.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-zinc-100 text-zinc-800'}`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => toggleQuoteStatus(item)} title={item.status === 'active' ? 'Pause' : 'Resume'}>
+                              {item.status === 'active' ? <Pause className="w-4 h-4 text-zinc-500" /> : <Play className="w-4 h-4 text-green-600" />}
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteQuoteId(item.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <ConfirmDialog
         open={!!deleteId}
@@ -317,6 +527,17 @@ export default function RecurringInvoices() {
         isDangerous={true}
         onConfirm={() => deleteId && handleDelete(deleteId)}
         onCancel={() => setDeleteId(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteQuoteId}
+        title="Delete Recurring Quote Schedule?"
+        description="Are you sure you want to delete this recurring quote schedule? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDangerous={true}
+        onConfirm={() => deleteQuoteId && handleDeleteQuote(deleteQuoteId)}
+        onCancel={() => setDeleteQuoteId(null)}
       />
     </div>
   );

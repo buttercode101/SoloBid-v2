@@ -37,6 +37,7 @@ export default function Clients() {
     phone: '',
     address: '',
     notes: '',
+    vatNumber: '',
   });
 
   useEffect(() => {
@@ -107,6 +108,7 @@ export default function Clients() {
         phone: client.phone || '',
         address: client.address || '',
         notes: client.notes || '',
+        vatNumber: client.vatNumber || '',
       });
     } else {
       setEditingClient(null);
@@ -116,6 +118,7 @@ export default function Clients() {
         phone: '',
         address: '',
         notes: '',
+        vatNumber: '',
       });
     }
     setIsDialogOpen(true);
@@ -136,6 +139,7 @@ export default function Clients() {
         phone: formData.phone,
         address: formData.address,
         notes: formData.notes,
+        vat_number: formData.vatNumber || null,
       });
 
       if (error) throw error;
@@ -227,6 +231,16 @@ export default function Clients() {
                   placeholder="e.g. 523 Palo Alto Road, California"
                   rows={2}
                   className="rounded-xl border-zinc-250 text-sm p-2.5 focus:ring-primary focus:border-primary"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="vatNumber" className="text-xs text-zinc-500 font-medium">VAT Number (optional)</Label>
+                <Input
+                  id="vatNumber"
+                  value={formData.vatNumber}
+                  onChange={(e) => setFormData({...formData, vatNumber: e.target.value})}
+                  placeholder="e.g. 4123456789"
+                  className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
                 />
               </div>
               <div className="space-y-1.5">

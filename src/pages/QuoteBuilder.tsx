@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { supabase, fromDbQuote, fromDbLineItem, fromDbExpense, toDbQuote, toDbLineItem, toDbExpense } from '../lib/supabase';
+import { supabase, fromDbQuote, fromDbLineItem, fromDbExpense, fromDbAttachment, toDbQuote, toDbLineItem, toDbExpense } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -38,6 +38,7 @@ import { formatZAR } from '../lib/theme';
 import { getPendingQuoteSaves, getQuoteDraftLocally, queueQuoteSave, removeQuoteDraftLocally, saveQuoteDraftLocally, setPendingQuoteSaves, type OfflineQuoteDraft } from '../lib/offline';
 import { buildQuotePdfBlob, downloadQuotePdf } from '../lib/documentActions';
 import { formatWhatsAppPhoneNumber, generateWhatsAppShareLink, getQuotePdfUrl, trackWhatsAppShare, validateWhatsAppPhoneNumber } from '../lib/whatsapp';
+import { AttachmentUploader, type Attachment } from '../components/AttachmentUploader';
 
 const quoteSchema = z.object({
   clientName: z.string().min(1, "Client Name is required"),
@@ -284,6 +285,7 @@ export default function QuoteBuilder() {
   const [localSaveStatus, setLocalSaveStatus] = useState('');
   const [pdfBusy, setPdfBusy] = useState<'download' | 'share' | null>(null);
   const isOnline = useOnlineStatus();
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   const { isLimited: isSaving, execute: executeSave } = useRateLimit(1000);
 
@@ -465,6 +467,16 @@ export default function QuoteBuilder() {
 
         const loadedExpenses = (expRows || []).map(fromDbExpense) as Expense[];
         setExpenses(loadedExpenses);
+        const { data: attRows } = await supabase.from('quote_attachments').select('*').eq('quote_id', quoteId);
+        const loadedAttachments = (attRows || []).map((r: any) => ({
+          id: r.id,
+          fileName: r.file_name,
+          filePath: r.file_path,
+          fileType: r.file_type,
+          fileSize: r.file_size,
+          url: supabase.storage.from('quote-attachments').getPublicUrl(r.file_path).data.publicUrl,
+        })) as Attachment[];
+        setAttachments(loadedAttachments);
       }
     } catch (error) {
       const localDraft = user ? getQuoteDraftLocally(user.uid, quoteId) : null;
@@ -651,9 +663,10 @@ export default function QuoteBuilder() {
 
   const syncPendingQuoteSaves = async () => {
     if (!user || !isOnline) return;
-    const pending = getPendingQuoteSaves().filter(item => item.uid === user.uid);
+    const all = await getPendingQuoteSaves();
+    const pending = all.filter(item => item.uid === user.uid);
     if (pending.length === 0) return;
-    const remaining = getPendingQuoteSaves().filter(item => item.uid !== user.uid);
+    const remaining = all.filter(item => item.uid !== user.uid);
     for (const draft of pending) {
       try {
         await commitQuoteDraft(draft);
@@ -1501,6 +1514,25 @@ export default function QuoteBuilder() {
               )}
             </CardContent>
           </Card>
+
+
+          {/* Attachments Card */}
+          {id && user && (
+            <Card className="rounded-3xl border border-zinc-100 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
+              <CardHeader className="p-6 border-b border-zinc-50">
+                <CardTitle className="text-lg font-semibold text-zinc-900">Site Photos &amp; Attachments</CardTitle>
+                <CardDescription className="text-zinc-400 text-xs text-left">Attach site photos, PDFs, or documents to this quote.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 bg-white">
+                <AttachmentUploader
+                  quoteId={id}
+                  userId={user.uid}
+                  attachments={attachments}
+                  onAttachmentsChange={setAttachments}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Notes Card */}
           <Card className="rounded-3xl border border-zinc-100 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)]">

@@ -175,14 +175,22 @@ interface InvoicePDFProps {
       swiftCode?: string;
     };
   };
+  contractorVatNumber?: string;
+  contractorRegNumber?: string;
+  clientVatNumber?: string;
+  bankName?: string;
+  accountNumber?: string;
+  branchCode?: string;
+  qrDataUrl?: string;
 }
 
-export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, estimate, contractor, lineItems, companyDetails }) => {
+export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, estimate, contractor, lineItems, companyDetails, contractorVatNumber, contractorRegNumber, clientVatNumber, bankName, accountNumber, branchCode, qrDataUrl }) => {
   const styles = createStyles(contractor?.pdfFont || 'Helvetica', contractor?.pdfStyle || 'modern');
   const currency = invoice.currency || estimate?.currency || contractor?.defaultCurrency || 'ZAR';
   const currencySymbol = getCurrencySymbol(currency);
   const isSATaxInvoice = currency === 'ZAR' && contractor?.saTaxInvoiceMode;
-  const title = isSATaxInvoice ? 'Tax Invoice' : 'Invoice';
+  const title = isSATaxInvoice ? 'TAX INVOICE' : 'INVOICE';
+  const vatNumber = contractorVatNumber || contractor?.vatNumber;
   
   return (
   <Document>
@@ -194,8 +202,11 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, estimate, contr
           ) : (
             <Text style={styles.businessName}>{contractor?.businessName}</Text>
           )}
-          {isSATaxInvoice && contractor?.vatNumber && (
-            <Text style={{ fontSize: 10, color: '#666', marginTop: 4 }}>VAT No: {contractor.vatNumber}</Text>
+          {isSATaxInvoice && vatNumber && (
+            <Text style={{ fontSize: 10, color: '#666', marginTop: 4 }}>VAT No: {vatNumber}</Text>
+          )}
+          {isSATaxInvoice && (contractorRegNumber || contractor?.businessRegistrationNumber) && (
+            <Text style={{ fontSize: 10, color: '#666', marginTop: 2 }}>Reg No: {contractorRegNumber || contractor?.businessRegistrationNumber}</Text>
           )}
         </View>
         <View style={styles.businessInfo}>
@@ -213,6 +224,15 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, estimate, contr
         <Text style={styles.clientName}>{invoice.clientName}</Text>
         <Text>{invoice.clientEmail}</Text>
       </View>
+
+      {isSATaxInvoice && (invoice.total || 0) >= 5000 && (
+        <View style={{ marginBottom: 20, padding: 10, borderWidth: 1, borderColor: '#eee', borderRadius: 4 }}>
+          <Text style={styles.sectionTitle}>Recipient Details</Text>
+          <Text style={{ fontSize: 12, fontWeight: 'bold' }}>{invoice.clientName}</Text>
+          {invoice.clientAddress && <Text style={{ fontSize: 10, color: '#666' }}>{invoice.clientAddress}</Text>}
+          {clientVatNumber && <Text style={{ fontSize: 10, color: '#666' }}>VAT No: {clientVatNumber}</Text>}
+        </View>
+      )}
 
       <View style={styles.table}>
         <View style={styles.tableHeader}>
@@ -253,6 +273,22 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, estimate, contr
         </View>
       </View>
 
+      {(invoice.status === 'sent' || invoice.status === 'overdue') && bankName && accountNumber && (
+        <View style={{ marginTop: 24, padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 4 }}>
+          <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 8, color: '#333' }}>Payment Options</Text>
+          <Text style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>Bank: {bankName}</Text>
+          <Text style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>Account No: {accountNumber}</Text>
+          {branchCode && <Text style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>Branch Code: {branchCode}</Text>}
+          <Text style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>Reference: {invoice.invoiceNumber || invoice.id?.substring(0, 8).toUpperCase()}</Text>
+          {qrDataUrl && (
+            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Image src={qrDataUrl} style={{ width: 72, height: 72 }} />
+              <Text style={{ fontSize: 9, color: '#888', maxWidth: 160 }}>Scan to copy EFT payment details</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       <View style={styles.footer}>
         {contractor?.terms && (
           <View style={styles.notes}>
@@ -291,6 +327,14 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoice, estimate, contr
             </Text>
           )}
         </View>
+
+        {isSATaxInvoice && vatNumber && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={{ fontSize: 8, color: '#888' }}>
+              VAT Reg: {vatNumber} | Tax Invoice issued in terms of Section 20(4) of the VAT Act No. 89 of 1991
+            </Text>
+          </View>
+        )}
       </View>
     </Page>
   </Document>
