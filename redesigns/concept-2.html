@@ -4,816 +4,642 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SoloBid — Quote it. Sign it. Get paid.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: { inter: ['Inter', 'sans-serif'] },
-          colors: {
-            brand: '#04473e',
-            'brand-light': '#e6f0ef',
-            'brand-mid': '#0a6b5e',
-          }
+          colors: { brand: '#04473e', 'brand-light': '#e6f0ef', 'brand-mid': '#0a6b5e' }
         }
       }
     }
   </script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    * { font-family: 'Inter', sans-serif; }
-    body { background: #fafaf9; }
+    html { scroll-behavior: smooth; }
 
-    /* ── Scroll animations ── */
-    .animate-on-scroll {
+    /* Animate on scroll */
+    .animate-on-scroll, .slide-left, .slide-right {
       opacity: 0;
       transform: translateY(32px);
       transition: opacity 0.7s ease, transform 0.7s ease;
     }
-    .animate-on-scroll.visible { opacity: 1; transform: translateY(0); }
-
-    .slide-left {
-      opacity: 0;
-      transform: translateX(-40px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
-    }
-    .slide-right {
-      opacity: 0;
-      transform: translateX(40px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
-    }
-    .slide-left.visible, .slide-right.visible {
+    .slide-left { transform: translateX(-40px); }
+    .slide-right { transform: translateX(40px); }
+    .animate-on-scroll.visible, .slide-left.visible, .slide-right.visible {
       opacity: 1;
-      transform: translateX(0);
+      transform: none;
     }
-
     .stagger-1 { transition-delay: 0.1s; }
     .stagger-2 { transition-delay: 0.2s; }
     .stagger-3 { transition-delay: 0.3s; }
     .stagger-4 { transition-delay: 0.4s; }
 
-    /* ── Hero float ── */
+    /* Float animation */
     @keyframes float {
       0%, 100% { transform: translateY(0px); }
-      50%       { transform: translateY(-10px); }
+      50% { transform: translateY(-12px); }
     }
-    .float-anim { animation: float 4s ease-in-out infinite; }
+    .float-anim { animation: float 5s ease-in-out infinite; }
 
-    /* ── Dot grid background ── */
+    /* Dot grid */
     .dot-grid {
       background-image: radial-gradient(circle, #04473e22 1px, transparent 1px);
       background-size: 24px 24px;
     }
 
-    /* ── Feature card spotlight ── */
+    /* Feature card spotlight */
     .feature-card {
       position: relative;
       overflow: hidden;
-      transition: box-shadow 0.3s ease, transform 0.3s ease;
     }
     .feature-card::before {
       content: '';
       position: absolute;
-      inset: 0;
-      background: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(4,71,62,0.07), transparent 60%);
-      opacity: 0;
-      transition: opacity 0.4s ease;
+      top: var(--mouse-y, -100%);
+      left: var(--mouse-x, -100%);
+      transform: translate(-50%, -50%);
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(4,71,62,0.08) 0%, transparent 70%);
       pointer-events: none;
-      border-radius: inherit;
-    }
-    .feature-card:hover::before { opacity: 1; }
-    .feature-card:hover {
-      box-shadow: 0 12px 40px rgba(4,71,62,0.12);
-      transform: translateY(-3px);
+      transition: opacity 0.3s;
     }
 
-    /* ── Pricing card ── */
-    .pricing-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-    .pricing-card:hover { transform: translateY(-4px); box-shadow: 0 20px 50px rgba(0,0,0,0.12); }
-
-    /* ── Step number pulse ── */
+    /* Pulse ring for step numbers */
     @keyframes pulse-ring {
-      0%   { box-shadow: 0 0 0 0 rgba(4,71,62,0.3); }
-      70%  { box-shadow: 0 0 0 10px rgba(4,71,62,0); }
+      0% { box-shadow: 0 0 0 0 rgba(4,71,62,0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(4,71,62,0); }
       100% { box-shadow: 0 0 0 0 rgba(4,71,62,0); }
     }
-    .step-number { animation: pulse-ring 2.5s ease-out infinite; }
+    .step-number {
+      animation: pulse-ring 2s ease-out infinite;
+    }
 
-    /* ── Nav smooth scroll ── */
-    html { scroll-behavior: smooth; }
-
-    /* ── Chart bar animation ── */
+    /* Bar grow animation */
     @keyframes grow-bar {
-      from { transform: scaleY(0); }
-      to   { transform: scaleY(1); }
+      from { width: 0; }
+      to { width: var(--bar-width, 100%); }
     }
     .bar-grow {
-      transform-origin: bottom;
-      animation: grow-bar 0.8s ease forwards;
+      animation: grow-bar 1s ease-out forwards;
     }
 
-    /* ── Badge shine ── */
+    /* Shine animation */
     @keyframes shine {
-      0%   { background-position: -200% center; }
+      0% { background-position: -200% center; }
       100% { background-position: 200% center; }
     }
     .badge-shine {
-      background: linear-gradient(90deg, #e6f0ef 0%, #fff 40%, #c2dbd8 60%, #e6f0ef 100%);
+      background: linear-gradient(90deg, #04473e 0%, #0a6b5e 40%, #4ade80 50%, #0a6b5e 60%, #04473e 100%);
       background-size: 200% auto;
       animation: shine 3s linear infinite;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
-    /* ── Paid stamp ── */
+    /* Stamp animation */
     @keyframes stamp {
-      0%   { transform: scale(2) rotate(-15deg); opacity: 0; }
-      60%  { transform: scale(0.95) rotate(-15deg); opacity: 1; }
-      100% { transform: scale(1) rotate(-15deg); opacity: 1; }
+      0% { opacity: 0; transform: scale(2) rotate(-15deg); }
+      60% { opacity: 1; transform: scale(0.95) rotate(-10deg); }
+      80% { transform: scale(1.05) rotate(-12deg); }
+      100% { opacity: 1; transform: scale(1) rotate(-12deg); }
     }
-    .stamp-anim { animation: stamp 0.6s cubic-bezier(.36,.07,.19,.97) 0.5s both; }
+    .stamp-anim {
+      animation: stamp 0.6s ease-out forwards;
+      display: inline-block;
+    }
 
-    /* ── Testimonial card ── */
-    .testimonial-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-    .testimonial-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.1); }
-
-    /* ── CTA button ── */
+    /* Buttons */
     .btn-primary {
-      background: #04473e;
-      color: #fff;
-      transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+      background-color: #04473e;
+      color: white;
+      padding: 0.65rem 1.5rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background-color 0.2s, transform 0.1s;
+      display: inline-block;
+      cursor: pointer;
+      border: none;
     }
     .btn-primary:hover {
-      background: #0a6b5e;
+      background-color: #0a6b5e;
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(4,71,62,0.35);
     }
     .btn-white {
-      background: #fff;
+      background-color: white;
       color: #04473e;
-      transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+      padding: 0.65rem 1.5rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: 2px solid #04473e;
+      transition: background-color 0.2s, transform 0.1s;
+      display: inline-block;
+      cursor: pointer;
     }
     .btn-white:hover {
-      background: #f0f9f8;
+      background-color: #e6f0ef;
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(255,255,255,0.3);
     }
 
-    /* ── Dotted connector ── */
+    /* Dotted line */
     .dotted-line {
-      border-top: 2px dashed #cbd5e1;
-      flex: 1;
-      margin-top: 28px;
+      border-top: 2px dashed #04473e33;
     }
 
-    /* ── WhatsApp bubble ── */
+    /* WhatsApp bubbles */
     .wa-bubble {
-      background: #dcf8c6;
-      border-radius: 12px 12px 12px 2px;
-      position: relative;
+      background: #ffffff;
+      border-radius: 0 12px 12px 12px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      max-width: 80%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      margin-bottom: 6px;
     }
     .wa-bubble-right {
-      background: #fff;
-      border-radius: 12px 12px 2px 12px;
+      background: #dcf8c6;
+      border-radius: 12px 0 12px 12px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      max-width: 80%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      margin-bottom: 6px;
+      margin-left: auto;
     }
   </style>
 </head>
-<body class="text-zinc-900 antialiased">
+<body class="font-inter antialiased" style="font-family:'Inter',sans-serif">
 
-<!-- ═══════════════════════════════════════════════
-     NAV
-═══════════════════════════════════════════════ -->
-<header class="sticky top-0 z-50 bg-white border-b border-zinc-100" style="backdrop-filter:blur(12px);">
-  <nav class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-    <!-- Logo -->
-    <a href="#" class="flex items-center gap-2.5 group">
-      <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm select-none" style="background:#04473e;">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M8 2C5.79 2 4 3.79 4 6c0 1.5.82 2.81 2.03 3.51L5 14h6l-1.03-4.49A4 4 0 0 0 12 6c0-2.21-1.79-4-4-4z" fill="white" opacity="0.9"/>
-          <circle cx="8" cy="6" r="2" fill="white"/>
-        </svg>
+  <!-- NAV -->
+  <nav class="sticky top-0 bg-white z-50 shadow-sm">
+    <div class="container mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#04473e"/><path d="M10 16h5v5h-5zM17 11h5v5h-5zM17 17h5v5h-5z" fill="white" opacity="0.9"/><path d="M10 10h5v5h-5z" fill="white" opacity="0.5"/></svg>
+        <span class="text-xl font-bold text-gray-900">SoloBid</span>
       </div>
-      <span class="font-bold text-zinc-900 text-lg tracking-tight">SoloBid</span>
-    </a>
-
-    <!-- Nav links -->
-    <div class="hidden md:flex items-center gap-8">
-      <a href="#features" class="text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium">Features</a>
-      <a href="#how-it-works" class="text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium">How it works</a>
-    </div>
-
-    <!-- CTA -->
-    <div class="flex items-center gap-3">
-      <a href="#" class="hidden sm:block text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium">Sign in</a>
-      <a href="#" class="btn-primary text-sm font-semibold px-5 py-2.5 rounded-lg inline-block">Get Started Free</a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="#features" class="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors">Features</a>
+        <a href="#how-it-works" class="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors">How it works</a>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="#" class="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors">Sign in</a>
+        <a href="#" class="btn-primary">Get Started Free</a>
+      </div>
     </div>
   </nav>
-</header>
 
-<!-- ═══════════════════════════════════════════════
-     HERO
-═══════════════════════════════════════════════ -->
-<section class="relative overflow-hidden" style="background:#fafaf9; min-height:92vh; display:flex; align-items:center;">
-  <!-- Dot grid bg -->
-  <div class="dot-grid absolute inset-0 opacity-40 pointer-events-none"></div>
+  <!-- HERO -->
+  <section class="bg-[#fafaf9] min-h-[92vh] flex items-center relative overflow-hidden">
+    <!-- Dot grid overlay -->
+    <div class="dot-grid absolute inset-0 pointer-events-none"></div>
+    <!-- Radial glow top right -->
+    <div class="absolute top-0 right-0 w-[600px] h-[600px] rounded-full translate-x-1/3 -translate-y-1/3 pointer-events-none" style="background: radial-gradient(circle, rgba(4,71,62,0.08) 0%, transparent 70%)"></div>
 
-  <!-- Radial glow -->
-  <div class="absolute top-0 right-0 w-[700px] h-[700px] rounded-full pointer-events-none" style="background:radial-gradient(circle, rgba(4,71,62,0.06) 0%, transparent 70%); transform:translate(20%, -20%);"></div>
+    <div class="container mx-auto px-6 py-20">
+      <div class="grid lg:grid-cols-2 gap-16 items-center">
 
-  <div class="max-w-7xl mx-auto px-6 py-20 w-full">
-    <div class="grid lg:grid-cols-2 gap-16 items-center">
+        <!-- LEFT col -->
+        <div class="slide-left">
+          <!-- Badge -->
+          <span class="inline-flex items-center gap-2 bg-[#e6f0ef] text-[#04473e] text-sm font-semibold px-4 py-1.5 rounded-full mb-6">
+            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Live — South Africa
+          </span>
 
-      <!-- LEFT TEXT -->
-      <div class="slide-left">
-        <!-- Badge -->
-        <div class="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-zinc-200 bg-white shadow-sm text-sm font-medium text-zinc-700">
-          <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block"></span>
-          Now live — South Africa
+          <!-- H1 -->
+          <h1 class="text-5xl lg:text-6xl font-black leading-tight tracking-tight text-gray-900 mb-6">
+            Professional quotes your clients <span style="color:#04473e;">actually sign</span>
+          </h1>
+
+          <!-- Sub -->
+          <p class="text-lg text-gray-600 mb-8 leading-relaxed max-w-lg">
+            Built for South African freelancers and tradespeople. Turn a job estimate into a signed quote in minutes — then flip it to an invoice the moment work is done.
+          </p>
+
+          <!-- Buttons row -->
+          <div class="flex gap-4 flex-wrap items-center mb-6">
+            <a href="#" class="btn-primary">Start Free →</a>
+            <a href="#how-it-works" class="btn-white">
+              <span class="inline-flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#04473e" stroke-width="1.5"/><path d="M6 8h4M8 6l2 2-2 2" stroke="#04473e" stroke-width="1.5" stroke-linecap="round"/></svg>
+                See how it works
+              </span>
+            </a>
+          </div>
+
+          <!-- Muted text -->
+          <p class="text-sm text-gray-400">No credit card required · Setup in 60 seconds · Works on any device</p>
         </div>
 
-        <h1 class="text-5xl lg:text-6xl font-extrabold text-zinc-900 leading-[1.08] tracking-tight mb-6">
-          Professional quotes<br />
-          your clients<br />
-          <span style="color:#04473e;">actually sign</span>
-        </h1>
+        <!-- RIGHT col -->
+        <div class="slide-right relative">
+          <!-- Floating badge top-left -->
+          <div class="absolute -top-4 -left-4 bg-white rounded-xl shadow-lg px-4 py-2.5 text-sm font-semibold text-gray-800 z-10">⚡ Built in under 2 minutes</div>
+          <!-- Floating badge bottom-right -->
+          <div class="absolute -bottom-4 -right-4 bg-[#04473e] text-white rounded-xl shadow-lg px-4 py-2.5 text-sm font-semibold z-10">✅ Sent via WhatsApp</div>
 
-        <p class="text-xl text-zinc-500 leading-relaxed mb-8 max-w-md font-normal">
-          Built for tradespeople. Turn a job estimate into a signed quote in minutes — then flip it to an invoice the moment work is done.
-        </p>
-
-        <!-- Buttons -->
-        <div class="flex flex-wrap items-center gap-4 mb-10">
-          <a href="#" class="btn-primary text-base font-semibold px-7 py-3.5 rounded-xl inline-flex items-center gap-2">
-            Start Free
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </a>
-          <a href="#how-it-works" class="inline-flex items-center gap-2 text-base font-semibold text-zinc-600 hover:text-zinc-900 transition-colors">
-            <span class="w-8 h-8 rounded-full border border-zinc-200 bg-white flex items-center justify-center shadow-sm">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="#555" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </span>
-            See how it works
-          </a>
-        </div>
-
-      </div>
-
-      <!-- RIGHT BROWSER MOCKUP -->
-      <div class="slide-right relative flex justify-center lg:justify-end">
-        <div class="float-anim relative" style="max-width:520px; width:100%;">
-          <!-- Browser window -->
-          <div style="background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.06); border:1px solid #e5e7eb;">
-            <!-- Browser chrome -->
-            <div style="background:#f3f4f6; padding:10px 14px; display:flex; align-items:center; gap:6px; border-bottom:1px solid #e5e7eb;">
-              <div style="width:11px;height:11px;border-radius:50%;background:#ff5f57;flex-shrink:0;"></div>
-              <div style="width:11px;height:11px;border-radius:50%;background:#febc2e;flex-shrink:0;"></div>
-              <div style="width:11px;height:11px;border-radius:50%;background:#28c840;flex-shrink:0;"></div>
-              <div style="margin-left:10px;background:#fff;border-radius:6px;padding:4px 14px;font-size:11px;color:#9ca3af;border:1px solid #e5e7eb;flex:1;max-width:200px;font-family:'Inter',sans-serif;">solobid.app/dashboard</div>
-              <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7a5 5 0 1 0 10 0A5 5 0 0 0 2 7zm3.5-1h3M7 4.5v5" stroke="#9ca3af" stroke-width="1.3" stroke-linecap="round"/></svg>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="#9ca3af" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <!-- Browser mockup -->
+          <div class="float-anim">
+            <div class="bg-white rounded-[14px] shadow-2xl border border-gray-100 overflow-hidden">
+              <!-- Browser chrome bar -->
+              <div class="bg-gray-100 px-4 py-3 flex items-center gap-2 border-b border-gray-200">
+                <span class="w-3 h-3 rounded-full bg-[#ef4444] flex-shrink-0"></span>
+                <span class="w-3 h-3 rounded-full bg-[#f59e0b] flex-shrink-0"></span>
+                <span class="w-3 h-3 rounded-full bg-[#22c55e] flex-shrink-0"></span>
+                <div class="flex-1 mx-4 bg-white rounded-md px-3 py-1 text-xs text-gray-400 text-center">solobid.app/dashboard</div>
               </div>
-            </div>
-            <!-- App UI -->
-            <div style="background:#fafaf9; display:flex; gap:0; min-height:300px;">
-              <!-- Sidebar -->
-              <div style="width:56px; background:#fff; border-right:1px solid #f0f0ef; padding:12px 0; display:flex; flex-direction:column; align-items:center; gap:10px;">
-                <div style="width:28px;height:28px;background:#04473e;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-                  <div style="width:10px;height:10px;border-radius:50%;background:white;opacity:0.9;"></div>
+              <!-- App body -->
+              <div class="flex" style="height:300px">
+                <!-- Sidebar -->
+                <div class="w-14 bg-white border-r border-gray-100 flex flex-col items-center py-3 gap-3 flex-shrink-0">
+                  <svg width="24" height="24" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#04473e"/><path d="M10 16h5v5h-5zM17 11h5v5h-5zM17 17h5v5h-5z" fill="white" opacity="0.9"/><path d="M10 10h5v5h-5z" fill="white" opacity="0.5"/></svg>
+                  <div class="w-6 h-6 rounded bg-[#04473e]"></div>
+                  <div class="w-5 h-5 rounded bg-gray-200"></div>
+                  <div class="w-5 h-5 rounded bg-gray-200"></div>
+                  <div class="w-5 h-5 rounded bg-gray-200"></div>
+                  <div class="w-5 h-5 rounded bg-gray-200"></div>
                 </div>
-                <div style="width:22px;height:3px;background:#f0f0ef;border-radius:2px;margin-top:6px;"></div>
-                <div style="width:22px;height:3px;background:#04473e22;border-radius:2px;"></div>
-                <div style="width:22px;height:3px;background:#f0f0ef;border-radius:2px;"></div>
-                <div style="width:22px;height:3px;background:#f0f0ef;border-radius:2px;"></div>
-                <div style="width:22px;height:3px;background:#f0f0ef;border-radius:2px;"></div>
-              </div>
-              <!-- Main content -->
-              <div style="flex:1; padding:20px;">
-                <!-- Header row -->
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-                  <div>
-                    <div style="font-size:11px;font-weight:600;color:#9ca3af;letter-spacing:0.04em;font-family:'Inter',sans-serif;">QUOTE</div>
-                    <div style="font-size:15px;font-weight:700;color:#111;font-family:'Inter',sans-serif;">Leap Enterprise</div>
+                <!-- Main content -->
+                <div class="flex-1 p-4 bg-[#fafaf9] overflow-hidden min-w-0">
+                  <!-- Header -->
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-bold text-gray-800">Recent Quote Ledger</span>
+                    <span class="text-xs bg-[#04473e] text-white px-2 py-1 rounded-md whitespace-nowrap flex-shrink-0">+ New Quote</span>
                   </div>
-                  <div style="background:#dcfce7;color:#04473e;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid #bbf7d0;font-family:'Inter',sans-serif;">SENT</div>
-                </div>
-                <!-- Client -->
-                <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:12px;">
-                  <div style="font-size:9px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;font-family:'Inter',sans-serif;">CLIENT</div>
-                  <div style="font-size:12px;font-weight:600;color:#111;font-family:'Inter',sans-serif;">Leap Enterprise</div>
-                  <div style="font-size:10px;color:#6b7280;font-family:'Inter',sans-serif;">leap@enterprise.co</div>
-                </div>
-                <!-- Line items -->
-                <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:10px;">
-                  <div style="background:#f8fafc;padding:7px 12px;display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;">
-                    <div style="font-size:9px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-family:'Inter',sans-serif;">DESCRIPTION</div>
-                    <div style="font-size:9px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-family:'Inter',sans-serif;">AMOUNT</div>
-                  </div>
-                  <div style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f3f4f6;">
-                    <div>
-                      <div style="font-size:11px;font-weight:500;color:#111;font-family:'Inter',sans-serif;">Services</div>
-                      <div style="font-size:9px;color:#9ca3af;font-family:'Inter',sans-serif;">Content Creation Package</div>
+                  <!-- Table -->
+                  <div class="bg-white rounded-lg border border-gray-100 overflow-hidden text-xs">
+                    <!-- Row 1 -->
+                    <div class="flex items-center justify-between px-3 py-2.5 border-b border-gray-50 gap-2">
+                      <span class="text-gray-800 font-medium whitespace-nowrap">Leap Enterprise</span>
+                      <span class="text-gray-400 whitespace-nowrap">Jun 15, 2026</span>
+                      <span class="bg-blue-100 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap">SENT</span>
+                      <span class="text-gray-800 font-semibold whitespace-nowrap">R6,210.00</span>
                     </div>
-                    <div style="font-size:11px;font-weight:600;color:#111;font-family:'Inter',sans-serif;">R5,400.00</div>
-                  </div>
-                  <div style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f3f4f6;">
-                    <div>
-                      <div style="font-size:11px;font-weight:500;color:#111;font-family:'Inter',sans-serif;">Additional Services</div>
-                      <div style="font-size:9px;color:#9ca3af;font-family:'Inter',sans-serif;">Photography add-on</div>
+                    <!-- Row 2 -->
+                    <div class="flex items-center justify-between px-3 py-2.5 border-b border-gray-50 gap-2">
+                      <span class="text-gray-800 font-medium whitespace-nowrap">Sipho Dlamini</span>
+                      <span class="text-gray-400 whitespace-nowrap">Jun 14, 2026</span>
+                      <span class="bg-blue-100 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap">SENT</span>
+                      <span class="text-gray-800 font-semibold whitespace-nowrap">R6,382.50</span>
                     </div>
-                    <div style="font-size:11px;font-weight:600;color:#111;font-family:'Inter',sans-serif;">R810.00</div>
-                  </div>
-                  <div style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;background:#f0fdf4;">
-                    <div style="font-size:12px;font-weight:700;color:#04473e;font-family:'Inter',sans-serif;">Total</div>
-                    <div style="font-size:14px;font-weight:800;color:#04473e;font-family:'Inter',sans-serif;">R6,210.00</div>
+                    <!-- Row 3 -->
+                    <div class="flex items-center justify-between px-3 py-2.5 gap-2">
+                      <span class="text-gray-800 font-medium whitespace-nowrap">Kefilwe &amp; Co.</span>
+                      <span class="text-gray-400 whitespace-nowrap">Jun 12, 2026</span>
+                      <span class="bg-gray-100 text-gray-500 text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap">Draft</span>
+                      <span class="text-gray-800 font-semibold whitespace-nowrap">R4,150.00</span>
+                    </div>
                   </div>
                 </div>
-                <!-- Signature line -->
-                <div style="display:flex;align-items:center;gap:6px;">
-                  <div style="flex:1;height:1px;border-top:1px dashed #d1d5db;"></div>
-                  <div style="font-size:9px;color:#9ca3af;font-family:'Inter',sans-serif;">Client signature</div>
-                  <div style="flex:1;height:1px;border-top:1px dashed #d1d5db;"></div>
-                </div>
-                <div style="font-size:10px;color:#04473e;font-weight:600;font-family:'Inter',sans-serif;margin-top:4px;font-style:italic;text-align:center;">Sipho Dlamini — signed 2:34pm</div>
               </div>
             </div>
           </div>
-
-          <!-- Floating annotations -->
-          <div class="absolute" style="top:-18px; left:-24px; background:white; border:1px solid #e5e7eb; border-radius:24px; padding:8px 16px; box-shadow:0 8px 24px rgba(0,0,0,0.1); display:flex; align-items:center; gap:8px; white-space:nowrap;">
-            <div style="width:8px;height:8px;border-radius:50%;background:#04473e;"></div>
-            <span style="font-size:12px;font-weight:600;color:#111;font-family:'Inter',sans-serif;">Created in 2 mins</span>
-          </div>
-
-          <div class="absolute" style="bottom:30px; right:-28px; background:#04473e; border-radius:24px; padding:8px 16px; box-shadow:0 8px 24px rgba(4,71,62,0.3); display:flex; align-items:center; gap:8px; white-space:nowrap;">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5l3.5 3.5 5.5-6" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span style="font-size:12px;font-weight:600;color:white;font-family:'Inter',sans-serif;">Quote sent via WhatsApp</span>
-          </div>
         </div>
+
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
+  <!-- HOW IT WORKS -->
+  <section id="how-it-works" class="py-28 bg-white">
+    <div class="container mx-auto px-6">
 
-<!-- ═══════════════════════════════════════════════
-     HOW IT WORKS
-═══════════════════════════════════════════════ -->
-<section id="how-it-works" class="py-28 bg-white">
-  <div class="max-w-7xl mx-auto px-6">
-    <!-- Heading -->
-    <div class="text-center mb-20 animate-on-scroll">
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest mb-4" style="background:#e6f0ef; color:#04473e;">How it works</div>
-      <h2 class="text-4xl lg:text-5xl font-extrabold text-zinc-900 tracking-tight mb-4">Three steps to getting paid</h2>
-      <p class="text-lg text-zinc-500 max-w-xl mx-auto">No accounting degree required. SoloBid keeps it simple so you can focus on the job.</p>
-    </div>
-
-    <!-- Steps -->
-    <div class="grid lg:grid-cols-3 gap-10 relative">
-      <!-- Connector lines (desktop) -->
-      <div class="hidden lg:flex absolute top-10 left-1/3 right-1/3 items-center" style="pointer-events:none;">
-        <div class="dotted-line"></div>
+      <!-- Heading -->
+      <div class="text-center mb-16 animate-on-scroll">
+        <span class="inline-block bg-[#e6f0ef] text-[#04473e] text-sm font-semibold px-4 py-1.5 rounded-full mb-4">How it works</span>
+        <h2 class="text-4xl lg:text-5xl font-black text-gray-900 mb-4">Three steps to getting paid</h2>
+        <p class="text-lg text-gray-500 max-w-xl mx-auto">No accounting degree required. SoloBid keeps it simple.</p>
       </div>
 
-      <!-- Step 1 -->
-      <div class="animate-on-scroll stagger-1 flex flex-col items-center text-center">
-        <div class="step-number w-14 h-14 rounded-2xl text-white text-xl font-extrabold flex items-center justify-center mb-8 shadow-lg" style="background:#04473e;">1</div>
-        <!-- Template gallery mockup -->
-        <div class="w-full mb-6" style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:14px; padding:20px;">
-          <div style="font-size:11px;font-weight:600;color:#6b7280;margin-bottom:12px;text-align:left;font-family:'Inter',sans-serif;">Choose a template</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div style="background:#fff;border:2px solid #04473e;border-radius:8px;padding:12px;position:relative;">
-              <div style="font-size:9px;font-weight:700;color:#04473e;font-family:'Inter',sans-serif;">CONTENT CREATION</div>
-              <div style="height:3px;background:#04473e22;border-radius:2px;margin:5px 0;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;margin-bottom:3px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;width:70%;"></div>
-              <div class="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center" style="background:#04473e;">
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-3" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <!-- 3-col grid -->
+      <div class="grid lg:grid-cols-3 gap-10">
+
+        <!-- Step 1 -->
+        <div class="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm animate-on-scroll stagger-1">
+          <span class="step-number inline-flex items-center justify-center w-8 h-8 bg-[#04473e] text-white text-sm font-bold rounded-full mb-4">1</span>
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+            <defs><linearGradient id="g-doc1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect x="17" y="15" width="26" height="32" rx="4" fill="#022c22" opacity="0.15" transform="translate(3,3)"/>
+            <rect x="17" y="13" width="26" height="32" rx="4" fill="#065f46"/>
+            <rect x="11" y="7" width="28" height="34" rx="4" fill="url(#g-doc1)"/>
+            <rect x="11" y="7" width="28" height="7" rx="4" fill="rgba(255,255,255,0.2)"/>
+            <line x1="17" y1="22" x2="33" y2="22" stroke="white" stroke-width="1.5" opacity="0.8"/>
+            <line x1="17" y1="28" x2="31" y2="28" stroke="white" stroke-width="1.5" opacity="0.6"/>
+            <line x1="17" y1="34" x2="27" y2="34" stroke="white" stroke-width="1.5" opacity="0.4"/>
+          </svg>
+
+          <!-- Template picker mockup -->
+          <div class="bg-[#fafaf9] rounded-xl border border-gray-100 p-3 mb-5 mt-4">
+            <div class="grid grid-cols-2 gap-2">
+              <div class="rounded-lg border-2 border-[#04473e] p-2 text-xs font-medium text-[#04473e] relative bg-white">
+                Content Creation
+                <span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#04473e] rounded-full flex items-center justify-center">
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4l2 2 3-3" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
               </div>
-            </div>
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;">
-              <div style="font-size:9px;font-weight:700;color:#6b7280;font-family:'Inter',sans-serif;">CONSULTING</div>
-              <div style="height:3px;background:#f3f4f6;border-radius:2px;margin:5px 0;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;margin-bottom:3px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;width:70%;"></div>
-            </div>
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;">
-              <div style="font-size:9px;font-weight:700;color:#6b7280;font-family:'Inter',sans-serif;">PHOTOGRAPHY</div>
-              <div style="height:3px;background:#fef9c3;border-radius:2px;margin:5px 0;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;margin-bottom:3px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;width:70%;"></div>
-            </div>
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;">
-              <div style="font-size:9px;font-weight:700;color:#6b7280;font-family:'Inter',sans-serif;">ELECTRICAL</div>
-              <div style="height:3px;background:#f1f5f9;border-radius:2px;margin:5px 0;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;margin-bottom:3px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;width:70%;"></div>
+              <div class="rounded-lg border border-gray-200 p-2 text-xs font-medium text-gray-700">Consulting Package</div>
+              <div class="rounded-lg border border-gray-200 p-2 text-xs font-medium text-gray-700">Photography Shoot</div>
+              <div class="rounded-lg border border-gray-200 p-2 text-xs font-medium text-gray-700">Electrical Compliance</div>
             </div>
           </div>
-        </div>
-        <h3 class="text-xl font-bold text-zinc-900 mb-2">Pick a Template</h3>
-        <p class="text-zinc-500 text-base leading-relaxed">Choose from professional templates designed for tradespeople. Customise with your logo and brand colours in seconds.</p>
-      </div>
 
-      <!-- Step 2 -->
-      <div class="animate-on-scroll stagger-2 flex flex-col items-center text-center">
-        <div class="step-number w-14 h-14 rounded-2xl text-white text-xl font-extrabold flex items-center justify-center mb-8 shadow-lg" style="background:#04473e; animation-delay:0.8s;">2</div>
-        <!-- WhatsApp mockup -->
-        <div class="w-full mb-6" style="background:#e8d5c4; border-radius:14px; padding:16px; background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='20' cy='20' r='1' fill='%23c4a882' opacity='0.4'/%3E%3C/svg%3E\");">
-          <!-- WA header -->
-          <div style="background:#075e54;border-radius:10px 10px 0 0;padding:10px 14px;display:flex;align-items:center;gap:10px;margin:-16px -16px 12px -16px;">
-            <div style="width:32px;height:32px;border-radius:50%;background:#25d366;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;font-family:'Inter',sans-serif;">M</div>
-            <div>
-              <div style="font-size:12px;font-weight:600;color:white;font-family:'Inter',sans-serif;">Leap Enterprise</div>
-              <div style="font-size:9px;color:#a7f3d0;font-family:'Inter',sans-serif;">online</div>
-            </div>
-          </div>
-          <!-- Messages -->
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div class="wa-bubble" style="padding:8px 12px;align-self:flex-start;max-width:80%;">
-              <div style="font-size:11px;color:#111;font-family:'Inter',sans-serif;">Hey, can I get that quote?</div>
-              <div style="font-size:9px;color:#6b7280;text-align:right;margin-top:2px;font-family:'Inter',sans-serif;">9:14 AM</div>
-            </div>
-            <div class="wa-bubble-right" style="padding:8px 12px;align-self:flex-end;max-width:85%;border:1px solid #e5e7eb;">
-              <div style="font-size:10px;font-weight:600;color:#04473e;margin-bottom:2px;font-family:'Inter',sans-serif;">📄 Content Creation Package</div>
-              <div style="font-size:10px;color:#6b7280;font-family:'Inter',sans-serif;">solobid.app/q/abc123</div>
-              <div style="font-size:11px;color:#111;margin-top:4px;font-family:'Inter',sans-serif;">Hi! Here's your quote for the Content Creation package. Total: <strong>R6,210.00</strong></div>
-              <div style="font-size:9px;color:#6b7280;text-align:right;margin-top:2px;font-family:'Inter',sans-serif;">9:15 AM ✓✓</div>
-            </div>
-            <div class="wa-bubble" style="padding:8px 12px;align-self:flex-start;max-width:80%;">
-              <div style="font-size:11px;color:#111;font-family:'Inter',sans-serif;">Looks good! Approved 👍</div>
-              <div style="font-size:9px;color:#6b7280;text-align:right;margin-top:2px;font-family:'Inter',sans-serif;">9:17 AM</div>
-            </div>
-          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">Build Your Quote</h3>
+          <p class="text-gray-500 text-sm leading-relaxed">Pick a template or build from scratch. Add labor hours, material costs, and let SoloBid apply your default rates and markup automatically.</p>
         </div>
-        <h3 class="text-xl font-bold text-zinc-900 mb-2">Send to Client</h3>
-        <p class="text-zinc-500 text-base leading-relaxed">Share via WhatsApp, SMS or email. Clients get a clean link — no app needed. They review and approve with one tap.</p>
-      </div>
 
-      <!-- Step 3 -->
-      <div class="animate-on-scroll stagger-3 flex flex-col items-center text-center">
-        <div class="step-number w-14 h-14 rounded-2xl text-white text-xl font-extrabold flex items-center justify-center mb-8 shadow-lg" style="background:#04473e; animation-delay:1.6s;">3</div>
-        <!-- Invoice + PAID stamp mockup -->
-        <div class="w-full mb-6 relative" style="background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:20px; overflow:hidden;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-            <div>
-              <div style="font-size:14px;font-weight:800;color:#111;font-family:'Inter',sans-serif;">Invoice</div>
-              <div style="font-size:10px;color:#9ca3af;font-family:'Inter',sans-serif;">INV-0005</div>
+        <!-- Step 2 -->
+        <div class="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm animate-on-scroll stagger-2">
+          <span class="step-number inline-flex items-center justify-center w-8 h-8 bg-[#04473e] text-white text-sm font-bold rounded-full mb-4">2</span>
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+            <defs><linearGradient id="g-phone" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect x="16" y="8" width="20" height="36" rx="5" fill="#022c22" opacity="0.15" transform="translate(3,3)"/>
+            <rect x="16" y="6" width="20" height="36" rx="5" fill="#065f46"/>
+            <rect x="12" y="4" width="20" height="36" rx="5" fill="url(#g-phone)"/>
+            <rect x="12" y="4" width="20" height="7" rx="5" fill="rgba(255,255,255,0.2)"/>
+            <rect x="19" y="7" width="6" height="1.5" rx="1" fill="rgba(255,255,255,0.5)"/>
+            <rect x="15" y="16" width="14" height="10" rx="3" fill="rgba(255,255,255,0.25)"/>
+            <line x1="17" y1="32" x2="26" y2="32" stroke="white" stroke-width="1.5" opacity="0.5"/>
+          </svg>
+
+          <!-- WhatsApp chat mockup -->
+          <div class="bg-[#ece5dd] rounded-xl overflow-hidden mb-5 mt-4">
+            <div class="bg-[#075e54] px-3 py-2 flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">S</div>
+              <span class="text-white text-sm font-medium">SoloBid</span>
             </div>
-            <div style="text-align:right;">
-              <div style="font-size:10px;color:#9ca3af;font-family:'Inter',sans-serif;">Due</div>
-              <div style="font-size:11px;font-weight:600;color:#111;font-family:'Inter',sans-serif;">30 Jun 2026</div>
+            <div class="p-3 space-y-2">
+              <div class="wa-bubble">Hi! Here's your quote 👇</div>
+              <div class="wa-bubble">
+                <div class="bg-white rounded-lg p-2 text-xs mt-1 border border-gray-100">
+                  <div class="font-semibold text-gray-800 mb-0.5">Content Creation Package</div>
+                  <div class="text-[#04473e] font-bold mb-1">R6,210.00</div>
+                  <div class="text-[#04473e] text-[10px] font-medium">Tap to review &amp; sign →</div>
+                </div>
+              </div>
+              <div class="wa-bubble-right">Approved! Looks great 🙌</div>
             </div>
           </div>
-          <div style="border-top:1px solid #f3f4f6;padding-top:10px;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-              <span style="font-size:10px;color:#6b7280;font-family:'Inter',sans-serif;">Services</span>
-              <span style="font-size:10px;font-weight:600;color:#111;font-family:'Inter',sans-serif;">R5,400.00</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
-              <span style="font-size:10px;color:#6b7280;font-family:'Inter',sans-serif;">Additional Services</span>
-              <span style="font-size:10px;font-weight:600;color:#111;font-family:'Inter',sans-serif;">R810.00</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:2px solid #f3f4f6;">
-              <span style="font-size:12px;font-weight:700;color:#111;font-family:'Inter',sans-serif;">Total</span>
-              <span style="font-size:14px;font-weight:800;color:#111;font-family:'Inter',sans-serif;">R6,210.00</span>
-            </div>
-          </div>
-          <!-- PAID stamp -->
-          <div class="stamp-anim absolute" style="top:50%;left:50%;transform:translate(-50%,-50%) rotate(-15deg);border:3px solid #04473e;border-radius:6px;padding:6px 14px;color:#04473e;font-size:22px;font-weight:900;opacity:0.85;letter-spacing:0.05em;font-family:'Inter',sans-serif;pointer-events:none;">PAID</div>
+
+          <h3 class="text-xl font-bold text-gray-900 mb-2">Share via WhatsApp</h3>
+          <p class="text-gray-500 text-sm leading-relaxed">Tap share. Your client gets a WhatsApp message with a link. They review the full quote and sign from their phone — no app or login required.</p>
         </div>
-        <h3 class="text-xl font-bold text-zinc-900 mb-2">Get Paid</h3>
-        <p class="text-zinc-500 text-base leading-relaxed">Convert your approved quote to an invoice in one click. Accept payments online and watch your bank balance grow.</p>
+
+        <!-- Step 3 -->
+        <div class="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm animate-on-scroll stagger-3">
+          <span class="step-number inline-flex items-center justify-center w-8 h-8 bg-[#04473e] text-white text-sm font-bold rounded-full mb-4">3</span>
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+            <defs><linearGradient id="g-inv" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect x="13" y="12" width="28" height="34" rx="4" fill="#022c22" opacity="0.15" transform="translate(3,3)"/>
+            <rect x="13" y="10" width="28" height="34" rx="4" fill="#065f46"/>
+            <rect x="9" y="6" width="28" height="34" rx="4" fill="url(#g-inv)"/>
+            <rect x="9" y="6" width="28" height="7" rx="4" fill="rgba(255,255,255,0.2)"/>
+            <path d="M18 26l4 4 8-8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+
+          <!-- Invoice card mockup -->
+          <div class="bg-white rounded-xl border border-gray-100 p-4 mb-5 mt-4 relative">
+            <div class="text-xs text-gray-400 font-mono mb-1">INV-0005</div>
+            <div class="text-sm font-bold text-gray-900 mb-1">Leap Enterprise</div>
+            <div class="text-2xl font-black text-gray-900 mb-1">R6,210.00</div>
+            <div class="text-xs text-gray-400">Due: 30 Jun 2026</div>
+            <span class="stamp-anim absolute top-4 right-4 border-4 border-green-500 text-green-500 font-black text-sm px-2 py-0.5 rounded" style="transform: rotate(-12deg)">PAID</span>
+          </div>
+
+          <h3 class="text-xl font-bold text-gray-900 mb-2">Invoice &amp; Get Paid</h3>
+          <p class="text-gray-500 text-sm leading-relaxed">One tap turns your approved quote into a professional invoice. Download as PDF, share via WhatsApp, and track payment status from your dashboard.</p>
+        </div>
+
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- ═══════════════════════════════════════════════
-     FEATURES
-═══════════════════════════════════════════════ -->
-<section id="features" class="py-28" style="background:#fafaf9;">
-  <div class="max-w-7xl mx-auto px-6">
-    <!-- Heading -->
-    <div class="text-center mb-16 animate-on-scroll">
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest mb-4" style="background:#e6f0ef; color:#04473e;">Features</div>
-      <h2 class="text-4xl lg:text-5xl font-extrabold text-zinc-900 tracking-tight mb-4">Everything you need, nothing you don't</h2>
-      <p class="text-lg text-zinc-500 max-w-xl mx-auto">Powerful tools built for sole traders and small crews — not for enterprise accountants.</p>
-    </div>
+  <!-- FEATURES -->
+  <section id="features" class="py-28 bg-[#fafaf9]">
+    <div class="container mx-auto px-6">
 
-    <!-- Cards grid -->
-    <div class="grid lg:grid-cols-3 gap-6">
-
-      <!-- Card 1: Dashboard -->
-      <div class="feature-card bg-white rounded-2xl border border-zinc-100 p-7 animate-on-scroll stagger-1" style="box-shadow:0 2px 12px rgba(0,0,0,0.05);">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-5" style="background:#e6f0ef;">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="6" height="6" rx="1.5" fill="#04473e" opacity="0.8"/><rect x="11" y="3" width="6" height="6" rx="1.5" fill="#04473e" opacity="0.4"/><rect x="3" y="11" width="6" height="6" rx="1.5" fill="#04473e" opacity="0.4"/><rect x="11" y="11" width="6" height="6" rx="1.5" fill="#04473e" opacity="0.8"/></svg>
-        </div>
-        <h3 class="text-lg font-bold text-zinc-900 mb-2">Clean Dashboard</h3>
-        <p class="text-zinc-500 text-sm leading-relaxed mb-6">See all your quotes, invoices, and payments at a glance. Know your numbers without opening a spreadsheet.</p>
-
-        <!-- Mini dashboard mockup -->
-        <div style="background:#fafaf9;border-radius:10px;padding:14px;border:1px solid #f0f0ef;">
-          <!-- Stats row -->
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-            <div style="background:white;border-radius:8px;padding:8px;border:1px solid #f0f0ef;text-align:center;">
-              <div style="font-size:16px;font-weight:800;color:#111;font-family:'Inter',sans-serif;">5</div>
-              <div style="font-size:8px;color:#9ca3af;font-family:'Inter',sans-serif;">Billed This Month</div>
-            </div>
-            <div style="background:white;border-radius:8px;padding:8px;border:1px solid #f0f0ef;text-align:center;">
-              <div style="font-size:16px;font-weight:800;color:#04473e;font-family:'Inter',sans-serif;">3</div>
-              <div style="font-size:8px;color:#9ca3af;font-family:'Inter',sans-serif;">Outstanding</div>
-            </div>
-            <div style="background:white;border-radius:8px;padding:8px;border:1px solid #f0f0ef;text-align:center;">
-              <div style="font-size:10px;font-weight:800;color:#111;font-family:'Inter',sans-serif;">$2.3k</div>
-              <div style="font-size:8px;color:#9ca3af;font-family:'Inter',sans-serif;">Jobs Completed</div>
-            </div>
-          </div>
-          <!-- Chart bars -->
-          <div style="display:flex;align-items:flex-end;gap:5px;height:50px;">
-            <div style="flex:1;background:#04473e22;border-radius:4px 4px 0 0;height:40%;"></div>
-            <div style="flex:1;background:#04473e44;border-radius:4px 4px 0 0;height:60%;"></div>
-            <div style="flex:1;background:#04473e66;border-radius:4px 4px 0 0;height:50%;"></div>
-            <div style="flex:1;background:#04473e88;border-radius:4px 4px 0 0;height:80%;"></div>
-            <div style="flex:1;background:#04473e;border-radius:4px 4px 0 0;height:100%;"></div>
-            <div style="flex:1;background:#04473e22;border-radius:4px 4px 0 0;height:30%;"></div>
-          </div>
-          <div style="font-size:8px;color:#9ca3af;text-align:center;margin-top:4px;font-family:'Inter',sans-serif;">Revenue — last 6 months</div>
-        </div>
+      <!-- Heading -->
+      <div class="text-center mb-16 animate-on-scroll">
+        <span class="inline-block bg-[#e6f0ef] text-[#04473e] text-sm font-semibold px-4 py-1.5 rounded-full mb-4">Features</span>
+        <h2 class="text-4xl lg:text-5xl font-black text-gray-900 mb-4">Everything you need, nothing you don't</h2>
+        <p class="text-lg text-gray-500 max-w-xl mx-auto">Powerful tools built for sole traders and small crews.</p>
       </div>
 
-      <!-- Card 2: Branding -->
-      <div class="feature-card bg-white rounded-2xl border border-zinc-100 p-7 animate-on-scroll stagger-2" style="box-shadow:0 2px 12px rgba(0,0,0,0.05);">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-5" style="background:#e6f0ef;">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 16l3-3 9-9a2 2 0 0 0-3-3L4 10l-1 4z" fill="#04473e" opacity="0.8"/><path d="M13 4l3 3" stroke="#04473e" stroke-width="1.5" stroke-linecap="round"/></svg>
-        </div>
-        <h3 class="text-lg font-bold text-zinc-900 mb-2">Your Branding</h3>
-        <p class="text-zinc-500 text-sm leading-relaxed mb-6">Upload your logo, set your colours, and add your business details. Every quote looks like it came from a real company.</p>
+      <!-- 3-col card grid -->
+      <div class="grid lg:grid-cols-3 gap-6 mb-8">
 
-        <!-- Branding UI mockup -->
-        <div style="background:#fafaf9;border-radius:10px;padding:14px;border:1px solid #f0f0ef;">
-          <!-- Logo upload zone -->
-          <div style="border:2px dashed #d1d5db;border-radius:8px;padding:12px;text-align:center;margin-bottom:10px;background:white;">
-            <div style="width:36px;height:36px;border-radius:8px;background:#04473e;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;">
-              <span style="color:white;font-weight:800;font-size:13px;font-family:'Inter',sans-serif;">SB</span>
-            </div>
-            <div style="font-size:9px;color:#6b7280;font-family:'Inter',sans-serif;">Logo uploaded ✓</div>
-          </div>
-          <!-- Color picker -->
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-            <div style="font-size:9px;color:#6b7280;font-family:'Inter',sans-serif;white-space:nowrap;">Brand colour</div>
-            <div style="display:flex;gap:5px;align-items:center;">
-              <div style="width:18px;height:18px;border-radius:50%;background:#04473e;border:2px solid #04473e;"></div>
-              <div style="width:18px;height:18px;border-radius:50%;background:#1d4ed8;"></div>
-              <div style="width:18px;height:18px;border-radius:50%;background:#dc2626;"></div>
-              <div style="width:18px;height:18px;border-radius:50%;background:#d97706;"></div>
-              <div style="width:18px;height:18px;border-radius:50%;background:#7c3aed;"></div>
-            </div>
-          </div>
-          <!-- Business name field -->
-          <div style="background:white;border:1px solid #e5e7eb;border-radius:7px;padding:7px 10px;">
-            <div style="font-size:8px;color:#9ca3af;margin-bottom:1px;font-family:'Inter',sans-serif;">Business name</div>
-            <div style="font-size:11px;font-weight:600;color:#111;font-family:'Inter',sans-serif;">Official Company Name</div>
-          </div>
-        </div>
-      </div>
+        <!-- Card 1: Smart Quote Builder -->
+        <div class="feature-card bg-white rounded-2xl border border-gray-100 p-7 shadow-sm animate-on-scroll stagger-1">
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+            <defs><linearGradient id="g-feat1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect x="17" y="15" width="26" height="32" rx="4" fill="#022c22" opacity="0.15" transform="translate(3,3)"/>
+            <rect x="17" y="13" width="26" height="32" rx="4" fill="#065f46"/>
+            <rect x="11" y="7" width="28" height="34" rx="4" fill="url(#g-feat1)"/>
+            <rect x="11" y="7" width="28" height="7" rx="4" fill="rgba(255,255,255,0.2)"/>
+            <line x1="17" y1="22" x2="33" y2="22" stroke="white" stroke-width="1.5" opacity="0.8"/>
+            <line x1="17" y1="28" x2="31" y2="28" stroke="white" stroke-width="1.5" opacity="0.6"/>
+            <line x1="17" y1="34" x2="27" y2="34" stroke="white" stroke-width="1.5" opacity="0.4"/>
+          </svg>
+          <h3 class="text-xl font-bold text-gray-900 mt-4 mb-2">Smart Quote Builder</h3>
+          <p class="text-gray-500 text-sm leading-relaxed">Drag-and-drop line items — Labor/Fee or Material/Supply. Auto-applies your hourly rate and material markup. Voice input lets you describe the job and it fills in the details.</p>
 
-      <!-- Card 3: Templates -->
-      <div class="feature-card bg-white rounded-2xl border border-zinc-100 p-7 animate-on-scroll stagger-3" style="box-shadow:0 2px 12px rgba(0,0,0,0.05);">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-5" style="background:#e6f0ef;">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="4" rx="1.5" fill="#04473e" opacity="0.8"/><rect x="3" y="9" width="6" height="8" rx="1.5" fill="#04473e" opacity="0.5"/><rect x="11" y="9" width="6" height="8" rx="1.5" fill="#04473e" opacity="0.3"/></svg>
-        </div>
-        <h3 class="text-lg font-bold text-zinc-900 mb-2">Templates Gallery</h3>
-        <p class="text-zinc-500 text-sm leading-relaxed mb-6">Industry-specific templates for electricians, plumbers, builders and more. Save your own line items and reuse them instantly.</p>
-
-        <!-- Templates mockup -->
-        <div style="background:#fafaf9;border-radius:10px;padding:14px;border:1px solid #f0f0ef;">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
-            <div style="background:white;border:1.5px solid #04473e;border-radius:8px;padding:10px;">
-              <div style="height:4px;background:#04473e;border-radius:2px;margin-bottom:6px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;margin-bottom:3px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;width:60%;margin-bottom:6px;"></div>
-              <div style="font-size:7px;font-weight:700;color:#04473e;font-family:'Inter',sans-serif;">CONTENT</div>
+          <!-- Line items mockup -->
+          <div class="bg-[#fafaf9] rounded-xl border border-gray-100 p-3 mt-4">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-semibold text-gray-600">Line Items</span>
+              <span class="text-xs bg-[#04473e] text-white px-2 py-0.5 rounded-md">+ Add Item</span>
             </div>
-            <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px;">
-              <div style="height:4px;background:#1d4ed8;border-radius:2px;margin-bottom:6px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;margin-bottom:3px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;width:60%;margin-bottom:6px;"></div>
-              <div style="font-size:7px;font-weight:700;color:#6b7280;font-family:'Inter',sans-serif;">CONSULTING</div>
+            <div class="border-b border-gray-50 py-1.5 flex items-center gap-1">
+              <span class="bg-[#e6f0ef] text-[#04473e] text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">Labor</span>
+              <span class="text-gray-700 flex-1 min-w-0 truncate text-xs mx-1">Content Creation</span>
+              <span class="text-gray-400 whitespace-nowrap flex-shrink-0 text-[10px]">8hrs × R675</span>
+              <span class="text-gray-800 font-semibold whitespace-nowrap flex-shrink-0 text-xs ml-1">R5,400.00</span>
             </div>
-            <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px;">
-              <div style="height:4px;background:#d97706;border-radius:2px;margin-bottom:6px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;margin-bottom:3px;"></div>
-              <div style="height:2px;background:#e5e7eb;border-radius:2px;width:60%;margin-bottom:6px;"></div>
-              <div style="font-size:7px;font-weight:700;color:#6b7280;font-family:'Inter',sans-serif;">PHOTOGRAPHY</div>
+            <div class="border-b border-gray-50 py-1.5 flex items-center gap-1">
+              <span class="bg-[#e6f0ef] text-[#04473e] text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">Labor</span>
+              <span class="text-gray-700 flex-1 min-w-0 truncate text-xs mx-1">Photography Add-on</span>
+              <span class="text-gray-400 whitespace-nowrap flex-shrink-0 text-[10px]">2hrs × R405</span>
+              <span class="text-gray-800 font-semibold whitespace-nowrap flex-shrink-0 text-xs ml-1">R810.00</span>
+            </div>
+            <div class="text-xs mt-2 space-y-0.5">
+              <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span class="font-semibold text-gray-800">R6,210.00</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">VAT 15%</span><span class="font-semibold text-gray-800">R931.50</span></div>
+              <div class="flex justify-between"><span class="font-bold text-[#04473e]">TOTAL</span><span class="font-bold text-[#04473e]">R7,141.50</span></div>
             </div>
           </div>
-          <div style="margin-top:8px;text-align:center;">
-            <div style="font-size:9px;color:#04473e;font-weight:600;font-family:'Inter',sans-serif;">+ 3 more templates →</div>
+        </div>
+
+        <!-- Card 2: Client Sign-Off -->
+        <div class="feature-card bg-white rounded-2xl border border-gray-100 p-7 shadow-sm animate-on-scroll stagger-2">
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+            <defs><linearGradient id="g-feat2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#34d399"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <ellipse cx="29" cy="29" rx="14" ry="14" fill="#022c22" opacity="0.12" transform="translate(2,2)"/>
+            <circle cx="26" cy="26" r="18" fill="#065f46"/>
+            <circle cx="24" cy="24" r="18" fill="url(#g-feat2)"/>
+            <path d="M16 28 Q20 22 24 28 Q28 34 32 24" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+            <line x1="14" y1="33" x2="34" y2="33" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+          </svg>
+          <h3 class="text-xl font-bold text-gray-900 mt-4 mb-2">Client Sign-Off</h3>
+          <p class="text-gray-500 text-sm leading-relaxed">Clients e-sign your quote directly from the WhatsApp link. No app, no account, no friction. You get notified the moment they sign.</p>
+
+          <!-- Signature mockup -->
+          <div class="bg-[#fafaf9] rounded-xl border border-gray-100 p-4 mt-4">
+            <div class="border-b-2 border-dashed border-gray-300 pb-3 mb-3">
+              <div class="text-2xl text-[#04473e] text-center py-2 italic" style="font-family: cursive, Georgia, serif;">L. Nkosi</div>
+            </div>
+            <div class="text-center">
+              <span class="inline-block bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full mb-2">APPROVED ✓</span>
+              <p class="text-xs text-gray-500">L. Nkosi — Leap Enterprise</p>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Feature list row -->
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-10">
-      <div class="animate-on-scroll stagger-1 flex items-center gap-3 bg-white rounded-xl border border-zinc-100 px-5 py-4" style="box-shadow:0 1px 6px rgba(0,0,0,0.04);">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#e6f0ef;">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8c0-3.31 2.69-6 6-6s6 2.69 6 6-2.69 6-6 6-6-2.69-6-6zm4 0l1.5 1.5 3-3" stroke="#04473e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <span class="text-sm font-medium text-zinc-700">Digital Signatures built in</span>
-      </div>
-      <div class="animate-on-scroll stagger-2 flex items-center gap-3 bg-white rounded-xl border border-zinc-100 px-5 py-4" style="box-shadow:0 1px 6px rgba(0,0,0,0.04);">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#e6f0ef;">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M3 7l5-5 5 5" stroke="#04473e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <span class="text-sm font-medium text-zinc-700">PDF download &amp; share</span>
-      </div>
-      <div class="animate-on-scroll stagger-3 flex items-center gap-3 bg-white rounded-xl border border-zinc-100 px-5 py-4" style="box-shadow:0 1px 6px rgba(0,0,0,0.04);">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#e6f0ef;">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" stroke="#04473e" stroke-width="1.5"/><path d="M1 7h14" stroke="#04473e" stroke-width="1.5" stroke-linecap="round"/></svg>
-        </div>
-        <span class="text-sm font-medium text-zinc-700">Invoice Management</span>
-      </div>
-      <div class="animate-on-scroll stagger-4 flex items-center gap-3 bg-white rounded-xl border border-zinc-100 px-5 py-4" style="box-shadow:0 1px 6px rgba(0,0,0,0.04);">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#e6f0ef;">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM5 8c0-1.66 1.34-3 3-3s3 1.34 3 3v5H5V8z" fill="#04473e" opacity="0.7"/></svg>
-        </div>
-        <span class="text-sm font-medium text-zinc-700">Client Directory</span>
-      </div>
-    </div>
-  </div>
-</section>
+        <!-- Card 3: Templates Library -->
+        <div class="feature-card bg-white rounded-2xl border border-gray-100 p-7 shadow-sm animate-on-scroll stagger-3">
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+            <defs><linearGradient id="g-feat3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6ee7b7"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect x="10" y="10" width="32" height="32" rx="6" fill="#022c22" opacity="0.12" transform="translate(2,2)"/>
+            <rect x="10" y="10" width="32" height="32" rx="6" fill="#065f46"/>
+            <rect x="8" y="8" width="32" height="32" rx="6" fill="url(#g-feat3)"/>
+            <rect x="13" y="13" width="12" height="12" rx="2" fill="rgba(255,255,255,0.3)"/>
+            <rect x="27" y="13" width="9" height="12" rx="2" fill="rgba(255,255,255,0.2)"/>
+            <rect x="13" y="27" width="9" height="9" rx="2" fill="rgba(255,255,255,0.2)"/>
+            <rect x="24" y="27" width="12" height="9" rx="2" fill="rgba(255,255,255,0.15)"/>
+          </svg>
+          <h3 class="text-xl font-bold text-gray-900 mt-4 mb-2">Templates Library</h3>
+          <p class="text-gray-500 text-sm leading-relaxed">7 built-in South African templates. Save your own line items as custom templates. Recreate any job in under 30 seconds.</p>
 
+          <!-- Template pills mockup -->
+          <div class="bg-[#fafaf9] rounded-xl border border-gray-100 p-3 mt-4">
+            <div class="flex flex-wrap gap-2">
+              <span class="border border-[#04473e] text-[#04473e] bg-[#e6f0ef] text-xs font-semibold px-3 py-1.5 rounded-lg">Content Creation</span>
+              <span class="border border-gray-200 text-gray-600 text-xs font-medium px-3 py-1.5 rounded-lg bg-white">Consulting Package</span>
+              <span class="border border-gray-200 text-gray-600 text-xs font-medium px-3 py-1.5 rounded-lg bg-white">Photography Shoot</span>
+              <span class="border border-gray-200 text-gray-600 text-xs font-medium px-3 py-1.5 rounded-lg bg-white">Electrical Compliance</span>
+              <span class="border border-gray-200 text-gray-600 text-xs font-medium px-3 py-1.5 rounded-lg bg-white">Renovation Room Refresh</span>
+            </div>
+          </div>
+        </div>
 
-<!-- ═══════════════════════════════════════════════
-     FINAL CTA
-═══════════════════════════════════════════════ -->
-<section class="py-28" style="background:#04473e;">
-  <div class="max-w-4xl mx-auto px-6 text-center">
-    <div class="animate-on-scroll">
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest mb-8" style="background:rgba(255,255,255,0.15); color:#86efac;">Get started today</div>
-      <h2 class="text-4xl lg:text-6xl font-extrabold text-white leading-tight tracking-tight mb-6">
-        Start getting paid<br />faster today
-      </h2>
-      <p class="text-xl text-green-200 mb-10 max-w-lg mx-auto leading-relaxed">
-        Built for South African freelancers and tradespeople. Quote in minutes, get paid faster.
-      </p>
-      <div class="flex flex-wrap items-center justify-center gap-4 mb-8">
-        <a href="#" class="btn-white text-base font-bold px-8 py-4 rounded-xl inline-flex items-center gap-2" style="color:#04473e;">
-          Create your free account
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="#04473e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
-        <a href="#how-it-works" class="text-green-200 font-semibold text-base hover:text-white transition-colors">Watch demo →</a>
+      </div>
+
+      <!-- 4 feature pills row -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+
+        <!-- Pill 1 -->
+        <div class="bg-white border border-gray-100 rounded-xl p-4 flex items-start gap-3 animate-on-scroll stagger-1 shadow-sm">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" class="flex-shrink-0">
+            <defs><linearGradient id="g-pill1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect width="28" height="28" rx="6" fill="url(#g-pill1)"/>
+            <rect x="7" y="9" width="14" height="2" rx="1" fill="white" opacity="0.9"/>
+            <rect x="7" y="13" width="10" height="1.5" rx="1" fill="white" opacity="0.7"/>
+            <rect x="7" y="17" width="8" height="1.5" rx="1" fill="white" opacity="0.5"/>
+          </svg>
+          <div>
+            <div class="font-bold text-sm text-gray-900">Invoice &amp; Track</div>
+            <div class="text-xs text-gray-500">Convert to invoice, PDF, payment status</div>
+          </div>
+        </div>
+
+        <!-- Pill 2 -->
+        <div class="bg-white border border-gray-100 rounded-xl p-4 flex items-start gap-3 animate-on-scroll stagger-2 shadow-sm">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" class="flex-shrink-0">
+            <defs><linearGradient id="g-pill2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect width="28" height="28" rx="6" fill="url(#g-pill2)"/>
+            <circle cx="14" cy="11" r="3.5" fill="white" opacity="0.9"/>
+            <path d="M7 22c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.9"/>
+          </svg>
+          <div>
+            <div class="font-bold text-sm text-gray-900">Client Directory</div>
+            <div class="text-xs text-gray-500">Store clients, track billing history</div>
+          </div>
+        </div>
+
+        <!-- Pill 3 -->
+        <div class="bg-white border border-gray-100 rounded-xl p-4 flex items-start gap-3 animate-on-scroll stagger-3 shadow-sm">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" class="flex-shrink-0">
+            <defs><linearGradient id="g-pill3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect width="28" height="28" rx="6" fill="url(#g-pill3)"/>
+            <path d="M9 14a5 5 0 0 1 8.66-2.5M19 14a5 5 0 0 1-8.66 2.5" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.9"/>
+            <path d="M17.5 9.5l1 2.5-2.5 0.5" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9"/>
+          </svg>
+          <div>
+            <div class="font-bold text-sm text-gray-900">Recurring Billing</div>
+            <div class="text-xs text-gray-500">Auto recurring invoices for regular clients</div>
+          </div>
+        </div>
+
+        <!-- Pill 4 -->
+        <div class="bg-white border border-gray-100 rounded-xl p-4 flex items-start gap-3 animate-on-scroll stagger-4 shadow-sm">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" class="flex-shrink-0">
+            <defs><linearGradient id="g-pill4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#04473e"/></linearGradient></defs>
+            <rect width="28" height="28" rx="6" fill="url(#g-pill4)"/>
+            <path d="M14 7l5.5 2v5c0 3-2.5 5.5-5.5 6.5C11 19.5 8.5 17 8.5 14V9L14 7z" fill="white" opacity="0.25"/>
+            <path d="M14 7l5.5 2v5c0 3-2.5 5.5-5.5 6.5C11 19.5 8.5 17 8.5 14V9L14 7z" stroke="white" stroke-width="1.5" stroke-linejoin="round" fill="none" opacity="0.9"/>
+            <path d="M11.5 14l2 2 3.5-3.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+          </svg>
+          <div>
+            <div class="font-bold text-sm text-gray-900">VAT Compliant</div>
+            <div class="text-xs text-gray-500">SA Tax Invoice, 15% VAT, compliance mode</div>
+          </div>
+        </div>
+
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- ═══════════════════════════════════════════════
-     FOOTER
-═══════════════════════════════════════════════ -->
-<footer class="bg-zinc-950 text-zinc-400 py-16">
-  <div class="max-w-7xl mx-auto px-6">
-    <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
-      <!-- Brand -->
-      <div class="lg:col-span-1">
-        <div class="flex items-center gap-2.5 mb-4">
-          <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:#04473e;">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-              <path d="M8 2C5.79 2 4 3.79 4 6c0 1.5.82 2.81 2.03 3.51L5 14h6l-1.03-4.49A4 4 0 0 0 12 6c0-2.21-1.79-4-4-4z" fill="white" opacity="0.9"/>
-              <circle cx="8" cy="6" r="2" fill="white"/>
-            </svg>
-          </div>
-          <span class="font-bold text-white text-base">SoloBid</span>
-        </div>
-        <p class="text-zinc-500 text-sm leading-relaxed mb-4">Quote it. Sign it. Get paid.</p>
-        <div class="flex gap-3">
-          <a href="#" class="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </a>
-          <a href="#" class="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="#9ca3af" stroke-width="1.5"/><circle cx="12" cy="12" r="4" stroke="#9ca3af" stroke-width="1.5"/><circle cx="17.5" cy="6.5" r="1" fill="#9ca3af"/></svg>
-          </a>
-        </div>
+  <!-- FOOTER -->
+  <footer class="bg-[#04473e] text-white py-12">
+    <div class="container mx-auto px-6">
+      <!-- Logo row -->
+      <div class="flex items-center gap-2 mb-6">
+        <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="rgba(255,255,255,0.15)"/><path d="M10 16h5v5h-5zM17 11h5v5h-5zM17 17h5v5h-5z" fill="white" opacity="0.9"/><path d="M10 10h5v5h-5z" fill="white" opacity="0.5"/></svg>
+        <span class="text-xl font-black text-white">SoloBid</span>
       </div>
-
-      <!-- Product -->
-      <div>
-        <h4 class="text-white font-semibold text-sm mb-4">Product</h4>
-        <ul class="space-y-3 text-sm">
-          <li><a href="#features" class="hover:text-white transition-colors">Features</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Templates</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Integrations</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Changelog</a></li>
-        </ul>
+      <!-- Nav links -->
+      <div class="flex gap-6 mb-6">
+        <a href="#features" class="text-white/70 hover:text-white text-sm transition-colors">Features</a>
+        <a href="#how-it-works" class="text-white/70 hover:text-white text-sm transition-colors">How it works</a>
+        <a href="#" class="text-white/70 hover:text-white text-sm transition-colors">Sign in</a>
       </div>
-
-      <!-- Company -->
-      <div>
-        <h4 class="text-white font-semibold text-sm mb-4">Company</h4>
-        <ul class="space-y-3 text-sm">
-          <li><a href="#" class="hover:text-white transition-colors">About</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Blog</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Careers</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Press</a></li>
-        </ul>
-      </div>
-
-      <!-- Support -->
-      <div>
-        <h4 class="text-white font-semibold text-sm mb-4">Support</h4>
-        <ul class="space-y-3 text-sm">
-          <li><a href="#" class="hover:text-white transition-colors">Help Centre</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Contact Us</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Community</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Status</a></li>
-        </ul>
-      </div>
-
-      <!-- Legal -->
-      <div>
-        <h4 class="text-white font-semibold text-sm mb-4">Legal</h4>
-        <ul class="space-y-3 text-sm">
-          <li><a href="#" class="hover:text-white transition-colors">Privacy Policy</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Terms of Service</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">Cookie Policy</a></li>
-          <li><a href="#" class="hover:text-white transition-colors">GDPR</a></li>
-        </ul>
-      </div>
+      <!-- Copyright -->
+      <p class="text-white/50 text-sm mb-2">© 2026 SoloBid. Built for South African freelancers.</p>
+      <!-- Tagline -->
+      <p class="text-white/40 text-xs">Quote it. Sign it. Get paid.</p>
     </div>
+  </footer>
 
-    <div class="pt-8 border-t border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-      <p class="text-zinc-600 text-sm">© 2024 SoloBid. All rights reserved.</p>
-      <p class="text-zinc-600 text-sm">Made with care for tradespeople everywhere.</p>
-    </div>
-  </div>
-</footer>
+  <script>
+    // Scroll animation
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1 });
 
-<!-- ═══════════════════════════════════════════════
-     JAVASCRIPT
-═══════════════════════════════════════════════ -->
-<script>
-  // ── Intersection Observer scroll animations ──
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-      }
+    document.querySelectorAll('.animate-on-scroll, .slide-left, .slide-right').forEach(el => {
+      observer.observe(el);
     });
-  }, { threshold: 0.15 });
 
-  document.querySelectorAll('.animate-on-scroll, .slide-left, .slide-right').forEach(el => {
-    observer.observe(el);
-  });
-
-  // ── Feature card spotlight effect ──
-  document.querySelectorAll('.feature-card').forEach(card => {
-    card.addEventListener('mousemove', (e) => {
-      const rect = card.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-      card.style.setProperty('--mouse-x', x + '%');
-      card.style.setProperty('--mouse-y', y + '%');
+    // Feature card spotlight effect
+    document.querySelectorAll('.feature-card').forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--mouse-x', x + 'px');
+        card.style.setProperty('--mouse-y', y + 'px');
+      });
     });
-  });
+  </script>
 
-  // ── Pricing toggle ──
-  function setMonthly() {
-    document.getElementById('price-display').textContent = '$19';
-    document.getElementById('price-note').textContent = 'Billed monthly';
-    document.getElementById('monthly-btn').style.background = '#04473e';
-    document.getElementById('monthly-btn').style.color = 'white';
-    document.getElementById('annual-btn').style.background = '';
-    document.getElementById('annual-btn').style.color = '';
-  }
-
-  function setAnnual() {
-    document.getElementById('price-display').textContent = '$15';
-    document.getElementById('price-note').textContent = 'Billed annually ($182/yr)';
-    document.getElementById('annual-btn').style.background = '#04473e';
-    document.getElementById('annual-btn').style.color = 'white';
-    document.getElementById('monthly-btn').style.background = '';
-    document.getElementById('monthly-btn').style.color = '';
-  }
-
-  // ── Smooth anchor scroll on nav links ──
-  document.querySelectorAll('a[href^="#"]').forEach(link => {
-    link.addEventListener('click', (e) => {
-      const target = document.querySelector(link.getAttribute('href'));
-      if (target) {
-        e.preventDefault();
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
-  });
-
-  // ── Nav shadow on scroll ──
-  const header = document.querySelector('header');
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 10) {
-      header.style.boxShadow = '0 4px 24px rgba(0,0,0,0.07)';
-    } else {
-      header.style.boxShadow = 'none';
-    }
-  });
-</script>
 </body>
 </html>
