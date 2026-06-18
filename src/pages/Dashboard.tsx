@@ -644,11 +644,11 @@ export default function Dashboard() {
                 <table className="w-full text-sm text-left border-collapse">
                   <thead>
                     <tr className="bg-zinc-50/50 text-xs font-semibold tracking-wider text-zinc-400 border-b border-zinc-100">
-                      <th className="px-5 py-3.5">Client</th>
-                      <th className="px-5 py-3.5">Dates</th>
-                      <th className="px-5 py-3.5">Status</th>
-                      <th className="px-5 py-3.5 text-right">Total</th>
-                      <th className="px-5 py-3.5 text-right">Actions</th>
+                      <th className="px-6 py-4">Client Detail</th>
+                      <th className="px-6 py-4">Dates & Validity</th>
+                      <th className="px-6 py-4">Status Flag</th>
+                      <th className="px-6 py-4 text-right">Aggregate Total</th>
+                      <th className="px-6 py-4 text-right">Management</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-50 bg-white">
@@ -657,7 +657,7 @@ export default function Dashboard() {
                       const badge = getStatusBadgeClassAndLabel(q.status, isExpired);
                       return (
                         <tr key={q.id} className="hover:bg-zinc-50/50 transition-colors group">
-                          <td className="px-5 py-3.5">
+                          <td className="px-6 py-4.5">
                             <div className="flex flex-col max-w-sm">
                               <Link to={`/quotes/${q.id}`} className="font-semibold text-zinc-800 hover:text-primary transition-colors text-base line-clamp-1">
                                 {q.clientName || 'Unnamed Client'}
@@ -665,7 +665,7 @@ export default function Dashboard() {
                               <span className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{q.clientEmail || 'No Email Registered'}</span>
                             </div>
                           </td>
-                          <td className="px-5 py-3.5">
+                          <td className="px-6 py-4.5">
                             <div className="flex flex-col text-xs text-zinc-500 space-y-0.5">
                               <span className="font-medium text-zinc-600">Created: {q.createdAt ? format(new Date(q.createdAt), 'MMM d, yyyy') : '-'}</span>
                               {q.expiresAt && (
@@ -675,20 +675,20 @@ export default function Dashboard() {
                               )}
                             </div>
                           </td>
-                          <td className="px-5 py-3.5">
+                          <td className="px-6 py-4.5">
                             <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold tracking-wider border uppercase ${badge.style}`}>
                               {badge.label}
                             </span>
                           </td>
-                          <td className="px-5 py-3.5 text-right font-semibold text-zinc-850 text-base tabular-nums">
+                          <td className="px-6 py-4.5 text-right font-semibold text-zinc-850 text-base tabular-nums">
                             {formatCurrency(q.total || 0, q.currency)}
                           </td>
-                          <td className="px-5 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
+                          <td className="px-6 py-4.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8 rounded-xl text-zinc-500 hover:text-zinc-800 bg-white border-zinc-200 shadow-sm"
+                                className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-zinc-800 bg-white border-zinc-200 shadow-sm"
                                 onClick={() => handleCopyLink(q.id)}
                                 title="Copy Secure Client Link"
                               >
@@ -697,7 +697,7 @@ export default function Dashboard() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8 rounded-xl border-[#25D366] bg-[#25D366] text-white hover:bg-[#1fb958] hover:border-[#1fb958] shadow-sm"
+                                className="h-8.5 w-8.5 rounded-xl border-[#25D366] bg-[#25D366] text-white hover:bg-[#1fb958] hover:border-[#1fb958] shadow-sm"
                                 onClick={() => handleWhatsAppShare(q)}
                                 title="Share on WhatsApp"
                               >
@@ -706,7 +706,7 @@ export default function Dashboard() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8 rounded-xl text-zinc-500 hover:text-primary bg-white border-zinc-200 hover:bg-teal-100/40 hover:border-primary/20 shadow-sm"
+                                className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-primary bg-white border-zinc-200 hover:bg-teal-100/40 hover:border-primary/20 shadow-sm"
                                 onClick={() => navigate(`/quotes/${q.id}`)}
                                 title="Edit and Revise Quote"
                               >
@@ -716,7 +716,7 @@ export default function Dashboard() {
                                 <Button
                                   variant="outline"
                                   size="icon"
-                                  className="h-8 w-8 rounded-xl text-zinc-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 bg-white border-zinc-200 shadow-sm"
+                                  className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 bg-white border-zinc-200 shadow-sm"
                                   onClick={() => handleDuplicateQuote(q)}
                                   title="Duplicate Quote"
                                 >
@@ -727,7 +727,7 @@ export default function Dashboard() {
                                 <Button
                                   variant="outline"
                                   size="icon"
-                                  className="h-8 w-8 rounded-xl text-zinc-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200 bg-white border-zinc-200 shadow-sm"
+                                  className="h-8.5 w-8.5 rounded-xl text-zinc-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200 bg-white border-zinc-200 shadow-sm"
                                   onClick={() => setDeleteId(q.id)}
                                   title="Delete Permanent Archive"
                                 >
