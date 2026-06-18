@@ -177,8 +177,8 @@ export function Layout() {
       </div>
 
       {/* Main Content Area */}
-      <div className={`flex-1 md:ml-72 p-3.5 sm:p-4 md:p-8 lg:p-10 ${!isOnline ? 'mt-10' : ''}`}>
-        <div className="max-w-7xl mx-auto">
+      <div className={`flex-1 md:ml-72 p-3.5 sm:p-4 md:p-10 ${!isOnline ? 'mt-10' : ''}`}>
+        <div className="max-w-6xl mx-auto">
           <Outlet />
         </div>
       </div>
