@@ -145,13 +145,13 @@ export function Layout() {
 
       {/* Desktop Sidebar */}
       <div className={`hidden md:flex w-72 bg-white border-r flex-col fixed h-full ${!isOnline ? 'mt-10' : ''}`}>
-        <div className="p-8 pb-6">
+        <div className="p-7 pb-5">
           <Logo />
         </div>
-        <div className="p-4 flex flex-col gap-1.5 flex-1 overflow-y-auto">
+        <div className="px-3.5 py-3 flex flex-col gap-1 flex-1 overflow-y-auto">
           <NavLinks />
         </div>
-        <div className="p-6 border-t bg-zinc-50/15 space-y-3">
+        <div className="p-5 border-t bg-zinc-50/15 space-y-2.5">
           {profile && (
             <div className="flex items-center gap-3 mb-2 p-2 rounded-2xl bg-zinc-50 border border-zinc-200/40">
               <div className="w-10 h-10 bg-teal-50 text-primary border border-teal-100 rounded-full flex items-center justify-center font-bold shadow-sm">
