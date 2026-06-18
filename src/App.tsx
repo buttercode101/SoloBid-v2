@@ -16,7 +16,6 @@ const Settings = lazy(() => import('./pages/Settings'));
 const Clients = lazy(() => import('./pages/Clients'));
 const RecurringInvoices = lazy(() => import('./pages/RecurringInvoices'));
 const ClientView = lazy(() => import('./pages/ClientView'));
-const Reports = lazy(() => import('./pages/Reports'));
 
 const LoadingScreen = () => (
   <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 text-center">
@@ -136,7 +135,6 @@ export default function App() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/recurring" element={<RecurringInvoices />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="/reports" element={<Reports />} />
           </Route>
 
           <Route path="*" element={<NotFoundRoute />} />
