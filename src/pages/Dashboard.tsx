@@ -407,14 +407,14 @@ export default function Dashboard() {
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-      className="space-y-8 max-w-7xl mx-auto"
+      className="space-y-6 md:space-y-8 max-w-7xl mx-auto"
     >
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
         <div>
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-zinc-900">
+          <h1 className="text-2xl md:text-4xl font-semibold tracking-tight text-zinc-900">
             {user ? `Welcome, ${profile?.businessName || 'Business Owner'}` : 'SoloBid Dashboard'}
           </h1>
-          <p className="text-zinc-550 mt-1.5 text-base font-normal">
+          <p className="text-zinc-550 mt-1 text-sm md:text-base font-normal">
             {user ? "Manage your quotes, track billing, and review active client pipelines." : "Get a high-level view of your business pipeline instantly."}
           </p>
         </div>
@@ -460,7 +460,7 @@ export default function Dashboard() {
       )}
 
       {/* Stats Bento Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-5">
         {[
           {
             title: "Billed This Month",
@@ -493,17 +493,17 @@ export default function Dashboard() {
             accent: "bg-purple-50 text-purple-700 border-purple-100/50"
           }
         ].map((stat, i) => (
-          <Card key={i} className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group">
-            <div className="flex justify-between items-start gap-4">
-              <div className="space-y-1.5">
-                <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 group-hover:text-zinc-500 transition-colors">{stat.title}</span>
-                <p className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">{stat.value}</p>
+          <Card key={i} className="rounded-2xl md:rounded-3xl border border-zinc-100 bg-white p-4 md:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group">
+            <div className="flex justify-between items-start gap-3 md:gap-4">
+              <div className="min-w-0 space-y-1 md:space-y-1.5">
+                <span className="block text-[10px] md:text-xs font-medium uppercase tracking-wider text-zinc-400 group-hover:text-zinc-500 transition-colors leading-tight">{stat.title}</span>
+                <p className="text-xl md:text-3xl font-semibold tracking-tight text-zinc-900 leading-tight">{stat.value}</p>
                 {stat.title === 'Vs Last Month' && (
                   <p className="text-[11px] text-zinc-400">Last month: {formatCurrency(stats.billedLastMonth)}</p>
                 )}
               </div>
-              <div className={`p-2.5 rounded-2xl border ${stat.accent} flex items-center justify-center`}>
-                <stat.icon className="w-5 h-5 stroke-[2]" />
+              <div className={`p-2 md:p-2.5 rounded-2xl border ${stat.accent} flex items-center justify-center shrink-0`}>
+                <stat.icon className="w-4 h-4 md:w-5 md:h-5 stroke-[2]" />
               </div>
             </div>
           </Card>
@@ -511,10 +511,10 @@ export default function Dashboard() {
       </div>
 
       {/* Main Recent Quotes Panel */}
-      <Card className="rounded-3xl border border-zinc-100 bg-white overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 border-b border-zinc-50 bg-zinc-50/40">
+      <Card className="rounded-2xl md:rounded-3xl border border-zinc-100 bg-white overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 md:gap-4 p-4 md:p-6 border-b border-zinc-50 bg-zinc-50/40">
           <div>
-            <CardTitle className="text-xl font-semibold text-zinc-900">Recent Quote Ledger</CardTitle>
+            <CardTitle className="text-lg md:text-xl font-semibold text-zinc-900">Recent Quote Ledger</CardTitle>
             <CardDescription className="text-zinc-500 text-xs mt-0.5">Edit, track, replicate and share quotes directly with your clients.</CardDescription>
           </div>
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
@@ -557,8 +557,8 @@ export default function Dashboard() {
                   const isExpired = isQuoteExpired(q);
                   const badge = getStatusBadgeClassAndLabel(q.status, isExpired);
                   return (
-                    <div key={q.id} className="p-5 bg-white bg-slate-50/10 hover:bg-zinc-50/30 transition-all duration-300 space-y-3 relative">
-                      <div className="flex justify-between items-start gap-4">
+                    <div key={q.id} className="p-4 bg-white bg-slate-50/10 hover:bg-zinc-50/30 transition-all duration-300 space-y-3 relative">
+                      <div className="flex justify-between items-start gap-3">
                         <div className="space-y-0.5">
                           <Link to={`/quotes/${q.id}`} className="font-semibold text-zinc-900 hover:text-primary transition-colors text-base line-clamp-1">
                             {q.clientName || 'Unnamed Client'}
@@ -578,11 +578,11 @@ export default function Dashboard() {
                           {badge.label}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between pt-2 border-t border-zinc-50">
+                      <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-50">
                         <span className="font-semibold text-zinc-900 text-lg">
                           {formatCurrency(q.total || 0, q.currency)}
                         </span>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex shrink-0 items-center gap-1">
                           <Button
                             size="icon"
                             variant="outline"
