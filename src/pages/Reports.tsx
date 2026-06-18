@@ -1,15 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { fromDbInvoice, fromDbQuote, supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { subDays, subMonths, format, isAfter, differenceInDays, isSameMonth } from 'date-fns';
 import { Download, TrendingUp, Banknote, AlertCircle, Users } from 'lucide-react';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatZAR } from '../lib/theme';
 import { toast } from 'sonner';
 
+const ReportsRevenueChart = lazy(() =>
+  import('../components/ReportsRevenueChart').then((module) => ({ default: module.ReportsRevenueChart }))
+);
 
 type DateRange = '30d' | '90d' | '12m';
 
@@ -32,8 +34,7 @@ export default function Reports() {
   const { user, profile } = useAuth();
   const [quotes, setQuotes] = useState<ReportQuote[]>([]);
   const [invoices, setInvoices] = useState<ReportInvoice[]>([]);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>('30d');
 
   const defaultCurrency = profile?.defaultCurrency || 'ZAR';
@@ -43,14 +44,10 @@ export default function Reports() {
     return `${getCurrencySymbol(currency)}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, [defaultCurrency]);
 
-  const fetchReportData = useCallback(async (isInitialLoad = false) => {
+  const fetchReportData = useCallback(async () => {
     if (!user) return;
 
-    if (isInitialLoad) {
-      setInitialLoading(true);
-    } else {
-      setRefreshing(true);
-    }
+    setLoading(true);
     try {
       const [{ data: quotesData, error: quotesError }, { data: invoicesData, error: invoicesError }] = await Promise.all([
         supabase
@@ -73,37 +70,26 @@ export default function Reports() {
     } catch (error) {
       console.error('Failed to load reports:', error);
       toast.error('Could not load reports. Please try again.');
-      if (isInitialLoad) {
-        setQuotes([]);
-        setInvoices([]);
-      }
+      setQuotes([]);
+      setInvoices([]);
     } finally {
-      if (isInitialLoad) {
-        setInitialLoading(false);
-      } else {
-        setRefreshing(false);
-      }
+      setLoading(false);
     }
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
 
-    fetchReportData(true);
+    fetchReportData();
 
-    const quotesChannel = supabase
-      .channel(`reports-quotes-${user.uid}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes', filter: `user_id=eq.${user.uid}` }, () => fetchReportData())
-      .subscribe();
-
-    const invoicesChannel = supabase
-      .channel(`reports-invoices-${user.uid}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `user_id=eq.${user.uid}` }, () => fetchReportData())
+    const channel = supabase
+      .channel(`reports-sync-${user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes', filter: `user_id=eq.${user.uid}` }, fetchReportData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `user_id=eq.${user.uid}` }, fetchReportData)
       .subscribe();
 
     return () => {
-      supabase.removeChannel(quotesChannel);
-      supabase.removeChannel(invoicesChannel);
+      supabase.removeChannel(channel);
     };
   }, [fetchReportData, user]);
 
@@ -240,7 +226,6 @@ export default function Reports() {
         <div>
           <h1 className="text-2xl font-black tracking-tight text-zinc-900">Reports</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Financial overview and performance metrics synced from your invoices and quotes</p>
-          {refreshing && <p className="mt-1 text-xs font-medium text-zinc-400">Syncing latest report data…</p>}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {(['30d', '90d', '12m'] as DateRange[]).map((range) => (
@@ -307,20 +292,9 @@ export default function Reports() {
           <CardTitle className="text-sm font-bold text-zinc-800">Monthly Revenue (Last 12 Months)</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={monthlyData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(value) => `${getCurrencySymbol(defaultCurrency)}${(Number(value) / 1000).toFixed(0)}k`} />
-              <Tooltip
-                formatter={(value: number) => formatCurrency(Number(value))}
-                contentStyle={{ borderRadius: '0.75rem', border: '1px solid #e4e4e7', fontSize: 12 }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="billed" name="Billed" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="collected" name="Collected" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <Suspense fallback={<div className="h-[260px] w-full animate-pulse rounded-2xl bg-zinc-100" />}>
+            <ReportsRevenueChart data={monthlyData} currency={defaultCurrency} formatCurrency={formatCurrency} />
+          </Suspense>
         </CardContent>
       </Card>
 
