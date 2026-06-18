@@ -70,7 +70,7 @@ export function Layout() {
             key={item.path}
             to={item.path}
             onClick={onItemClick}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+            className={`flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200 ${
               isActive 
                 ? 'bg-primary text-white shadow-sm font-bold active:scale-[0.985]' 
                 : 'text-zinc-600 hover:bg-zinc-100/70 hover:text-zinc-950'
@@ -98,7 +98,7 @@ export function Layout() {
       )}
       
       {/* Mobile Header */}
-      <div className={`md:hidden flex items-center justify-between p-4 bg-white border-b sticky top-0 z-40 ${!isOnline ? 'mt-10' : ''}`}>
+      <div className={`md:hidden flex items-center justify-between px-4 py-3 bg-white border-b sticky top-0 z-40 ${!isOnline ? 'mt-10' : ''}`}>
         <Logo />
         <div className="flex items-center gap-2">
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
@@ -107,17 +107,17 @@ export function Layout() {
                 <Menu className="w-5.5 h-5.5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0 border-r-0 rounded-r-3xl bg-white flex flex-col h-full shadow-2xl">
+            <SheetContent side="left" className="w-[18rem] max-w-[86vw] p-0 border-r-0 rounded-r-3xl bg-white flex flex-col h-full shadow-2xl">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <div className="p-6 border-b">
+              <div className="px-5 py-4 border-b">
                 <Logo onClick={() => setIsMenuOpen(false)} />
               </div>
-              <div className="p-4 flex flex-col gap-1.5 mt-2 flex-grow overflow-y-auto">
+              <div className="px-3.5 py-4 flex flex-col gap-1 flex-grow overflow-y-auto">
                 <NavLinks onItemClick={() => setIsMenuOpen(false)} />
               </div>
-              <div className="p-6 border-t bg-zinc-50/50 space-y-3 shrink-0">
+              <div className="p-4 border-t bg-zinc-50/50 space-y-2.5 shrink-0">
                 {profile && (
-                  <div className="flex items-center gap-3 mb-2 p-2 bg-white border border-zinc-100 rounded-2xl shadow-sm">
+                  <div className="flex items-center gap-3 p-2 bg-white border border-zinc-100 rounded-2xl shadow-sm">
                     <div className="w-10 h-10 bg-teal-50 text-primary border border-teal-100 rounded-full flex items-center justify-center font-bold">
                       {profile.businessName?.charAt(0).toUpperCase()}
                     </div>
@@ -177,7 +177,7 @@ export function Layout() {
       </div>
 
       {/* Main Content Area */}
-      <div className={`flex-1 md:ml-72 p-4 md:p-10 ${!isOnline ? 'mt-10' : ''}`}>
+      <div className={`flex-1 md:ml-72 p-3.5 sm:p-4 md:p-10 ${!isOnline ? 'mt-10' : ''}`}>
         <div className="max-w-6xl mx-auto">
           <Outlet />
         </div>
