@@ -1,44 +1,111 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { supabase } from '../lib/supabase';
+import { fromDbInvoice, fromDbQuote, supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { subDays, subMonths, format, isAfter, differenceInDays, startOfMonth, isSameMonth } from 'date-fns';
+import { subDays, subMonths, format, isAfter, differenceInDays, isSameMonth } from 'date-fns';
 import { Download, TrendingUp, Banknote, AlertCircle, Users } from 'lucide-react';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatZAR } from '../lib/theme';
+import { toast } from 'sonner';
+
 
 type DateRange = '30d' | '90d' | '12m';
 
+type ReportQuote = ReturnType<typeof fromDbQuote>;
+type ReportInvoice = ReturnType<typeof fromDbInvoice>;
+
+const QUOTE_REPORT_COLUMNS = 'id,user_id,client_name,status,total,currency,created_at,approved_at,updated_at';
+const INVOICE_REPORT_COLUMNS = 'id,user_id,quote_id,invoice_number,client_name,total,currency,status,due_date,paid_at,created_at,updated_at';
+
+function getCreatedDate(record: { createdAt?: string | null; created_at?: string | null }) {
+  return new Date(record.createdAt || record.created_at || 0);
+}
+
+function escapeCsvCell(value: unknown) {
+  const text = String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
 export default function Reports() {
   const { user, profile } = useAuth();
-  const [quotes, setQuotes] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [quotes, setQuotes] = useState<ReportQuote[]>([]);
+  const [invoices, setInvoices] = useState<ReportInvoice[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>('30d');
 
   const defaultCurrency = profile?.defaultCurrency || 'ZAR';
 
-  const formatCurrency = (amount: number) => {
-    if (defaultCurrency === 'ZAR') return formatZAR(amount);
-    return `${getCurrencySymbol(defaultCurrency)}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+  const formatCurrency = useCallback((amount: number, currency = defaultCurrency) => {
+    if (currency === 'ZAR') return formatZAR(amount);
+    return `${getCurrencySymbol(currency)}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }, [defaultCurrency]);
+
+  const fetchReportData = useCallback(async (isInitialLoad = false) => {
+    if (!user) return;
+
+    if (isInitialLoad) {
+      setInitialLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+    try {
+      const [{ data: quotesData, error: quotesError }, { data: invoicesData, error: invoicesError }] = await Promise.all([
+        supabase
+          .from('quotes')
+          .select(QUOTE_REPORT_COLUMNS)
+          .eq('user_id', user.uid)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('invoices')
+          .select(INVOICE_REPORT_COLUMNS)
+          .eq('user_id', user.uid)
+          .order('created_at', { ascending: false }),
+      ]);
+
+      if (quotesError) throw quotesError;
+      if (invoicesError) throw invoicesError;
+
+      setQuotes((quotesData || []).map(fromDbQuote));
+      setInvoices((invoicesData || []).map(fromDbInvoice));
+    } catch (error) {
+      console.error('Failed to load reports:', error);
+      toast.error('Could not load reports. Please try again.');
+      if (isInitialLoad) {
+        setQuotes([]);
+        setInvoices([]);
+      }
+    } finally {
+      if (isInitialLoad) {
+        setInitialLoading(false);
+      } else {
+        setRefreshing(false);
+      }
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    async function fetchData() {
-      setLoading(true);
-      const [{ data: quotesData }, { data: invoicesData }] = await Promise.all([
-        supabase.from('quotes').select('*').eq('user_id', user!.uid),
-        supabase.from('invoices').select('*').eq('user_id', user!.uid),
-      ]);
-      setQuotes(quotesData ?? []);
-      setInvoices(invoicesData ?? []);
-      setLoading(false);
-    }
-    fetchData();
-  }, [user]);
+
+    fetchReportData(true);
+
+    const quotesChannel = supabase
+      .channel(`reports-quotes-${user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes', filter: `user_id=eq.${user.uid}` }, () => fetchReportData())
+      .subscribe();
+
+    const invoicesChannel = supabase
+      .channel(`reports-invoices-${user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `user_id=eq.${user.uid}` }, () => fetchReportData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(quotesChannel);
+      supabase.removeChannel(invoicesChannel);
+    };
+  }, [fetchReportData, user]);
 
   const cutoffDate = useMemo(() => {
     if (dateRange === '30d') return subDays(new Date(), 30);
@@ -47,95 +114,89 @@ export default function Reports() {
   }, [dateRange]);
 
   const filteredQuotes = useMemo(
-    () => quotes.filter((q) => isAfter(new Date(q.created_at), cutoffDate)),
+    () => quotes.filter((quote) => isAfter(getCreatedDate(quote), cutoffDate)),
     [quotes, cutoffDate]
   );
 
   const filteredInvoices = useMemo(
-    () => invoices.filter((inv) => isAfter(new Date(inv.created_at ?? inv.issue_date ?? 0), cutoffDate)),
+    () => invoices.filter((invoice) => isAfter(getCreatedDate(invoice), cutoffDate)),
     [invoices, cutoffDate]
   );
 
   const totalBilled = useMemo(
-    () => filteredInvoices.reduce((sum, inv) => sum + (inv.total ?? 0), 0),
+    () => filteredInvoices.reduce((sum, invoice) => sum + (invoice.total ?? 0), 0),
     [filteredInvoices]
   );
 
   const totalCollected = useMemo(
-    () =>
-      filteredInvoices
-        .filter((inv) => inv.status === 'paid')
-        .reduce((sum, inv) => sum + (inv.total ?? 0), 0),
+    () => filteredInvoices.filter((invoice) => invoice.status === 'paid').reduce((sum, invoice) => sum + (invoice.total ?? 0), 0),
     [filteredInvoices]
   );
 
   const outstanding = useMemo(
-    () =>
-      filteredInvoices
-        .filter((inv) => ['sent', 'overdue'].includes(inv.status))
-        .reduce((sum, inv) => sum + (inv.total ?? 0), 0),
+    () => filteredInvoices.filter((invoice) => ['sent', 'overdue'].includes(invoice.status)).reduce((sum, invoice) => sum + (invoice.total ?? 0), 0),
     [filteredInvoices]
   );
 
   const conversionRate = useMemo(() => {
-    const sent = filteredQuotes.filter((q) => q.status !== 'draft').length;
-    const converted = filteredQuotes.filter((q) => ['approved', 'converted'].includes(q.status)).length;
+    const sent = filteredQuotes.filter((quote) => quote.status !== 'draft').length;
+    const converted = filteredQuotes.filter((quote) => ['approved', 'converted'].includes(quote.status)).length;
     if (sent === 0) return 0;
     return Math.round((converted / sent) * 100);
   }, [filteredQuotes]);
 
-  // Monthly revenue chart (last 12 months always)
   const monthlyData = useMemo(() => {
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const d = subMonths(new Date(), 11 - i);
-      return { month: format(d, 'MMM yy'), billed: 0, collected: 0, _date: d };
+    const months = Array.from({ length: 12 }, (_, index) => {
+      const date = subMonths(new Date(), 11 - index);
+      return { month: format(date, 'MMM yy'), billed: 0, collected: 0, _date: date };
     });
 
-    for (const inv of invoices) {
-      const invDate = new Date(inv.created_at ?? inv.issue_date ?? 0);
-      const bucket = months.find((m) => isSameMonth(m._date, invDate));
+    for (const invoice of invoices) {
+      const invoiceDate = getCreatedDate(invoice);
+      const bucket = months.find((month) => isSameMonth(month._date, invoiceDate));
       if (bucket) {
-        bucket.billed += inv.total ?? 0;
-        if (inv.status === 'paid') bucket.collected += inv.total ?? 0;
+        bucket.billed += invoice.total ?? 0;
+        if (invoice.status === 'paid') bucket.collected += invoice.total ?? 0;
       }
     }
 
     return months.map(({ month, billed, collected }) => ({ month, billed, collected }));
   }, [invoices]);
 
-  // Outstanding invoices table
   const outstandingInvoices = useMemo(
     () =>
       invoices
-        .filter((inv) => ['sent', 'overdue'].includes(inv.status))
-        .sort((a, b) => new Date(a.due_date ?? 0).getTime() - new Date(b.due_date ?? 0).getTime()),
+        .filter((invoice) => ['sent', 'overdue'].includes(invoice.status))
+        .sort((a, b) => new Date(a.dueDate ?? 0).getTime() - new Date(b.dueDate ?? 0).getTime()),
     [invoices]
   );
 
-  // Top clients by total quote value
   const topClients = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const q of quotes) {
-      const name = q.client_name || 'Unknown';
-      map[name] = (map[name] ?? 0) + (q.total ?? 0);
+    const totalsByClient: Record<string, number> = {};
+    for (const invoice of invoices) {
+      const name = invoice.clientName || 'Unknown';
+      totalsByClient[name] = (totalsByClient[name] ?? 0) + (invoice.total ?? 0);
     }
-    return Object.entries(map)
+    return Object.entries(totalsByClient)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
-  }, [quotes]);
+  }, [invoices]);
 
   const handleExportCSV = () => {
-    const headers = ['Invoice ID', 'Client', 'Status', 'Total', 'Issue Date', 'Due Date'];
-    const rows = invoices.map((inv) => [
-      inv.id,
-      inv.client_name ?? '',
-      inv.status ?? '',
-      inv.total ?? 0,
-      inv.issue_date ?? inv.created_at ?? '',
-      inv.due_date ?? '',
+    const headers = ['Invoice ID', 'Invoice Number', 'Client', 'Status', 'Total', 'Currency', 'Created Date', 'Due Date', 'Paid Date'];
+    const rows = invoices.map((invoice) => [
+      invoice.id,
+      invoice.invoiceNumber ?? '',
+      invoice.clientName ?? '',
+      invoice.status ?? '',
+      invoice.total ?? 0,
+      invoice.currency ?? defaultCurrency,
+      invoice.createdAt ?? '',
+      invoice.dueDate ?? '',
+      invoice.paidAt ?? '',
     ]);
-    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = [headers, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -150,34 +211,49 @@ export default function Reports() {
     '12m': 'Last 12 months',
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="text-sm text-zinc-500">Loading reports…</div>
+      <div className="space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-zinc-900">Reports</h1>
+            <p className="text-sm text-zinc-500 mt-0.5">Loading financial overview and performance metrics…</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="border-zinc-200 rounded-2xl shadow-sm">
+              <CardContent className="p-5 space-y-3">
+                <div className="h-4 w-24 animate-pulse rounded bg-zinc-100" />
+                <div className="h-7 w-32 animate-pulse rounded bg-zinc-100" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-zinc-900">Reports</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Financial overview and performance metrics</p>
+          <p className="text-sm text-zinc-500 mt-0.5">Financial overview and performance metrics synced from your invoices and quotes</p>
+          {refreshing && <p className="mt-1 text-xs font-medium text-zinc-400">Syncing latest report data…</p>}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(['30d', '90d', '12m'] as DateRange[]).map((r) => (
+          {(['30d', '90d', '12m'] as DateRange[]).map((range) => (
             <button
-              key={r}
-              onClick={() => setDateRange(r)}
+              key={range}
+              onClick={() => setDateRange(range)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                dateRange === r
+                dateRange === range
                   ? 'bg-primary text-white shadow-sm'
                   : 'bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50'
               }`}
             >
-              {rangeLabels[r]}
+              {rangeLabels[range]}
             </button>
           ))}
           <Button variant="outline" size="sm" className="rounded-lg text-xs font-semibold" onClick={handleExportCSV}>
@@ -187,7 +263,6 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-zinc-200 rounded-2xl shadow-sm">
           <CardContent className="p-5">
@@ -227,7 +302,6 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Revenue chart */}
       <Card className="border-zinc-200 rounded-2xl shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold text-zinc-800">Monthly Revenue (Last 12 Months)</CardTitle>
@@ -237,9 +311,9 @@ export default function Reports() {
             <BarChart data={monthlyData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${getCurrencySymbol(defaultCurrency)}${(v / 1000).toFixed(0)}k`} />
+              <YAxis tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(value) => `${getCurrencySymbol(defaultCurrency)}${(Number(value) / 1000).toFixed(0)}k`} />
               <Tooltip
-                formatter={(value: number) => formatCurrency(value)}
+                formatter={(value: number) => formatCurrency(Number(value))}
                 contentStyle={{ borderRadius: '0.75rem', border: '1px solid #e4e4e7', fontSize: 12 }}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -251,7 +325,6 @@ export default function Reports() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Outstanding invoices */}
         <Card className="border-zinc-200 rounded-2xl shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold text-zinc-800">Outstanding Invoices</CardTitle>
@@ -261,24 +334,22 @@ export default function Reports() {
               <p className="text-sm text-zinc-400 px-6 pb-6">No outstanding invoices.</p>
             ) : (
               <div className="divide-y divide-zinc-100">
-                {outstandingInvoices.map((inv) => {
-                  const daysOverdue = inv.due_date
-                    ? differenceInDays(new Date(), new Date(inv.due_date))
-                    : null;
+                {outstandingInvoices.map((invoice) => {
+                  const daysOverdue = invoice.dueDate ? differenceInDays(new Date(), new Date(invoice.dueDate)) : null;
                   return (
-                    <div key={inv.id} className="flex items-center justify-between px-6 py-3.5 hover:bg-zinc-50/60 transition-colors">
+                    <div key={invoice.id} className="flex items-center justify-between px-6 py-3.5 hover:bg-zinc-50/60 transition-colors">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-zinc-900 truncate">{inv.client_name || 'Unknown'}</p>
+                        <p className="text-sm font-semibold text-zinc-900 truncate">{invoice.clientName || 'Unknown'}</p>
                         {daysOverdue !== null && daysOverdue > 0 ? (
                           <p className="text-xs text-red-500 font-medium">{daysOverdue}d overdue</p>
                         ) : (
-                          <p className="text-xs text-zinc-400">Due {inv.due_date ? format(new Date(inv.due_date), 'dd MMM yyyy') : '—'}</p>
+                          <p className="text-xs text-zinc-400">Due {invoice.dueDate ? format(new Date(invoice.dueDate), 'dd MMM yyyy') : '—'}</p>
                         )}
                       </div>
                       <div className="text-right shrink-0 ml-4">
-                        <p className="text-sm font-bold text-zinc-900">{formatCurrency(inv.total ?? 0)}</p>
-                        <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${inv.status === 'overdue' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>
-                          {inv.status}
+                        <p className="text-sm font-bold text-zinc-900">{formatCurrency(invoice.total ?? 0, invoice.currency)}</p>
+                        <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${invoice.status === 'overdue' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>
+                          {invoice.status}
                         </span>
                       </div>
                     </div>
@@ -289,7 +360,6 @@ export default function Reports() {
           </CardContent>
         </Card>
 
-        {/* Top clients */}
         <Card className="border-zinc-200 rounded-2xl shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold text-zinc-800">Top Clients by Revenue</CardTitle>
@@ -299,10 +369,10 @@ export default function Reports() {
               <p className="text-sm text-zinc-400 px-6 pb-6">No client data yet.</p>
             ) : (
               <div className="divide-y divide-zinc-100">
-                {topClients.map(([name, total], i) => (
+                {topClients.map(([name, total], index) => (
                   <div key={name} className="flex items-center justify-between px-6 py-3.5 hover:bg-zinc-50/60 transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-xs font-bold text-zinc-400 w-4 shrink-0">{i + 1}</span>
+                      <span className="text-xs font-bold text-zinc-400 w-4 shrink-0">{index + 1}</span>
                       <p className="text-sm font-semibold text-zinc-900 truncate">{name}</p>
                     </div>
                     <p className="text-sm font-bold text-zinc-900 shrink-0 ml-4">{formatCurrency(total)}</p>
