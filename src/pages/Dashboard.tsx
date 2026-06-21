@@ -494,7 +494,7 @@ export default function Dashboard() {
             accent: "bg-purple-50 text-purple-700 border-purple-100/50"
           }
         ].map((stat, i) => (
-          <Card key={i} className="rounded-3xl border border-zinc-100 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group">
+          <Card key={i} className={`rounded-3xl border border-zinc-100 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group${i === 4 ? ' col-span-2 lg:col-span-1' : ''}`}>
             <div className="flex justify-between items-start gap-4">
               <div className="space-y-1.5">
                 <span className="text-xs font-medium uppercase tracking-wider text-zinc-400 group-hover:text-zinc-500 transition-colors">{stat.title}</span>
@@ -583,11 +583,20 @@ export default function Dashboard() {
                         <span className="font-semibold text-zinc-900 text-lg">
                           {formatCurrency(q.total || 0, q.currency)}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8.5 w-8.5 rounded-lg border-[#25D366] bg-[#25D366] text-white hover:bg-[#1fb958] hover:border-[#1fb958]"
+                            onClick={() => handleWhatsAppShare(q)}
+                            title="Share on WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 rounded-lg text-xs border-zinc-200 text-zinc-700 hover:bg-teal-50 hover:text-primary hover:border-primary/20 px-3"
+                            className="h-8.5 rounded-lg text-xs border-zinc-200 text-zinc-700 hover:bg-teal-50 hover:text-primary hover:border-primary/20 px-2.5"
                             onClick={() => navigate(`/quotes/${q.id}`)}
                           >
                             Open
@@ -595,7 +604,7 @@ export default function Dashboard() {
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg border-zinc-200 text-zinc-500">
+                              <Button size="icon" variant="outline" className="h-8.5 w-8.5 rounded-lg border-zinc-200 text-zinc-500">
                                 <MoreVertical className="w-3.5 h-3.5" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -603,10 +612,6 @@ export default function Dashboard() {
                               <DropdownMenuItem onClick={() => handleCopyLink(q.id)}>
                                 {copiedId === q.id ? <Check className="w-3.5 h-3.5 mr-2 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 mr-2" />}
                                 Copy Link
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleWhatsAppShare(q)}>
-                                <MessageCircle className="w-3.5 h-3.5 mr-2 text-[#25D366]" />
-                                Share via WhatsApp
                               </DropdownMenuItem>
                               {user && (
                                 <DropdownMenuItem onClick={() => handleDuplicateQuote(q)}>

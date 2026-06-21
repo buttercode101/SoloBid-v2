@@ -102,6 +102,13 @@ export function Layout() {
       <div className={`md:hidden flex items-center justify-between p-4 bg-white border-b sticky top-0 z-40 ${!isOnline ? 'mt-10' : ''}`}>
         <Logo />
         <div className="flex items-center gap-2">
+          <Link
+            to="/quotes/new"
+            className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-teal-200/60 active:scale-95 transition-transform"
+            title="New Quote"
+          >
+            <Plus className="w-4.5 h-4.5 text-white stroke-[2.5]" />
+          </Link>
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="hover:bg-zinc-100 h-9.5 w-9.5 rounded-xl">
@@ -178,51 +185,11 @@ export function Layout() {
       </div>
 
       {/* Main Content Area */}
-      <div className={`flex-1 md:ml-72 p-4 md:p-10 pb-24 md:pb-10 ${!isOnline ? 'mt-10' : ''}`}>
+      <div className={`flex-1 md:ml-72 p-4 md:p-10 ${!isOnline ? 'mt-10' : ''}`}>
         <div className="max-w-6xl mx-auto">
           <Outlet />
         </div>
       </div>
-
-      {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-zinc-100 flex items-end justify-around px-2 pb-2 pt-1">
-        {(() => {
-          const left = [
-            { path: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-            { path: '/clients', icon: Users, label: 'Clients' },
-          ];
-          const right = [
-            { path: '/invoices', icon: FileSpreadsheet, label: 'Invoices' },
-            { path: '/settings', icon: Settings, label: 'Settings' },
-          ];
-          const Tab = ({ path, icon: Icon, label }: { path: string; icon: React.ElementType; label: string }) => {
-            const isActive = location.pathname === path || (location.pathname.startsWith(path) && path !== '/');
-            return (
-              <Link
-                to={path}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors ${
-                  isActive ? 'text-primary' : 'text-zinc-400'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-[10px] font-semibold">{label}</span>
-              </Link>
-            );
-          };
-          return (
-            <>
-              {left.map((t) => <Tab key={t.path} {...t} />)}
-              <Link to="/quotes/new" className="flex flex-col items-center gap-0.5 px-2 -mt-3">
-                <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-teal-300/40">
-                  <Plus className="w-6 h-6 text-white stroke-[2.5]" />
-                </div>
-                <span className="text-[10px] font-semibold text-zinc-400 mt-0.5">New</span>
-              </Link>
-              {right.map((t) => <Tab key={t.path} {...t} />)}
-            </>
-          );
-        })()}
-      </nav>
     </div>
   );
 }

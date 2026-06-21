@@ -366,7 +366,7 @@ export default function Invoices() {
                             Pay Now
                           </Button>
                         )}
-                        {inv.status !== 'paid' && inv.status !== 'sent' && inv.status !== 'overdue' && (
+                        {inv.status !== 'paid' && (
                           <Button
                             variant="outline"
                             size="sm"
