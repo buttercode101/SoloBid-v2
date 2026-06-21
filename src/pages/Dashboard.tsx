@@ -367,7 +367,7 @@ export default function Dashboard() {
     return (
       <div className="space-y-8 animate-pulse">
         <div className="flex flex-col gap-2">
-          <div className="h-9 bg-zinc-250 w-64 rounded-xl"></div>
+          <div className="h-9 bg-zinc-200 w-64 rounded-xl"></div>
           <div className="h-4 bg-zinc-200 w-96 rounded-lg"></div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">

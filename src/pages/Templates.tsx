@@ -294,7 +294,7 @@ export default function Templates() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2 border-b border-zinc-100">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">Bid Templates</h1>
-          <p className="text-zinc-455 text-xs mt-0.5">Save templates of your services to create and send quotes in under 30 seconds.</p>
+          <p className="text-zinc-500 text-xs mt-0.5">Save templates of your services to create and send quotes in under 30 seconds.</p>
         </div>
         
         <div className="flex gap-2.5">
@@ -342,7 +342,7 @@ export default function Templates() {
                     onChange={(e) => setFormData({...formData, description: e.target.value})}
                     placeholder="e.g. Standard labor rate and material costs..."
                     rows={3}
-                    className="rounded-xl border-zinc-250 text-sm p-2.5 focus:ring-primary focus:border-primary"
+                    className="rounded-xl border-zinc-200 text-sm p-2.5 focus:ring-primary focus:border-primary"
                   />
                 </div>
                 <div className="pt-2">
@@ -387,7 +387,7 @@ export default function Templates() {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-8.5 w-8.5 rounded-lg text-zinc-400 hover:text-red-650 hover:bg-red-50 transition-colors" 
+                        className="h-8.5 w-8.5 rounded-lg text-zinc-400 hover:text-red-700 hover:bg-red-50 transition-colors" 
                         onClick={() => setDeleteId(template.id)}
                         title="Delete Template"
                       >
@@ -398,7 +398,7 @@ export default function Templates() {
                   
                   <div className="mt-4 space-y-1">
                     <h3 className="font-semibold text-zinc-900 text-lg group-hover:text-primary transition-colors line-clamp-1">{template.name}</h3>
-                    <p className="text-zinc-455 text-xs line-clamp-2 min-h-[32px] leading-relaxed">{template.description || "No notes added for this template."}</p>
+                    <p className="text-zinc-500 text-xs line-clamp-2 min-h-[32px] leading-relaxed">{template.description || "No notes added for this template."}</p>
                   </div>
                 </div>
 
@@ -443,7 +443,7 @@ export default function Templates() {
         {templates.length === 0 && (
           <div className="col-span-full">
             <EmptyState
-              icon={<FileText className="w-8 h-8 text-zinc-350" />}
+              icon={<FileText className="w-8 h-8 text-zinc-400" />}
               title="No templates saved yet"
               description="Create your own templates or load our starter templates to create quotes faster."
               action={{

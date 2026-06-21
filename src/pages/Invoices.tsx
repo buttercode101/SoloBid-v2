@@ -265,7 +265,7 @@ export default function Invoices() {
     >
       <div className="pb-2 border-b border-zinc-100">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">Billing & Invoices</h1>
-        <p className="text-zinc-455 text-xs mt-0.5">Track payments, send invoices, and update payment status.</p>
+        <p className="text-zinc-500 text-xs mt-0.5">Track payments, send invoices, and update payment status.</p>
       </div>
 
       <AnimatePresence mode="popLayout">
@@ -323,7 +323,7 @@ export default function Invoices() {
           {invoices.length === 0 ? (
             <div className="p-12">
               <EmptyState
-                icon={<DollarSign className="w-8 h-8 text-zinc-350" />}
+                icon={<DollarSign className="w-8 h-8 text-zinc-400" />}
                 title="No invoices yet"
                 description="Create your first invoice by converting an approved quote, or start by creating a new quote."
                 action={{

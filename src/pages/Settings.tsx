@@ -250,7 +250,7 @@ export default function Settings() {
     >
       <div className="pb-2 border-b border-zinc-100">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">Account Preferences</h1>
-        <p className="text-zinc-455 text-xs mt-0.5">Configure default currencies, corporate markups, standard terms, and taxes.</p>
+        <p className="text-zinc-500 text-xs mt-0.5">Configure default currencies, corporate markups, standard terms, and taxes.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -347,7 +347,7 @@ export default function Settings() {
                         <img src={profile.logoUrl} alt="Company logo" className="h-full w-full object-contain" />
                       </div>
                     )}
-                    <label className="relative flex items-center justify-center bg-white hover:bg-zinc-50 text-zinc-700 h-9 px-4.5 rounded-xl border border-zinc-250 cursor-pointer font-semibold text-xs active:scale-95 transition-all shadow-inner">
+                    <label className="relative flex items-center justify-center bg-white hover:bg-zinc-50 text-zinc-700 h-9 px-4.5 rounded-xl border border-zinc-200 cursor-pointer font-semibold text-xs active:scale-95 transition-all shadow-inner">
                       Browse File
                       <input 
                         id="logo" 
@@ -412,7 +412,7 @@ export default function Settings() {
                     <label className="flex items-start space-x-2.5 h-10 cursor-pointer group bg-zinc-50/50 py-2.5 px-3.5 rounded-2xl border border-zinc-200/40 hover:bg-zinc-50 transition-colors">
                       <input 
                         type="checkbox" 
-                        className="rounded border-zinc-350 text-primary focus:ring-primary mt-1 h-4 w-4"
+                        className="rounded border-zinc-300 text-primary focus:ring-primary mt-1 h-4 w-4"
                         checked={formData.saTaxInvoiceMode}
                         onChange={(e) => setFormData({...formData, saTaxInvoiceMode: e.target.checked})}
                       />
@@ -511,7 +511,7 @@ export default function Settings() {
                   <Textarea 
                     id="terms" 
                     rows={4}
-                    className="rounded-xl border-zinc-250 font-normal focus:ring-primary focus:border-primary text-sm p-3 shadow-inner bg-zinc-50/10"
+                    className="rounded-xl border-zinc-200 font-normal focus:ring-primary focus:border-primary text-sm p-3 shadow-inner bg-zinc-50/10"
                     placeholder="e.g. Terms are strictly 14 days from statement conversion."
                     value={formData.terms}
                     onChange={(e) => setFormData({...formData, terms: e.target.value})}
@@ -676,7 +676,7 @@ export default function Settings() {
       <Dialog open={!!purgeType} onOpenChange={() => { setPurgeType(null); setResetConfirmInput(''); }}>
         <DialogContent className="sm:max-w-md rounded-3xl border border-zinc-100 p-6">
           <DialogHeader className="space-y-3">
-            <DialogTitle className="text-red-650 flex items-center gap-2 text-md font-bold">
+            <DialogTitle className="text-red-600 flex items-center gap-2 text-md font-bold">
               <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
               {purgeType === 'profile' ? "Factory Reset Account" : "Delete All Data"}
             </DialogTitle>
@@ -693,7 +693,7 @@ export default function Settings() {
                 </>
               )}
             </p>
-            <p className="text-[10px] text-red-650 font-semibold bg-red-50 p-3 rounded-xl border border-red-100 leading-relaxed">
+            <p className="text-[10px] text-red-600 font-semibold bg-red-50 p-3 rounded-xl border border-red-100 leading-relaxed">
               ⚠️ WARNING: This action cannot be undone. This data will be permanently wiped.
             </p>
             <div className="space-y-2">
