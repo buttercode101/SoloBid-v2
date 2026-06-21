@@ -255,7 +255,7 @@ export default function Settings() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="rounded-3xl border border-zinc-150 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
+          <Card className="rounded-3xl border border-zinc-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
             <CardHeader className="p-6 border-b border-zinc-50 flex flex-row items-center justify-between bg-zinc-50/10">
               <div>
                 <CardTitle className="text-lg font-semibold text-zinc-900 flex items-center gap-2">
@@ -343,7 +343,7 @@ export default function Settings() {
                   </div>
                   <div className="flex items-center gap-4 shrink-0">
                     {profile?.logoUrl && !logoFile && (
-                      <div className="h-12 w-12 rounded-xl bg-white border border-zinc-150 p-1 overflow-hidden flex items-center justify-center shrink-0">
+                      <div className="h-12 w-12 rounded-xl bg-white border border-zinc-200 p-1 overflow-hidden flex items-center justify-center shrink-0">
                         <img src={profile.logoUrl} alt="Company logo" className="h-full w-full object-contain" />
                       </div>
                     )}
@@ -527,7 +527,7 @@ export default function Settings() {
             </CardContent>
           </Card>
           {/* Payment Methods — Bank Details */}
-          <Card className="rounded-3xl border border-zinc-150 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
+          <Card className="rounded-3xl border border-zinc-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
             <CardHeader className="p-6 border-b border-zinc-50 flex flex-row items-center justify-between bg-zinc-50/10">
               <div>
                 <CardTitle className="text-lg font-semibold text-zinc-900 flex items-center gap-2">
@@ -601,7 +601,7 @@ export default function Settings() {
               <Sliders className="w-4 h-4 text-primary" />
               Settings Guide
             </h3>
-            <p className="text-xs text-zinc-450 mt-1 lines-clamp-2">Set your default rates and terms to create quotes and invoices faster.</p>
+            <p className="text-xs text-zinc-400 mt-1 lines-clamp-2">Set your default rates and terms to create quotes and invoices faster.</p>
             
             <div className="mt-4 pt-4 border-t space-y-3 text-xs leading-relaxed text-zinc-600 font-medium">
               <div className="flex gap-2">
@@ -631,9 +631,9 @@ export default function Settings() {
               <CardContent className="p-6 space-y-5 bg-white">
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <h4 className="font-bold text-zinc-850 text-xs">Delete All Quotes & Invoices</h4>
+                    <h4 className="font-bold text-zinc-800 text-xs">Delete All Quotes & Invoices</h4>
                   </div>
-                  <p className="text-[10px] text-zinc-450 leading-relaxed">
+                  <p className="text-[10px] text-zinc-400 leading-relaxed">
                     Permanently deletes all quotes, invoices, clients, templates, and expenses. Your profile settings will stay intact.
                   </p>
                   <Button 
@@ -653,7 +653,7 @@ export default function Settings() {
                   <div className="flex justify-between items-center">
                     <h4 className="font-bold text-red-950 text-xs">Full Factory Reset</h4>
                   </div>
-                  <p className="text-[10px] text-zinc-450 leading-relaxed">
+                  <p className="text-[10px] text-zinc-400 leading-relaxed">
                     Deletes all your data, resets your rates to default, removes your business logo, and wipes all clients and templates.
                   </p>
                   <Button 
@@ -697,7 +697,7 @@ export default function Settings() {
               ⚠️ WARNING: This action cannot be undone. This data will be permanently wiped.
             </p>
             <div className="space-y-2">
-              <Label htmlFor="safety-input" className="text-[11px] font-semibold text-zinc-650">
+              <Label htmlFor="safety-input" className="text-[11px] font-semibold text-zinc-600">
                 Type <span className="font-mono bg-zinc-100 px-1 py-0.5 rounded text-red-600 font-bold">{purgeType === 'profile' ? 'RESET' : 'DELETE'}</span> to confirm:
               </Label>
               <Input

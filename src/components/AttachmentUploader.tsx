@@ -164,7 +164,7 @@ export function AttachmentUploader({
           {attachments.map((att) => (
             <div
               key={att.id}
-              className="group relative rounded-xl border border-zinc-150 bg-zinc-50 overflow-hidden shadow-sm"
+              className="group relative rounded-xl border border-zinc-200 bg-zinc-50 overflow-hidden shadow-sm"
             >
               {isImage(att.fileType) ? (
                 <img

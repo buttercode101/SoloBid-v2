@@ -184,7 +184,7 @@ export default function Reports() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Reports</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">Reports</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Financial overview and performance metrics</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -251,7 +251,7 @@ export default function Reports() {
       {/* Revenue chart */}
       <Card className="border-zinc-200 rounded-2xl shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-bold text-zinc-800">Monthly Revenue (Last 12 Months)</CardTitle>
+          <CardTitle className="text-sm font-semibold text-zinc-800">Monthly Revenue (Last 12 Months)</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={260}>
@@ -275,7 +275,7 @@ export default function Reports() {
         {/* Outstanding invoices */}
         <Card className="border-zinc-200 rounded-2xl shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold text-zinc-800">Outstanding Invoices</CardTitle>
+            <CardTitle className="text-sm font-semibold text-zinc-800">Outstanding Invoices</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {outstandingInvoices.length === 0 ? (
@@ -313,7 +313,7 @@ export default function Reports() {
         {/* Top clients */}
         <Card className="border-zinc-200 rounded-2xl shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold text-zinc-800">Top Clients by Revenue</CardTitle>
+            <CardTitle className="text-sm font-semibold text-zinc-800">Top Clients by Revenue</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {topClients.length === 0 ? (

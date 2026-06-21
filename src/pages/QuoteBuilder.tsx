@@ -130,7 +130,7 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
       exit={{ opacity: 0, scale: 0.95 }}
       ref={setNodeRef} 
       style={style} 
-      className="p-5 border border-zinc-150/80 bg-zinc-50/40 rounded-2xl space-y-4 relative group hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all duration-200"
+      className="p-5 border border-zinc-200/80 bg-zinc-50/40 rounded-2xl space-y-4 relative group hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all duration-200"
       onKeyDown={handleKeyDown}
       role="region"
       aria-label={`Line item: ${item.description}`}
@@ -198,7 +198,7 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
             type="text"
             inputMode="decimal"
             value={item.qty} 
-            className="h-9.5 rounded-xl border-zinc-200 text-zinc-850"
+            className="h-9.5 rounded-xl border-zinc-200 text-zinc-800"
             onChange={e => {
               const val = e.target.value;
               if (val === '' || /^\d*\.?\d*$/.test(val)) {
@@ -214,7 +214,7 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
             type="text"
             inputMode="decimal"
             value={item.unitCost} 
-            className="h-9.5 rounded-xl border-zinc-200 text-zinc-850"
+            className="h-9.5 rounded-xl border-zinc-200 text-zinc-800"
             onChange={e => {
               const val = e.target.value;
               if (val === '' || /^\d*\.?\d*$/.test(val)) {
@@ -227,7 +227,7 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
       
       <div className="pl-7 pr-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pt-1">
         {item.type === 'material' ? (
-          <div className="flex items-center gap-2.5 text-xs text-zinc-450 bg-zinc-100/50 py-1 px-2.5 rounded-lg border border-zinc-200/40">
+          <div className="flex items-center gap-2.5 text-xs text-zinc-400 bg-zinc-100/50 py-1 px-2.5 rounded-lg border border-zinc-200/40">
             <span className="font-medium text-zinc-500">Material Markup %:</span>
             <Input 
               type="text"
@@ -244,8 +244,8 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
           </div>
         ) : <div className="hidden md:block" />}
         
-        <div className="text-sm font-semibold text-zinc-850 md:text-right w-full md:w-auto self-end">
-          <span className="text-zinc-450 font-normal mr-1.5 text-xs">Line total:</span>
+        <div className="text-sm font-semibold text-zinc-800 md:text-right w-full md:w-auto self-end">
+          <span className="text-zinc-400 font-normal mr-1.5 text-xs">Line total:</span>
           <span className="text-zinc-900 tabular-nums font-semibold">{formatCurrencyValue(roundedTotal())}</span>
         </div>
       </div>
@@ -1119,7 +1119,7 @@ export default function QuoteBuilder() {
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-9.5 w-9.5 rounded-xl border border-zinc-200/50 hover:bg-zinc-100 cursor-pointer text-zinc-650"
+            className="h-9.5 w-9.5 rounded-xl border border-zinc-200/50 hover:bg-zinc-100 cursor-pointer text-zinc-600"
             onClick={() => navigate(-1)} 
             aria-label="Go back"
           >
@@ -1130,7 +1130,7 @@ export default function QuoteBuilder() {
               {id ? 'Edit Bid Proposal' : 'Draft New Quote'}
               {quoteNumber && <span className="ml-3 text-base font-mono text-zinc-400 tracking-wide">{quoteNumber}</span>}
             </h1>
-            <p className="text-zinc-450 text-xs mt-0.5">Fill in the customer details, line items, and tax rate.</p>
+            <p className="text-zinc-400 text-xs mt-0.5">Fill in the customer details, line items, and tax rate.</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {!isOnline && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">
@@ -1444,7 +1444,7 @@ export default function QuoteBuilder() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     key={expense.id} 
-                    className="flex flex-col md:flex-row items-start md:items-center gap-4 p-4.5 border border-zinc-150 bg-zinc-50/30 rounded-2xl hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all duration-200"
+                    className="flex flex-col md:flex-row items-start md:items-center gap-4 p-4.5 border border-zinc-200 bg-zinc-50/30 rounded-2xl hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all duration-200"
                   >
                     <div className="flex-1 w-full space-y-1.5">
                       <Label className="text-xs text-zinc-500 font-medium">Item Name / Description</Label>
@@ -1461,7 +1461,7 @@ export default function QuoteBuilder() {
                         type="text"
                         inputMode="decimal"
                         value={expense.amount} 
-                        className="h-9.5 rounded-xl border-zinc-200 text-zinc-850"
+                        className="h-9.5 rounded-xl border-zinc-200 text-zinc-800"
                         onChange={e => {
                           const val = e.target.value;
                           if (val === '' || /^\d*\.?\d*$/.test(val)) {
@@ -1508,7 +1508,7 @@ export default function QuoteBuilder() {
               </AnimatePresence>
               
               {expenses.length === 0 && (
-                <div className="text-center py-10 text-zinc-400 border border-dashed border-zinc-150 rounded-2xl bg-zinc-50/10">
+                <div className="text-center py-10 text-zinc-400 border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/10">
                   <span className="block text-xs text-zinc-400">No expenses added yet.</span>
                 </div>
               )}
@@ -1566,19 +1566,19 @@ export default function QuoteBuilder() {
               </div>
               
               <div className="space-y-3 font-normal text-sm">
-                <div className="flex justify-between items-center text-zinc-550">
+                <div className="flex justify-between items-center text-zinc-500">
                   <span>Subtotal</span>
-                  <span className="font-semibold text-zinc-750 tabular-nums">{formatCurrency(subtotal, currency)}</span>
+                  <span className="font-semibold text-zinc-700 tabular-nums">{formatCurrency(subtotal, currency)}</span>
                 </div>
                 
-                <div className="flex justify-between items-center text-zinc-550 border-t border-zinc-50 pt-2.5">
+                <div className="flex justify-between items-center text-zinc-500 border-t border-zinc-50 pt-2.5">
                   <span className="text-zinc-500 flex items-center gap-1">
                     {currency === 'ZAR' && profile?.saTaxInvoiceMode ? (
                       <span title="SA Tax Invoice mode forces 15% VAT. Change in Settings if needed.">VAT (15%) ⓘ</span>
                     ) : (
                       <>
                         <span className="mr-1 shrink-0">Tax</span>
-                        <div className="inline-flex items-center gap-1 text-zinc-700 bg-zinc-50 border border-zinc-150 rounded-lg px-2 py-0.5 font-bold">
+                        <div className="inline-flex items-center gap-1 text-zinc-700 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-0.5 font-bold">
                           <Input 
                             type="text"
                             inputMode="decimal"
@@ -1596,12 +1596,12 @@ export default function QuoteBuilder() {
                       </>
                     )}
                   </span>
-                  <span className="font-semibold text-zinc-750 tabular-nums">{formatCurrency(tax, currency)}</span>
+                  <span className="font-semibold text-zinc-700 tabular-nums">{formatCurrency(tax, currency)}</span>
                 </div>
 
-                <div className="pt-4 border-t border-zinc-150 flex justify-between items-baseline gap-2">
+                <div className="pt-4 border-t border-zinc-200 flex justify-between items-baseline gap-2">
                   <span className="font-bold text-zinc-900 text-base">Grand Total</span>
-                  <span className="text-3xl font-bold tracking-tight text-[#03423a] tabular-nums self-end">
+                  <span className="text-3xl font-bold tracking-tight text-primary tabular-nums self-end">
                     {formatCurrency(total, currency)}
                   </span>
                 </div>

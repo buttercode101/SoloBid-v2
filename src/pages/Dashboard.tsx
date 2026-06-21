@@ -397,7 +397,7 @@ export default function Dashboard() {
       case 'rejected':
         return { style: statusBadgeStyles.rejected, label: 'Declined' };
       case 'expired':
-        return { style: 'bg-red-50 text-red-700 border border-red-150', label: 'Expired' };
+        return { style: 'bg-red-50 text-red-700 border border-red-200', label: 'Expired' };
       default:
         return { style: statusBadgeStyles.draft, label: 'Draft' };
     }
@@ -415,7 +415,7 @@ export default function Dashboard() {
           <h1 className="text-2xl md:text-4xl font-semibold tracking-tight text-zinc-900">
             {user ? `Welcome, ${profile?.businessName || 'Business Owner'}` : 'SoloBid Dashboard'}
           </h1>
-          <p className="text-zinc-550 mt-1.5 text-base font-normal">
+          <p className="text-zinc-500 mt-1.5 text-base font-normal">
             {user ? "Manage your quotes, track billing, and review active client pipelines." : "Get a high-level view of your business pipeline instantly."}
           </p>
         </div>
@@ -524,7 +524,7 @@ export default function Dashboard() {
               <Input
                 type="search"
                 placeholder="Search clients or status..."
-                className="pl-9 h-9.5 rounded-xl border-zinc-150 bg-white shadow-sm font-normal text-sm focus:ring-primary focus:border-primary"
+                className="pl-9 h-9.5 rounded-xl border-zinc-200 bg-white shadow-sm font-normal text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-colors"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -532,7 +532,7 @@ export default function Dashboard() {
             <Button
               variant="outline"
               size="icon"
-              className="h-9.5 w-9.5 rounded-xl border-zinc-150 bg-white hover:bg-zinc-50 text-zinc-500 cursor-pointer shadow-sm active:scale-95"
+              className="h-9.5 w-9.5 rounded-xl border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-500 cursor-pointer shadow-sm active:scale-95"
               onClick={handleExportCSV}
               title="Export CSV"
             >
@@ -564,7 +564,7 @@ export default function Dashboard() {
                           <Link to={`/quotes/${q.id}`} className="font-semibold text-zinc-900 hover:text-primary transition-colors text-base line-clamp-1">
                             {q.clientName || 'Unnamed Client'}
                           </Link>
-                          <div className="text-xs text-zinc-450 space-y-0.5">
+                          <div className="text-xs text-zinc-400 space-y-0.5">
                             <p className="flex items-center gap-1.5">
                               <span>Sent: {q.createdAt ? format(new Date(q.createdAt), 'yyyy/MM/dd') : '-'}</span>
                             </p>
@@ -678,7 +678,7 @@ export default function Dashboard() {
                               {badge.label}
                             </span>
                           </td>
-                          <td className="px-6 py-4.5 text-right font-semibold text-zinc-850 text-base tabular-nums">
+                          <td className="px-6 py-4.5 text-right font-semibold text-zinc-800 text-base tabular-nums">
                             {formatCurrency(q.total || 0, q.currency)}
                           </td>
                           <td className="px-6 py-4.5 text-right">

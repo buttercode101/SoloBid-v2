@@ -230,7 +230,7 @@ export default function Invoices() {
   if (initialLoading) {
     return (
       <div className="space-y-8 animate-pulse max-w-7xl mx-auto">
-        <div className="h-10 bg-zinc-150 rounded-xl w-1/4"></div>
+        <div className="h-10 bg-zinc-100 rounded-xl w-1/4"></div>
         <div className="h-40 bg-zinc-100 rounded-3xl"></div>
         <div className="h-64 bg-zinc-100 rounded-3xl"></div>
       </div>
@@ -278,21 +278,21 @@ export default function Invoices() {
           >
             <Card className="rounded-3xl border border-teal-200/80 bg-teal-50/10 shadow-sm overflow-hidden">
               <CardHeader className="p-6 pb-2 border-b border-teal-100/40">
-                <CardTitle className="text-[#03423a] text-base font-semibold flex items-center gap-2">
+                <CardTitle className="text-primary text-base font-semibold flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
                   Approved Quotes
                 </CardTitle>
-                <CardDescription className="text-zinc-650 text-xs font-normal">These quotes have been approved and can now be turned into invoices.</CardDescription>
+                <CardDescription className="text-zinc-600 text-xs font-normal">These quotes have been approved and can now be turned into invoices.</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-4">
                 {approvedEstimates.map(est => (
                   <div key={est.id} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-white/90 backdrop-blur-md rounded-2xl border border-teal-100/50 shadow-sm hover:shadow-md transition-all">
                     <div>
                       <div className="font-semibold text-zinc-900 text-sm md:text-base">{est.clientName || "Unnamed Customer"}</div>
-                      <div className="text-xs text-zinc-450 mt-0.5">Approved {format(new Date(est.approvedAt || est.updatedAt), 'MMM d, yyyy')}</div>
+                      <div className="text-xs text-zinc-400 mt-0.5">Approved {format(new Date(est.approvedAt || est.updatedAt), 'MMM d, yyyy')}</div>
                     </div>
                     <div className="flex items-center gap-4.5 w-full md:w-auto justify-between md:justify-end">
-                      <div className="font-bold text-[#03423a] tracking-tight text-sm md:text-base tabular-nums">
+                      <div className="font-bold text-primary tracking-tight text-sm md:text-base tabular-nums">
                         {formatCurrency(est.total, est.currency || profile?.defaultCurrency || 'ZAR')}
                       </div>
                       <Button 
@@ -314,7 +314,7 @@ export default function Invoices() {
       </AnimatePresence>
 
       {/* Invoice Directory */}
-      <Card className="rounded-3xl border border-zinc-150 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)] overflow-hidden">
+      <Card className="rounded-3xl border border-zinc-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)] overflow-hidden">
         <CardHeader className="p-6 border-b border-zinc-50 bg-zinc-50/15">
           <CardTitle className="text-lg font-semibold text-zinc-900">Saved Invoices</CardTitle>
           <CardDescription className="text-zinc-400 text-xs text-left">View, download, or mark invoices as paid.</CardDescription>
@@ -344,15 +344,15 @@ export default function Invoices() {
                         <p className="text-[11px] font-mono text-zinc-400 font-bold mt-0.5">
                           #{inv.invoiceNumber || inv.id.substring(0, 8).toUpperCase()}
                         </p>
-                        <p className="text-xs text-zinc-450 mt-1 flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-zinc-405" />
+                        <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-zinc-400" />
                           Due: {format(new Date(inv.dueDate), 'MMM d, yyyy')}
                         </p>
                       </div>
                       {getStatusBadge(inv.status)}
                     </div>
                     <div className="flex justify-between items-center pt-3.5 border-t border-zinc-100">
-                      <span className="font-bold text-zinc-850 text-sm tabular-nums">
+                      <span className="font-bold text-zinc-800 text-sm tabular-nums">
                         {formatCurrency(inv.total || 0, inv.currency || profile?.defaultCurrency || 'ZAR')}
                       </span>
                       <div className="flex items-center gap-2">
@@ -530,7 +530,7 @@ export default function Invoices() {
                   style={{ width: `${pdfProgress}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] font-bold text-zinc-450 tracking-wider">
+              <div className="flex justify-between text-[10px] font-bold text-zinc-400 tracking-wider">
                 <span>PROGRESS</span>
                 <span>{pdfProgress}%</span>
               </div>

@@ -99,7 +99,7 @@ export function Layout() {
       )}
       
       {/* Mobile Header */}
-      <div className={`md:hidden flex items-center justify-between p-4 bg-white border-b sticky top-0 z-40 ${!isOnline ? 'mt-10' : ''}`}>
+      <div className={`md:hidden flex items-center justify-between p-4 bg-white border-b border-zinc-200/80 sticky top-0 z-40 ${!isOnline ? 'mt-10' : ''}`}>
         <Logo />
         <div className="flex items-center gap-2">
           <Link
@@ -173,7 +173,7 @@ export function Layout() {
           )}
           {deferredPrompt && (
             <Button variant="outline" className="w-full h-9.5 rounded-xl justify-start text-zinc-700 border-zinc-200 hover:bg-zinc-50 text-xs font-semibold" onClick={handleInstallClick}>
-              <Download className="w-4 h-4 mr-2 text-zinc-550" />
+              <Download className="w-4 h-4 mr-2 text-zinc-500" />
               Install App
             </Button>
           )}
