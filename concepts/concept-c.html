@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SoloBid — Concept C: Full Bleed Impact</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --black: #000000;
+      --fg:    #ffffff;
+      --fg-2:  rgba(255,255,255,0.5);
+      --fg-3:  rgba(255,255,255,0.2);
+      --green: #22c55e;
+      --green-2: rgba(34,197,94,0.12);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--black);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV — razor thin ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 24px 48px;
+    }
+    .logo {
+      font-size: 13px; font-weight: 800; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--fg); text-decoration: none;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .logo-sq {
+      width: 8px; height: 8px; border-radius: 2px; background: var(--green);
+    }
+    .nav-cta {
+      font-size: 13px; font-weight: 700; color: var(--black);
+      background: var(--green); padding: 10px 22px; border-radius: 4px;
+      text-decoration: none; letter-spacing: 0.02em;
+      transition: background 0.15s;
+    }
+    .nav-cta:hover { background: #4ade80; }
+
+    /* ── HERO — full viewport, type fills the space ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      justify-content: flex-end;
+      padding: 0 48px 80px;
+      position: relative; overflow: hidden;
+    }
+
+    /* Single thin vertical rule — left side */
+    .hero::before {
+      content: '';
+      position: absolute; left: 48px; top: 0; bottom: 0;
+      width: 1px; background: rgba(255,255,255,0.06);
+    }
+
+    .hero-eyebrow {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--green);
+      margin-bottom: 24px; margin-left: 2px;
+    }
+
+    .hero-h1 {
+      font-size: clamp(72px, 13.5vw, 160px);
+      font-weight: 900;
+      line-height: 0.88;
+      letter-spacing: -0.055em;
+      max-width: 1100px;
+    }
+    .hero-h1 .l1 { display: block; color: var(--fg); }
+    .hero-h1 .l2 { display: block; color: var(--green); font-style: italic; }
+    .hero-h1 .l3 {
+      display: block;
+      -webkit-text-stroke: 1px rgba(255,255,255,0.25);
+      color: transparent;
+    }
+
+    .hero-bottom {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 80px; align-items: flex-end; margin-top: 56px;
+    }
+    .hero-p {
+      font-size: 17px; color: var(--fg-2); line-height: 1.65; max-width: 380px;
+    }
+    .hero-right { display: flex; flex-direction: column; gap: 16px; align-items: flex-end; }
+    .hero-btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-size: 15px; font-weight: 800;
+      color: var(--black); background: var(--green);
+      padding: 16px 34px; border-radius: 4px; text-decoration: none;
+      letter-spacing: 0.01em;
+      transition: background 0.15s;
+    }
+    .hero-btn:hover { background: #4ade80; }
+    .hero-btn svg { width: 16px; height: 16px; stroke: var(--black); fill: none; stroke-width: 2.5; }
+    .hero-trust { font-size: 11px; color: var(--fg-3); letter-spacing: 0.04em; }
+
+    /* ── MARQUEE / TICKER ── */
+    .ticker {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 16px 0; overflow: hidden;
+      position: relative;
+    }
+    .ticker-track {
+      display: flex; gap: 0; white-space: nowrap;
+      animation: scroll 20s linear infinite;
+    }
+    @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    .ticker-item {
+      display: inline-flex; align-items: center; gap: 16px;
+      padding: 0 48px; font-size: 12px; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3);
+    }
+    .ticker-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+    /* ── PRODUCT SECTION — full bleed screenshot ── */
+    .product {
+      padding: 120px 48px;
+      position: relative;
+    }
+    .product-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--green);
+      margin-bottom: 20px;
+    }
+    .product-h {
+      font-size: clamp(36px, 5vw, 60px); font-weight: 900;
+      letter-spacing: -0.04em; line-height: 1; margin-bottom: 48px;
+      max-width: 700px;
+    }
+
+    /* Big dashboard mockup */
+    .big-screen {
+      background: #080e0b; border: 1px solid rgba(34,197,94,0.15);
+      border-radius: 12px; overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.04);
+    }
+    .bs-bar {
+      background: #050b07; border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding: 14px 20px; display: flex; align-items: center; gap: 12px;
+    }
+    .bs-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .bs-dot-r { background: #1a0a0a; }
+    .bs-dot-y { background: #1a1a0a; }
+    .bs-dot-g { background: #0a1a0a; }
+    .bs-url { flex: 1; background: rgba(255,255,255,0.03); border-radius: 4px;
+      padding: 5px 12px; font-size: 11px; color: rgba(255,255,255,0.15); margin: 0 16px; }
+    .bs-body { display: grid; grid-template-columns: 180px 1fr; }
+    .bs-side { background: #050b07; border-right: 1px solid rgba(255,255,255,0.04); padding: 16px 0; }
+    .bs-nav-item {
+      padding: 9px 16px; font-size: 11px; color: rgba(255,255,255,0.25);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .bs-nav-item.on { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.04); }
+    .bs-nav-item svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+    .bs-main { padding: 24px; }
+    .bs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .bs-title { font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.9); }
+    .bs-new { font-size: 10px; font-weight: 700; background: var(--green); color: #000; padding: 5px 12px; border-radius: 4px; }
+    .bs-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+    .bs-stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; }
+    .bs-sl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.2); margin-bottom: 5px; }
+    .bs-sv { font-size: 17px; font-weight: 700; color: rgba(255,255,255,0.9); }
+    .bs-sv.g { color: var(--green); }
+    .bs-tbl { width: 100%; border-collapse: collapse; }
+    .bs-tbl th { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.2); text-align: left; padding: 0 0 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .bs-tbl td { font-size: 11px; color: rgba(255,255,255,0.4); padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .bs-tbl tr:last-child td { border: none; }
+    .mini-s { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 50px; }
+    .ms-g { background: rgba(34,197,94,0.1); color: #4ade80; }
+    .ms-b { background: rgba(99,102,241,0.1); color: #818cf8; }
+    .ms-y { background: rgba(234,179,8,0.1); color: #fbbf24; }
+    .ms-d { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.3); }
+
+    /* ── TRUTHS SECTION ── */
+    .truths {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 120px 48px;
+    }
+    .truths-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); }
+    .truth { background: var(--black); padding: 56px 40px; position: relative; overflow: hidden; }
+    .truth::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: transparent;
+      transition: background 0.3s;
+    }
+    .truth:hover::before { background: var(--green); }
+    .truth-n {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--green);
+      margin-bottom: 32px;
+    }
+    .truth-h {
+      font-size: clamp(24px, 3vw, 36px); font-weight: 900;
+      letter-spacing: -0.035em; line-height: 1.05; margin-bottom: 20px;
+    }
+    .truth-p { font-size: 14px; color: var(--fg-2); line-height: 1.65; }
+
+    /* ── FLOW — horizontal numbered steps ── */
+    .flow {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 120px 48px;
+    }
+    .flow-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 80px; }
+    .flow-h {
+      font-size: clamp(40px, 6vw, 72px); font-weight: 900;
+      letter-spacing: -0.04em; line-height: 1;
+    }
+    .flow-h em { font-style: italic; color: var(--green); }
+    .flow-sub { font-size: 15px; color: var(--fg-2); max-width: 280px; text-align: right; line-height: 1.6; }
+
+    .flow-steps {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .flow-step {
+      padding: 40px 0 0; border-right: 1px solid rgba(255,255,255,0.06);
+      padding-right: 32px; margin-right: 0;
+    }
+    .flow-step:first-child { padding-left: 0; }
+    .flow-step:last-child { border-right: none; }
+    .flow-step + .flow-step { padding-left: 32px; }
+    .fs-n {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
+      color: var(--green); margin-bottom: 24px; display: block;
+    }
+    .fs-title { font-size: 16px; font-weight: 800; margin-bottom: 10px; letter-spacing: -0.01em; }
+    .fs-body { font-size: 13px; color: var(--fg-2); line-height: 1.6; }
+
+    /* ── TESTIMONIALS — single large quote ── */
+    .testament {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 120px 48px;
+    }
+    .test-big {
+      max-width: 800px;
+    }
+    .test-quote-mark {
+      font-size: 120px; line-height: 0.6; color: var(--green);
+      font-family: Georgia, serif; margin-bottom: 32px; display: block;
+      opacity: 0.7;
+    }
+    .test-q {
+      font-size: clamp(22px, 3vw, 34px); font-weight: 400;
+      line-height: 1.45; color: var(--fg); letter-spacing: -0.01em;
+      margin-bottom: 40px;
+    }
+    .test-by { display: flex; align-items: center; gap: 16px; }
+    .test-av {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 800; color: var(--green);
+    }
+    .test-name { font-size: 15px; font-weight: 700; }
+    .test-role { font-size: 12px; color: var(--fg-3); margin-top: 2px; }
+
+    .test-mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 64px; }
+    .test-mini {
+      border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 24px;
+    }
+    .tm-q { font-size: 13px; color: var(--fg-2); line-height: 1.6; margin-bottom: 20px; }
+    .tm-by { font-size: 11px; color: var(--fg-3); }
+    .tm-by strong { color: var(--fg-2); display: block; }
+
+    /* ── CTA — big statement ── */
+    .cta-final {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 140px 48px 120px;
+      position: relative; overflow: hidden;
+    }
+    /* Green slash underline effect */
+    .cta-h {
+      font-size: clamp(56px, 10vw, 120px);
+      font-weight: 900; letter-spacing: -0.05em;
+      line-height: 0.9; margin-bottom: 56px;
+    }
+    .cta-h .ul {
+      position: relative; display: inline;
+    }
+    .cta-h .ul::after {
+      content: ''; position: absolute;
+      bottom: 4px; left: 0; right: 0;
+      height: 6px; background: var(--green);
+      border-radius: 2px;
+    }
+    .cta-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+    .cta-btn-big {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-size: 16px; font-weight: 800;
+      background: var(--green); color: var(--black);
+      padding: 18px 40px; border-radius: 4px; text-decoration: none;
+      letter-spacing: 0.01em; transition: background 0.15s;
+    }
+    .cta-btn-big:hover { background: #4ade80; }
+    .cta-btn-big svg { width: 16px; height: 16px; stroke: var(--black); fill: none; stroke-width: 2.5; }
+    .cta-details { font-size: 13px; color: var(--fg-3); line-height: 1.8; }
+    .cta-details span { display: flex; align-items: center; gap: 8px; }
+    .cta-details span::before { content: '→'; color: var(--green); }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 28px 48px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .foot-logo { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+    .foot-links { display: flex; gap: 24px; }
+    .foot-links a { font-size: 12px; color: var(--fg-3); text-decoration: none; }
+    .foot-links a:hover { color: var(--fg-2); }
+    .foot-copy { font-size: 11px; color: var(--fg-3); }
+
+    /* BACK */
+    .back {
+      position: fixed; bottom: 24px; left: 24px; z-index: 200;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px; padding: 8px 14px;
+      font-size: 12px; color: var(--fg-2); text-decoration: none;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .back:hover { background: rgba(255,255,255,0.1); color: var(--fg); }
+    .back svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    @media (max-width: 768px) {
+      nav { padding: 20px; }
+      .hero { padding: 0 20px 60px; }
+      .hero::before { display: none; }
+      .hero-bottom { grid-template-columns: 1fr; gap: 32px; }
+      .hero-right { align-items: flex-start; }
+      .ticker, .product, .truths, .flow, .testament, .cta-final, footer { padding-left: 20px; padding-right: 20px; }
+      .truths-grid { grid-template-columns: 1fr; }
+      .flow-steps { grid-template-columns: 1fr 1fr; }
+      .flow-step { border-right: none; padding-left: 0 !important; padding-right: 0 !important; border-bottom: 1px solid rgba(255,255,255,0.06); }
+      .test-mini-grid { grid-template-columns: 1fr; }
+      .bs-body { grid-template-columns: 1fr; }
+      .bs-side { display: none; }
+      .bs-stats { grid-template-columns: 1fr 1fr; }
+      .flow-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+      .flow-sub { text-align: left; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="back">
+  <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  All concepts
+</a>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">
+    <div class="logo-sq"></div>
+    SoloBid
+  </a>
+  <a href="/login" class="nav-cta">Start free</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow">For South African contractors</div>
+  <h1 class="hero-h1">
+    <span class="l1">Quote it.</span>
+    <span class="l2">Sign it.</span>
+    <span class="l3">Get paid.</span>
+  </h1>
+  <div class="hero-bottom">
+    <p class="hero-p">Professional quotes sent via WhatsApp. Clients sign from their phone. Invoices in one click. Built for the way South African contractors actually work.</p>
+    <div class="hero-right">
+      <a href="/login" class="hero-btn">
+        Start for free
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <span class="hero-trust">No credit card · Setup in 60 seconds</span>
+    </div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="ticker-track">
+    <!-- Repeated twice for seamless loop -->
+    <span class="ticker-item"><span class="ticker-dot"></span>Quote builder</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>WhatsApp sharing</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Digital signature</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>One-click invoicing</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Paystack payments</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>SA Tax Invoice</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Client history</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Reusable templates</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>VAT support</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Offline sync</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>PDF download</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Financial reports</span>
+    <!-- dupe for loop -->
+    <span class="ticker-item"><span class="ticker-dot"></span>Quote builder</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>WhatsApp sharing</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Digital signature</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>One-click invoicing</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Paystack payments</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>SA Tax Invoice</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Client history</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Reusable templates</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>VAT support</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Offline sync</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>PDF download</span>
+    <span class="ticker-item"><span class="ticker-dot"></span>Financial reports</span>
+  </div>
+</div>
+
+<!-- PRODUCT -->
+<section class="product">
+  <div class="product-label">The product</div>
+  <h2 class="product-h">Everything you need.<br>Nothing you don't.</h2>
+  <div class="big-screen">
+    <div class="bs-bar">
+      <span class="bs-dot bs-dot-r"></span>
+      <span class="bs-dot bs-dot-y"></span>
+      <span class="bs-dot bs-dot-g"></span>
+      <div class="bs-url">app.solobid.co.za/dashboard</div>
+    </div>
+    <div class="bs-body">
+      <div class="bs-side">
+        <div class="bs-nav-item on">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </div>
+        <div class="bs-nav-item">
+          <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+          Quotes
+        </div>
+        <div class="bs-nav-item">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Invoices
+        </div>
+        <div class="bs-nav-item">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          Clients
+        </div>
+        <div class="bs-nav-item">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Reports
+        </div>
+        <div class="bs-nav-item">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </div>
+      </div>
+      <div class="bs-main">
+        <div class="bs-header">
+          <span class="bs-title">Dashboard</span>
+          <span class="bs-new">+ New Quote</span>
+        </div>
+        <div class="bs-stats">
+          <div class="bs-stat"><div class="bs-sl">Billed this month</div><div class="bs-sv g">R 48,200</div></div>
+          <div class="bs-stat"><div class="bs-sl">Outstanding</div><div class="bs-sv">R 12,450</div></div>
+          <div class="bs-stat"><div class="bs-sl">Jobs completed</div><div class="bs-sv">14</div></div>
+          <div class="bs-stat"><div class="bs-sl">Approval rate</div><div class="bs-sv g">94%</div></div>
+        </div>
+        <table class="bs-tbl">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Client</th>
+              <th>Project</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Sent</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Q-1024</td><td>John Daniels</td><td>Electrical Installation</td><td>R 24,850</td><td><span class="mini-s ms-g">Approved</span></td><td>24 May</td></tr>
+            <tr><td>Q-1023</td><td>Sarah Mokoena</td><td>Kitchen Plumbing</td><td>R 8,400</td><td><span class="mini-s ms-b">Sent</span></td><td>22 May</td></tr>
+            <tr><td>Q-1022</td><td>Thabo Nkosi</td><td>Roof Repair</td><td>R 15,000</td><td><span class="mini-s ms-g">Paid</span></td><td>18 May</td></tr>
+            <tr><td>Q-1021</td><td>Priya Govender</td><td>Office Repaint</td><td>R 6,250</td><td><span class="mini-s ms-d">Draft</span></td><td>16 May</td></tr>
+            <tr><td>Q-1020</td><td>André van Wyk</td><td>Gate Motor Install</td><td>R 4,800</td><td><span class="mini-s ms-y">Overdue</span></td><td>10 May</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TRUTHS -->
+<section class="truths">
+  <div class="truths-grid">
+    <div class="truth">
+      <div class="truth-n">01 — Send</div>
+      <h3 class="truth-h">WhatsApp is your storefront.</h3>
+      <p class="truth-p">Your clients live on WhatsApp. Your quotes should too. A professional PDF with a secure sign link — sent in one tap, while you're still on-site.</p>
+    </div>
+    <div class="truth">
+      <div class="truth-n">02 — Sign</div>
+      <h3 class="truth-h">Paperwork is a 2010 problem.</h3>
+      <p class="truth-p">Clients sign from their phone. No accounts. No printing. No scanning. No emailing. Just a clean approval that lands in your dashboard the second it's done.</p>
+    </div>
+    <div class="truth">
+      <div class="truth-n">03 — Pay</div>
+      <h3 class="truth-h">Cash flow shouldn't be chased.</h3>
+      <p class="truth-p">Approved quote becomes invoice in one click. Paystack link goes straight to the client. You track everything — outstanding, paid, overdue — from one view.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FLOW -->
+<section class="flow">
+  <div class="flow-header">
+    <h2 class="flow-h">Five steps.<br>From quote<br>to <em>paid.</em></h2>
+    <p class="flow-sub">The full workflow from first tap to final payment — handled by SoloBid.</p>
+  </div>
+  <div class="flow-steps">
+    <div class="flow-step">
+      <span class="fs-n">01</span>
+      <div class="fs-title">Create quote</div>
+      <p class="fs-body">Line items, labour, materials, VAT. Templates for your most common jobs. Your branding, every time.</p>
+    </div>
+    <div class="flow-step">
+      <span class="fs-n">02</span>
+      <div class="fs-title">Send via WhatsApp</div>
+      <p class="fs-body">One tap. PDF + approval link. Client receives it in seconds. No email thread.</p>
+    </div>
+    <div class="flow-step">
+      <span class="fs-n">03</span>
+      <div class="fs-title">Client signs</div>
+      <p class="fs-body">Clean approval page on their phone. Digital signature. Time-stamped. You're notified instantly.</p>
+    </div>
+    <div class="flow-step">
+      <span class="fs-n">04</span>
+      <div class="fs-title">Invoice in one click</div>
+      <p class="fs-body">Approved quote converts to SA Tax Invoice. No re-entering data. Zero admin.</p>
+    </div>
+    <div class="flow-step">
+      <span class="fs-n">05</span>
+      <div class="fs-title">Get paid</div>
+      <p class="fs-body">Paystack payment link to client. Track cash flow from your dashboard.</p>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="testament">
+  <div class="test-big">
+    <span class="test-quote-mark">"</span>
+    <p class="test-q">Before SoloBid I was losing jobs because my quotes took too long. Now I quote on-site, the client signs before I've packed my tools, and I invoice on the drive home. R48k billed last month — all from my phone.</p>
+    <div class="test-by">
+      <div class="test-av">SK</div>
+      <div>
+        <div class="test-name">Sipho Khumalo</div>
+        <div class="test-role">Electrical contractor, Johannesburg</div>
+      </div>
+    </div>
+  </div>
+  <div class="test-mini-grid">
+    <div class="test-mini">
+      <p class="tm-q">"I sent my first quote in 8 minutes. Client signed before I got home. That's never happened in 12 years."</p>
+      <div class="tm-by"><strong>André van Wyk</strong>Plumber, Cape Town</div>
+    </div>
+    <div class="test-mini">
+      <p class="tm-q">"Finally a tool that understands ZAR, VAT, and WhatsApp. The Paystack integration is the cherry on top."</p>
+      <div class="tm-by"><strong>Priya Naicker</strong>Interior contractor, Sandton</div>
+    </div>
+    <div class="test-mini">
+      <p class="tm-q">"Setup in 4 minutes. First WhatsApp quote sent same day. Two jobs confirmed by end of the week."</p>
+      <div class="tm-by"><strong>Johannes Botha</strong>Painter, Port Elizabeth</div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-final">
+  <h2 class="cta-h">Start<br>getting<br>paid <span class="ul">faster.</span></h2>
+  <div class="cta-row">
+    <a href="/login" class="cta-btn-big">
+      Create free account
+      <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+    <div class="cta-details">
+      <span>No credit card required</span>
+      <span>Setup in under 60 seconds</span>
+      <span>Cancel anytime</span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="foot-logo">SoloBid</div>
+  <div class="foot-links">
+    <a href="#">Privacy</a>
+    <a href="#">Terms</a>
+    <a href="#">Contact</a>
+  </div>
+  <div class="foot-copy">© 2025 SoloBid. All rights reserved.</div>
+</footer>
+
+</body>
+</html>
