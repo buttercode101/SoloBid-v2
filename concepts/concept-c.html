@@ -208,6 +208,83 @@
     }
     .truth-p { font-size: 14px; color: var(--fg-2); line-height: 1.65; }
 
+    /* ── 3D DEVICE SYSTEM ── */
+    .device-wrap { position: relative; }
+
+    .phone-3d { transform: perspective(1100px) rotateY(14deg) rotateX(5deg); transition: transform 0.5s ease; filter: drop-shadow(28px 40px 60px rgba(0,0,0,0.8)); margin: 0 auto; }
+    .phone-3d:hover { transform: perspective(1100px) rotateY(4deg) rotateX(2deg); }
+    .panel-3d-l { transform: perspective(1100px) rotateY(-12deg) rotateX(4deg); transition: transform 0.5s ease; filter: drop-shadow(28px 36px 56px rgba(0,0,0,0.7)); }
+    .panel-3d-l:hover { transform: perspective(1100px) rotateY(-3deg) rotateX(2deg); }
+    .panel-3d-r { transform: perspective(1100px) rotateY(12deg) rotateX(4deg); transition: transform 0.5s ease; filter: drop-shadow(28px 36px 56px rgba(0,0,0,0.7)); }
+    .panel-3d-r:hover { transform: perspective(1100px) rotateY(3deg) rotateX(2deg); }
+
+    .phone-bezel { width: 230px; margin: 0 auto; background: linear-gradient(175deg, #1c1c1e 0%, #111113 100%); border-radius: 40px; padding: 11px; border: 1px solid rgba(255,255,255,0.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), inset 0 -1px 0 rgba(0,0,0,0.5); }
+    .phone-screen-inner { background: #0a1a10; border-radius: 30px; overflow: hidden; }
+    .ph-notch { height: 26px; background: #0a1a10; display: flex; align-items: center; justify-content: center; }
+    .ph-notch-pill { width: 72px; height: 8px; background: #111113; border-radius: 50px; }
+    .ph-statusbar { display: flex; justify-content: space-between; padding: 0 14px 8px; font-size: 8px; color: rgba(255,255,255,0.35); }
+    .ph-bar { background: #081408; padding: 10px 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .ph-back { font-size: 16px; color: #25D366; margin-right: 2px; }
+    .ph-av { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #22c55e, #16a34a); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #000; flex-shrink: 0; }
+    .ph-name { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.9); }
+    .ph-status { font-size: 8px; color: #25D366; }
+    .ph-chat { padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; min-height: 200px; }
+    .pm { display: flex; flex-direction: column; }
+    .pm.out { align-items: flex-end; }
+    .pm-b { max-width: 80%; font-size: 9px; line-height: 1.5; padding: 6px 9px; border-radius: 7px; }
+    .pm.in .pm-b { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6); border-radius: 2px 7px 7px 7px; }
+    .pm.out .pm-b { background: #0d2e10; color: rgba(255,255,255,0.8); border-radius: 7px 2px 7px 7px; }
+    .pm-t { font-size: 7px; color: rgba(255,255,255,0.18); margin-top: 2px; }
+    .pm.out .pm-t { text-align: right; }
+    .file-pill { display: flex; align-items: center; gap: 6px; margin-top: 4px; background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.1); border-radius: 6px; padding: 6px 8px; }
+    .fp-ico { width: 20px; height: 20px; border-radius: 4px; background: #22c55e; display: flex; align-items: center; justify-content: center; font-size: 6px; font-weight: 800; color: #000; flex-shrink: 0; }
+    .fp-name { font-size: 8px; font-weight: 700; color: rgba(255,255,255,0.75); }
+    .fp-meta { font-size: 7px; color: rgba(255,255,255,0.25); }
+
+    .panel-card { background: #080e0b; border: 1px solid rgba(34,197,94,0.12); border-radius: 14px; overflow: hidden; }
+    .pc-header { background: #050a07; border-bottom: 1px solid rgba(255,255,255,0.04); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+    .pc-title { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.8); }
+    .pc-badge { font-size: 8px; font-weight: 700; padding: 2px 8px; border-radius: 50px; }
+    .badge-draft { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.3); }
+    .badge-paid { background: rgba(34,197,94,0.1); color: #4ade80; }
+    .pc-body { padding: 14px; }
+    .pc-tbl { width: 100%; border-collapse: collapse; }
+    .pc-tbl th { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,0.18); text-align: left; padding: 0 0 7px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .pc-tbl td { font-size: 10px; color: rgba(255,255,255,0.4); padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .pc-tbl tr:last-child td { border-bottom: none; }
+    .pc-total { display: flex; justify-content: space-between; margin-top: 11px; padding-top: 11px; border-top: 1px solid rgba(34,197,94,0.12); font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.85); }
+    .pc-total span:last-child { color: var(--green); }
+
+    .sign-wrap { position: relative; }
+    .pen-3d { position: absolute; right: -24px; top: 8%; width: 16px; transform: rotate(15deg); filter: drop-shadow(4px 8px 16px rgba(0,0,0,0.7)); }
+    .pen-body-wrap { display: flex; flex-direction: column; align-items: center; }
+    .pen-top { width: 13px; height: 5px; background: #22c55e; border-radius: 3px 3px 0 0; }
+    .pen-body-seg { width: 13px; height: 88px; background: linear-gradient(90deg, #111a14 0%, #0c1410 100%); position: relative; border-left: 1px solid rgba(34,197,94,0.2); border-right: 1px solid rgba(0,0,0,0.5); }
+    .pen-clip { position: absolute; right: 2px; top: 4px; width: 2px; height: 58px; background: linear-gradient(180deg, #22c55e, #16a34a); border-radius: 1px; }
+    .pen-band { width: 13px; height: 3px; background: #22c55e; }
+    .pen-grip { width: 13px; height: 18px; background: linear-gradient(90deg, #0e1810 0%, #0a1209 100%); }
+    .pen-taper { width: 0; height: 0; border-left: 6.5px solid transparent; border-right: 6.5px solid transparent; border-top: 16px solid #0a1209; }
+    .pen-tip { width: 2px; height: 6px; background: linear-gradient(180deg, #777, #444); margin: 0 auto; }
+    .pen-nib { width: 0; height: 0; border-left: 1px solid transparent; border-right: 1px solid transparent; border-top: 3px solid #b08030; margin: 0 auto; }
+
+    .paid-stamp { position: absolute; right: 10px; top: 50%; transform: translateY(-50%) rotate(-18deg); width: 76px; height: 76px; border-radius: 50%; border: 2px solid rgba(34,197,94,0.5); display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.94); box-shadow: 0 0 0 1px rgba(34,197,94,0.12), inset 0 0 14px rgba(34,197,94,0.04); }
+    .paid-stamp span { font-size: 10px; font-weight: 900; color: rgba(34,197,94,0.65); letter-spacing: .12em; }
+
+    .paystack-float { position: absolute; left: -14px; bottom: 14px; background: linear-gradient(135deg, #011b33 0%, #001428 100%); border: 1px solid rgba(0,102,255,0.2); border-radius: 9px; padding: 7px 11px; display: flex; align-items: center; gap: 7px; box-shadow: 8px 14px 28px rgba(0,0,0,0.6); font-size: 9px; color: rgba(99,179,237,0.75); animation: floatPay 4s ease-in-out infinite; }
+    @keyframes floatPay { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    .paystack-dot { width: 6px; height: 6px; border-radius: 50%; background: #00d4ff; box-shadow: 0 0 5px #00d4ff; flex-shrink: 0; }
+
+    /* Feature section layout for C */
+    .feat-section { border-top: 1px solid rgba(255,255,255,0.06); padding: 100px 48px; }
+    .feat-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; }
+    .feat-grid-2.flip { direction: rtl; }
+    .feat-grid-2.flip > * { direction: ltr; }
+    .feat-n-c { font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--green); margin-bottom: 16px; }
+    .feat-h-c { font-size: clamp(24px, 3.5vw, 38px); font-weight: 900; letter-spacing: -.04em; line-height: 1.05; margin-bottom: 16px; }
+    .feat-p-c { font-size: 14px; color: var(--fg-2); line-height: 1.7; margin-bottom: 22px; }
+    .feat-tags-c { display: flex; flex-wrap: wrap; gap: 7px; }
+    .feat-tag-c { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 3px 9px; }
+
     /* ── FLOW — horizontal numbered steps ── */
     .flow {
       border-top: 1px solid rgba(255,255,255,0.06);
@@ -510,6 +587,126 @@
       <div class="truth-n">03 — Pay</div>
       <h3 class="truth-h">Cash flow shouldn't be chased.</h3>
       <p class="truth-p">Approved quote becomes invoice in one click. Paystack link goes straight to the client. You track everything — outstanding, paid, overdue — from one view.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES WITH 3D DEVICES -->
+<section class="feat-section">
+  <div class="feat-grid-2">
+    <div>
+      <div class="feat-n-c">01 — Send</div>
+      <h3 class="feat-h-c">Quote sent before you've left the site.</h3>
+      <p class="feat-p-c">One tap. Professional PDF + secure approval link straight into your client's WhatsApp. No email. No chasing. They sign from their phone while you drive to the next job.</p>
+      <div class="feat-tags-c"><span class="feat-tag-c">WhatsApp sharing</span><span class="feat-tag-c">Secure link</span><span class="feat-tag-c">PDF download</span></div>
+    </div>
+    <div class="device-wrap">
+      <div class="phone-3d">
+        <div class="phone-bezel">
+          <div class="phone-screen-inner">
+            <div class="ph-notch"><div class="ph-notch-pill"></div></div>
+            <div class="ph-statusbar"><span>09:44</span><span>▲▼ ●●●</span></div>
+            <div class="ph-bar"><span class="ph-back">‹</span><div class="ph-av">JD</div><div><div class="ph-name">John Daniels</div><div class="ph-status">online</div></div></div>
+            <div class="ph-chat">
+              <div class="pm in"><div class="pm-b">Hi, please send me the quote for the electrical work.</div><span class="pm-t">09:41</span></div>
+              <div class="pm out"><div class="pm-b">Here's the quote — tap to review and sign.<div class="file-pill"><div class="fp-ico">PDF</div><div><div class="fp-name">Quote Q-1024</div><div class="fp-meta">Electrical Installation · 246 KB</div></div></div></div><span class="pm-t">09:42 ✓✓</span></div>
+              <div class="pm in"><div class="pm-b">Perfect — I'll sign it now.</div><span class="pm-t">09:43</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="feat-section">
+  <div class="feat-grid-2 flip">
+    <div>
+      <div class="feat-n-c">02 — Build</div>
+      <h3 class="feat-h-c">Professional quotes built in minutes.</h3>
+      <p class="feat-p-c">Line items, labour, materials, VAT. Reusable templates for your most common jobs. Client history auto-fills the details. Your branding on every document.</p>
+      <div class="feat-tags-c"><span class="feat-tag-c">Templates</span><span class="feat-tag-c">Labour + materials</span><span class="feat-tag-c">VAT</span><span class="feat-tag-c">Your branding</span></div>
+    </div>
+    <div class="device-wrap">
+      <div class="panel-3d-r">
+        <div class="panel-card">
+          <div class="pc-header"><span class="pc-title">Quote Q-1024 — Electrical Installation</span><span class="pc-badge badge-draft">Draft</span></div>
+          <div class="pc-body">
+            <table class="pc-tbl">
+              <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+              <tbody>
+                <tr><td>Labour — Electrician</td><td>2</td><td>R 3,500</td><td>R 7,000</td></tr>
+                <tr><td>Distribution Board</td><td>1</td><td>R 6,500</td><td>R 6,500</td></tr>
+                <tr><td>Wiring &amp; Cables</td><td>1</td><td>R 4,250</td><td>R 4,250</td></tr>
+                <tr><td>Compliance Cert.</td><td>1</td><td>R 1,100</td><td>R 1,100</td></tr>
+              </tbody>
+            </table>
+            <div class="pc-total"><span>Total (incl. VAT)</span><span>R 24,850.00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="feat-section">
+  <div class="feat-grid-2">
+    <div>
+      <div class="feat-n-c">03 — Approve</div>
+      <h3 class="feat-h-c">Clients sign from their phone. You're notified instantly.</h3>
+      <p class="feat-p-c">A clean, frictionless approval page. No accounts. No downloads. Digital signature with timestamp. You get notified the moment they sign.</p>
+      <div class="feat-tags-c"><span class="feat-tag-c">Digital signature</span><span class="feat-tag-c">Any device</span><span class="feat-tag-c">Instant notification</span></div>
+    </div>
+    <div class="device-wrap sign-wrap">
+      <div class="panel-3d-l">
+        <div class="panel-card">
+          <div class="pc-header"><span class="pc-title">Review and sign — Q-1024</span><span class="pc-badge badge-paid">Secure</span></div>
+          <div class="pc-body">
+            <p style="font-size:10px;color:rgba(255,255,255,0.25);margin-bottom:12px;">Review the quote and sign below to approve.</p>
+            <div style="border:1px dashed rgba(34,197,94,0.25);border-radius:8px;height:72px;display:flex;align-items:center;justify-content:center;font-size:28px;font-family:'Palatino Linotype',Palatino,Georgia,serif;font-style:italic;color:var(--green);background:rgba(34,197,94,0.02);margin-bottom:10px;">Juán Daniels</div>
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,0.2);"><span>John Daniels</span><span>24 May 2025, 09:44</span></div>
+            <div style="width:100%;margin-top:10px;padding:8px;background:var(--green);color:#000;border:none;border-radius:6px;font-size:10px;font-weight:700;text-align:center;">Approve &amp; Sign Quote</div>
+          </div>
+        </div>
+      </div>
+      <div class="pen-3d">
+        <div class="pen-body-wrap" style="position:relative;">
+          <div class="pen-top"></div>
+          <div class="pen-body-seg"><div class="pen-clip"></div></div>
+          <div class="pen-band"></div>
+          <div class="pen-grip"></div>
+          <div class="pen-taper"></div>
+          <div class="pen-tip"></div>
+          <div class="pen-nib"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="feat-section">
+  <div class="feat-grid-2 flip">
+    <div>
+      <div class="feat-n-c">04 — Invoice</div>
+      <h3 class="feat-h-c">One click. Approved quote becomes invoice. Client gets paid link.</h3>
+      <p class="feat-p-c">No re-entering data. SA Tax Invoice in one click. Paystack payment link goes straight to the client. Track everything from your dashboard.</p>
+      <div class="feat-tags-c"><span class="feat-tag-c">One-click convert</span><span class="feat-tag-c">Paystack</span><span class="feat-tag-c">SA Tax Invoice</span></div>
+    </div>
+    <div class="device-wrap" style="position:relative;">
+      <div class="panel-3d-r">
+        <div class="panel-card" style="position:relative;">
+          <div class="pc-header"><span class="pc-title">Invoice INV-2024 — Electrical Installation</span><span class="pc-badge badge-paid">● Paid</span></div>
+          <div class="pc-body">
+            <div style="font-size:10px;color:rgba(255,255,255,0.2);margin-bottom:4px;">Total Amount</div>
+            <div style="font-size:26px;font-weight:900;color:var(--green);letter-spacing:-.03em;margin-bottom:12px;">R 24,850.00</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.25);padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">Client <span style="float:right;color:rgba(255,255,255,0.45)">John Daniels</span></div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.25);padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">Date <span style="float:right;color:rgba(255,255,255,0.45)">24 May 2025</span></div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.25);padding:6px 0;">VAT (15%) <span style="float:right;color:rgba(255,255,255,0.45)">R 3,241.30</span></div>
+          </div>
+          <div class="paid-stamp"><span>PAID</span></div>
+        </div>
+      </div>
+      <div class="paystack-float"><span class="paystack-dot"></span>Payment received via Paystack</div>
     </div>
   </div>
 </section>
