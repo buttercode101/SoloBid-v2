@@ -57,7 +57,7 @@ export const statusBadgeStyles = {
   sent: 'bg-blue-50 text-blue-700 border border-blue-100',
   approved: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
   converted: 'bg-violet-50 text-violet-700 border border-violet-100',
-  draft: 'bg-zinc-100 text-zinc-650 border border-zinc-200',
+  draft: 'bg-zinc-100 text-zinc-600 border border-zinc-200',
   paid: 'bg-teal-50 text-teal-700 border border-teal-100',
   overdue: 'bg-red-50 text-red-700 border border-red-100',
   rejected: 'bg-red-50 text-red-700 border border-red-100',

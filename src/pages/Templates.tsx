@@ -367,7 +367,7 @@ export default function Templates() {
               key={template.id}
               className="group"
             >
-              <Card className="rounded-3xl border border-zinc-150 bg-white hover:border-primary/50 hover:shadow-xl transition-all duration-300 relative overflow-hidden h-full flex flex-col justify-between">
+              <Card className="rounded-3xl border border-zinc-200 bg-white hover:border-primary/50 hover:shadow-xl transition-all duration-300 relative overflow-hidden h-full flex flex-col justify-between">
                 <div className="p-6 pb-2">
                   <div className="flex justify-between items-start gap-4">
                     <div className="h-10 w-10 rounded-xl bg-teal-100/30 flex items-center justify-center text-primary shrink-0">
@@ -414,7 +414,7 @@ export default function Templates() {
                   <div className="space-y-2.5 min-h-[85px] max-h-[140px] overflow-hidden relative">
                     {template.lineItems?.slice(0, 3).map((item: any, i: number) => (
                       <div key={i} className="flex justify-between items-center text-sm text-zinc-700">
-                        <span className="truncate max-w-[180px] font-medium text-zinc-850">↳ {item.description}</span>
+                        <span className="truncate max-w-[180px] font-medium text-zinc-800">↳ {item.description}</span>
                         <span className="text-xs text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded-md border border-zinc-100">{item.type}</span>
                       </div>
                     ))}

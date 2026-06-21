@@ -233,8 +233,8 @@ export default function RecurringInvoices() {
     >
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Recurring Schedules</h1>
-          <p className="text-zinc-500">Automate your billing and quoting for ongoing services.</p>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">Recurring Schedules</h1>
+          <p className="text-zinc-500 text-xs mt-0.5">Automate your billing and quoting for ongoing services.</p>
         </div>
 
         {activeTab === 'invoices' ? (
@@ -405,9 +405,9 @@ export default function RecurringInvoices() {
       </div>
 
       {activeTab === 'invoices' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Active Schedules</CardTitle>
+        <Card className="rounded-3xl border border-zinc-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)] overflow-hidden">
+          <CardHeader className="p-6 border-b border-zinc-50">
+            <CardTitle className="text-sm font-semibold text-zinc-800">Active Schedules</CardTitle>
           </CardHeader>
           <CardContent>
             {recurring.length === 0 ? (
@@ -466,9 +466,9 @@ export default function RecurringInvoices() {
       )}
 
       {activeTab === 'quotes' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recurring Quote Schedules</CardTitle>
+        <Card className="rounded-3xl border border-zinc-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)] overflow-hidden">
+          <CardHeader className="p-6 border-b border-zinc-50">
+            <CardTitle className="text-sm font-semibold text-zinc-800">Recurring Quote Schedules</CardTitle>
           </CardHeader>
           <CardContent>
             {recurringQuotes.length === 0 ? (

@@ -290,7 +290,7 @@ export default function Clients() {
                 key={client.id}
                 className="group"
               >
-                <Card className="rounded-3xl border border-zinc-150 bg-white hover:border-primary/50 hover:shadow-xl transition-all duration-300 relative overflow-hidden h-full flex flex-col justify-between">
+                <Card className="rounded-3xl border border-zinc-200 bg-white hover:border-primary/50 hover:shadow-xl transition-all duration-300 relative overflow-hidden h-full flex flex-col justify-between">
                   <div className="p-6 pb-2">
                     <div className="flex justify-between items-start gap-4">
                       {/* Avatar Placeholder */}
@@ -328,13 +328,13 @@ export default function Clients() {
 
                   <div className="px-6 py-4 border-t border-b border-zinc-50 bg-zinc-50/10 space-y-3 flex-grow">
                     {client.email && (
-                      <div className="flex items-center gap-2 text-sm text-zinc-650 hover:text-zinc-900 transition-colors">
+                      <div className="flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900 transition-colors">
                         <Mail className="w-4 h-4 text-zinc-400 stroke-[1.5]" />
                         <a href={`mailto:${client.email}`} className="truncate font-medium">{client.email}</a>
                       </div>
                     )}
                     {client.phone && (
-                      <div className="flex items-center gap-2 text-sm text-zinc-650 hover:text-zinc-900 transition-colors">
+                      <div className="flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900 transition-colors">
                         <Phone className="w-4 h-4 text-zinc-400 stroke-[1.5]" />
                         <a href={`tel:${client.phone}`} className="font-medium tracking-tight">{client.phone}</a>
                       </div>
@@ -350,7 +350,7 @@ export default function Clients() {
                       </div>
                     </div>
                     {client.address && (
-                      <div className="flex items-start gap-2 text-sm text-zinc-650 hover:text-zinc-900 transition-colors border-t border-zinc-100/50 pt-2 pb-0.5">
+                      <div className="flex items-start gap-2 text-sm text-zinc-600 hover:text-zinc-900 transition-colors border-t border-zinc-100/50 pt-2 pb-0.5">
                         <MapPin className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5 stroke-[1.5]" />
                         <span className="line-clamp-2 leading-relaxed text-xs">{client.address}</span>
                       </div>
@@ -360,7 +360,7 @@ export default function Clients() {
                   {client.notes ? (
                     <div className="px-6 py-4 flex items-start gap-2 bg-zinc-50/35 border-b border-zinc-100/50">
                       <Notebook className="w-3.5 h-3.5 text-zinc-400 mt-0.5 shrink-0 stroke-[1.5]" />
-                      <p className="text-zinc-450 italic text-[11px] line-clamp-2 leading-relaxed">"{client.notes}"</p>
+                      <p className="text-zinc-400 italic text-[11px] line-clamp-2 leading-relaxed">"{client.notes}"</p>
                     </div>
                   ) : (
                     <div className="min-h-[10px]" />

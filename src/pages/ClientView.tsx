@@ -188,8 +188,8 @@ export default function ClientView() {
           <div className="bg-zinc-900 text-white px-4 py-3 rounded-xl shadow-md flex items-center justify-between gap-3 border border-zinc-800">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-450 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-sm shadow-emerald-300"></span>
               </span>
               <p className="text-xs sm:text-sm font-medium text-zinc-300">
                 You're viewing this as your client sees it. They will not see this bar.
