@@ -494,18 +494,16 @@ export default function Dashboard() {
             accent: "bg-purple-50 text-purple-700 border-purple-100/50"
           }
         ].map((stat, i) => (
-          <Card key={i} className={`rounded-3xl border border-zinc-100 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group${i === 4 ? ' col-span-2 lg:col-span-1' : ''}`}>
-            <div className="flex justify-between items-start gap-4">
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <span className="flex items-start min-h-[2.25rem] leading-tight text-xs font-semibold uppercase tracking-wide text-zinc-500 group-hover:text-zinc-600 transition-colors">{stat.title}</span>
-                <p className="text-xl font-bold tracking-tight text-zinc-900">{stat.value}</p>
-                {stat.title === 'Vs Last Month' && (
-                  <p className="text-[11px] text-zinc-400">Last month: {formatCurrency(stats.billedLastMonth)}</p>
-                )}
-              </div>
-              <div className={`shrink-0 p-2.5 rounded-2xl border ${stat.accent} flex items-center justify-center`}>
-                <stat.icon className="w-5 h-5 stroke-[2]" />
-              </div>
+          <Card key={i} className={`rounded-3xl border border-zinc-100 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group relative${i === 4 ? ' col-span-2 lg:col-span-1' : ''}`}>
+            <div className={`absolute top-4 right-4 p-2 rounded-xl border ${stat.accent} flex items-center justify-center`}>
+              <stat.icon className="w-4 h-4 stroke-[2]" />
+            </div>
+            <div className="space-y-1.5 pr-10">
+              <span className="block text-xs font-semibold uppercase tracking-wide text-zinc-500 group-hover:text-zinc-600 transition-colors">{stat.title}</span>
+              <p className="text-xl font-bold tracking-tight text-zinc-900 whitespace-nowrap">{stat.value}</p>
+              {stat.title === 'Vs Last Month' && (
+                <p className="text-[11px] text-zinc-400">Last month: {formatCurrency(stats.billedLastMonth)}</p>
+              )}
             </div>
           </Card>
         ))}
