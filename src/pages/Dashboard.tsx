@@ -498,7 +498,7 @@ export default function Dashboard() {
             <div className="flex justify-between items-start gap-4">
               <div className="flex-1 min-w-0 space-y-1.5">
                 <span className="flex items-start min-h-[2.25rem] leading-tight text-xs font-semibold uppercase tracking-wide text-zinc-500 group-hover:text-zinc-600 transition-colors">{stat.title}</span>
-                <p className="text-xl md:text-3xl font-semibold tracking-tight text-zinc-900">{stat.value}</p>
+                <p className="text-xl font-bold tracking-tight text-zinc-900">{stat.value}</p>
                 {stat.title === 'Vs Last Month' && (
                   <p className="text-[11px] text-zinc-400">Last month: {formatCurrency(stats.billedLastMonth)}</p>
                 )}
