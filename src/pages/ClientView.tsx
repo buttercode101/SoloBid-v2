@@ -8,6 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
+import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { useAuth } from '../lib/auth';
 
@@ -155,7 +156,11 @@ export default function ClientView() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-zinc-600">Loading quotation details...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="w-6 h-6 text-primary animate-spin" />
+    </div>
+  );
   if (!estimate) return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center">
       <div className="text-4xl mb-4">📄</div>
@@ -251,7 +256,7 @@ export default function ClientView() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-8">
             {/* Header */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
+            <div className="bg-white p-5 md:p-8 rounded-2xl shadow-sm border border-zinc-100">
               <div className="flex justify-between items-start mb-8">
                 <div>
                   {contractor?.logoUrl ? (
@@ -338,7 +343,7 @@ export default function ClientView() {
             </div>
 
             {contractor?.terms && (
-              <div className="bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
+              <div className="bg-white p-5 md:p-8 rounded-2xl shadow-sm border border-zinc-100">
                 <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-6">Terms & Conditions</h3>
                 <SafeHtml html={contractor.terms} className="text-sm text-zinc-500 leading-relaxed whitespace-pre-line" />
               </div>

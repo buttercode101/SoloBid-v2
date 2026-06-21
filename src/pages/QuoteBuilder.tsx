@@ -149,7 +149,7 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
       <Button 
         variant="ghost" 
         size="icon" 
-        className="absolute top-3 right-3 text-zinc-400 hover:text-red-650 hover:bg-red-50 h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-3 right-3 text-zinc-400 hover:text-red-700 hover:bg-red-50 h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={() => removeLineItem(item.id)}
         aria-label="Remove line item"
       >
@@ -830,7 +830,7 @@ export default function QuoteBuilder() {
       updateLineItem(itemId, 'description', transcript);
     };
     recognition.start();
-    toast.info("Listening... Speach converter active.");
+    toast.info("Listening... Speech recognition active.");
   };
 
   const addExpense = () => {
@@ -1172,7 +1172,7 @@ export default function QuoteBuilder() {
                 variant="ghost" 
                 onClick={() => setDeleteDialogOpen(true)} 
                 title="Delete Quote" 
-                className="h-10 text-red-650 rounded-xl hover:bg-red-50 hover:text-red-700 font-medium px-4 border border-transparent hover:border-red-100 active:scale-95 transition-all text-sm"
+                className="h-10 text-red-600 rounded-xl hover:bg-red-50 hover:text-red-700 font-medium px-4 border border-transparent hover:border-red-100 active:scale-95 transition-all text-sm"
               >
                 <Trash2 className="w-4 h-4 mr-2" /> Delete Quote
               </Button>
@@ -1254,7 +1254,7 @@ export default function QuoteBuilder() {
               <label className="flex items-center space-x-2 text-xs font-semibold text-zinc-600 bg-zinc-100/60 hover:bg-zinc-100 py-1.5 px-3 rounded-full cursor-pointer transition-colors border border-zinc-200/50">
                 <input 
                   type="checkbox" 
-                  className="rounded border-zinc-350 text-primary focus:ring-primary h-3.5 w-3.5"
+                  className="rounded border-zinc-300 text-primary focus:ring-primary h-3.5 w-3.5"
                   checked={isMilestone}
                   onChange={(e) => setIsMilestone(e.target.checked)}
                 />
@@ -1496,7 +1496,7 @@ export default function QuoteBuilder() {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-9.5 w-9.5 rounded-xl text-zinc-400 hover:text-red-650 hover:bg-red-50"
+                        className="h-9.5 w-9.5 rounded-xl text-zinc-400 hover:text-red-700 hover:bg-red-50"
                         onClick={() => removeExpense(expense.id)}
                         aria-label="Remove expense"
                       >
@@ -1543,7 +1543,7 @@ export default function QuoteBuilder() {
             <CardContent className="p-6 bg-white">
               <Textarea 
                 rows={4} 
-                className="rounded-xl border-zinc-250 font-normal focus:ring-primary focus:border-primary text-sm p-3 shadow-inner bg-zinc-50/10"
+                className="rounded-xl border-zinc-200 font-normal focus:ring-primary focus:border-primary text-sm p-3 shadow-inner bg-zinc-50/10"
                 value={notes} 
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Exclusions: Structural wall remodeling is not covered. Terms: 50% retainer due on approval, remainder on project signoff."

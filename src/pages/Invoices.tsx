@@ -8,7 +8,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { pdf } from '@react-pdf/renderer';
 import { InvoicePDF } from '../components/InvoicePDF';
-import { Download, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock, MessageCircle, Printer, CreditCard } from 'lucide-react';
+import { Download, DollarSign, ArrowRight, Loader2, Landmark, CheckCircle, Clock, MessageCircle, Printer, CreditCard, MoreVertical } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { initializePaystackPayment, generatePaymentReference } from '../lib/paystack';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCurrencySymbol } from '../lib/currencies';
@@ -264,7 +265,7 @@ export default function Invoices() {
     >
       <div className="pb-2 border-b border-zinc-100">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">Billing & Invoices</h1>
-        <p className="text-zinc-455 text-xs mt-0.5">Track payments, send invoices, and update payment status.</p>
+        <p className="text-zinc-500 text-xs mt-0.5">Track payments, send invoices, and update payment status.</p>
       </div>
 
       <AnimatePresence mode="popLayout">
@@ -322,7 +323,7 @@ export default function Invoices() {
           {invoices.length === 0 ? (
             <div className="p-12">
               <EmptyState
-                icon={<DollarSign className="w-8 h-8 text-zinc-350" />}
+                icon={<DollarSign className="w-8 h-8 text-zinc-400" />}
                 title="No invoices yet"
                 description="Create your first invoice by converting an approved quote, or start by creating a new quote."
                 action={{
@@ -354,43 +355,57 @@ export default function Invoices() {
                       <span className="font-bold text-zinc-850 text-sm tabular-nums">
                         {formatCurrency(inv.total || 0, inv.currency || profile?.defaultCurrency || 'ZAR')}
                       </span>
-                      <div className="flex gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8.5 w-8.5 rounded-lg text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100"
-                          onClick={() => handleDownloadPdf(inv)}
-                          loading={generatingPdf === inv.id}
-                          title="Download Invoice PDF"
-                        >
-                          {!generatingPdf && <Download className="w-3.5 h-3.5" />}
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-lg text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50" onClick={() => handleShareInvoiceWhatsApp(inv)} disabled={generatingPdf === inv.id} title="Share via WhatsApp">
-                          <MessageCircle className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8.5 w-8.5 rounded-lg text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100" onClick={() => handlePrintInvoice(inv)} disabled={generatingPdf === inv.id} title="Print invoice">
-                          <Printer className="w-3.5 h-3.5" />
-                        </Button>
-                        {inv.status !== 'paid' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8.5 rounded-lg text-[11px] border-zinc-200 text-zinc-700 bg-white hover:bg-emerald-50 hover:text-emerald-700"
-                            onClick={() => handleMarkPaid(inv.id)}
-                          >
-                            Mark Paid
-                          </Button>
-                        )}
+                      <div className="flex items-center gap-2">
                         {(inv.status === 'sent' || inv.status === 'overdue') && (
                           <Button
                             size="sm"
-                            className="h-8.5 rounded-lg text-[11px] bg-primary text-white hover:bg-[#03362f] flex items-center gap-1"
+                            className="h-8 rounded-lg text-[11px] bg-primary text-white hover:bg-[#03362f] flex items-center gap-1 px-3"
                             onClick={() => handlePayNow(inv)}
                           >
                             <CreditCard className="w-3 h-3" />
                             Pay Now
                           </Button>
                         )}
+                        {inv.status !== 'paid' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-lg text-[11px] border-zinc-200 text-zinc-700 bg-white hover:bg-emerald-50 hover:text-emerald-700 px-3"
+                            onClick={() => handleMarkPaid(inv.id)}
+                          >
+                            Mark Paid
+                          </Button>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg border-zinc-200 text-zinc-500" disabled={generatingPdf === inv.id}>
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onClick={() => handleDownloadPdf(inv)}>
+                              <Download className="w-3.5 h-3.5 mr-2" />
+                              Download PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleShareInvoiceWhatsApp(inv)}>
+                              <MessageCircle className="w-3.5 h-3.5 mr-2 text-[#25D366]" />
+                              Share via WhatsApp
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePrintInvoice(inv)}>
+                              <Printer className="w-3.5 h-3.5 mr-2" />
+                              Print
+                            </DropdownMenuItem>
+                            {inv.status !== 'paid' && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleMarkPaid(inv.id)}>
+                                  <CheckCircle className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                                  Mark as Paid
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   {user && (

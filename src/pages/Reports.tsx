@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -6,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { subDays, subMonths, format, isAfter, differenceInDays, startOfMonth, isSameMonth } from 'date-fns';
 import { Download, TrendingUp, Banknote, AlertCircle, Users } from 'lucide-react';
+import { toast } from 'sonner';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatZAR } from '../lib/theme';
 
@@ -29,13 +31,19 @@ export default function Reports() {
     if (!user) return;
     async function fetchData() {
       setLoading(true);
-      const [{ data: quotesData }, { data: invoicesData }] = await Promise.all([
-        supabase.from('quotes').select('*').eq('user_id', user!.uid),
-        supabase.from('invoices').select('*').eq('user_id', user!.uid),
-      ]);
-      setQuotes(quotesData ?? []);
-      setInvoices(invoicesData ?? []);
-      setLoading(false);
+      try {
+        const [{ data: quotesData, error: qErr }, { data: invoicesData, error: iErr }] = await Promise.all([
+          supabase.from('quotes').select('*').eq('user_id', user!.uid),
+          supabase.from('invoices').select('*').eq('user_id', user!.uid),
+        ]);
+        if (qErr || iErr) throw qErr ?? iErr;
+        setQuotes(quotesData ?? []);
+        setInvoices(invoicesData ?? []);
+      } catch {
+        toast.error('Failed to load report data');
+      } finally {
+        setLoading(false);
+      }
     }
     fetchData();
   }, [user]);
@@ -152,18 +160,31 @@ export default function Reports() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="text-sm text-zinc-500">Loading reports…</div>
+      <div className="space-y-8 animate-pulse">
+        <div className="h-8 bg-zinc-100 rounded-xl w-48" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-zinc-100 rounded-2xl" />)}
+        </div>
+        <div className="h-72 bg-zinc-100 rounded-2xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-64 bg-zinc-100 rounded-2xl" />
+          <div className="h-64 bg-zinc-100 rounded-2xl" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+      className="space-y-8"
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-zinc-900">Reports</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Reports</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Financial overview and performance metrics</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -243,7 +264,7 @@ export default function Reports() {
                 contentStyle={{ borderRadius: '0.75rem', border: '1px solid #e4e4e7', fontSize: 12 }}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="billed" name="Billed" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="billed" name="Billed" fill="#088b7e" radius={[4, 4, 0, 0]} />
               <Bar dataKey="collected" name="Collected" fill="#10b981" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -313,6 +334,6 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </motion.div>
   );
 }

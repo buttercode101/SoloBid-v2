@@ -13,9 +13,9 @@ const MGMT_URL = `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/q
 
 const migrations: { name: string; sql: string }[] = [
   {
-    name: '01_profiles_bank_details',
+    name: '01_users_bank_details',
     sql: `
-      ALTER TABLE profiles
+      ALTER TABLE users
         ADD COLUMN IF NOT EXISTS bank_name text,
         ADD COLUMN IF NOT EXISTS account_number text,
         ADD COLUMN IF NOT EXISTS account_type text,

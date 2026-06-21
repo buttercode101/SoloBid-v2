@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
-import { LayoutDashboard, FileText, FileSpreadsheet, Settings, LogOut, Menu, Users, RefreshCw, Download, AlertCircle, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, FileText, FileSpreadsheet, Settings, LogOut, Menu, Users, RefreshCw, Download, AlertCircle, BarChart3, Plus } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from './ui/sheet';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
@@ -102,6 +102,13 @@ export function Layout() {
       <div className={`md:hidden flex items-center justify-between p-4 bg-white border-b sticky top-0 z-40 ${!isOnline ? 'mt-10' : ''}`}>
         <Logo />
         <div className="flex items-center gap-2">
+          <Link
+            to="/quotes/new"
+            className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-teal-200/60 active:scale-95 transition-transform"
+            title="New Quote"
+          >
+            <Plus className="w-4.5 h-4.5 text-white stroke-[2.5]" />
+          </Link>
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="hover:bg-zinc-100 h-9.5 w-9.5 rounded-xl">
@@ -134,7 +141,7 @@ export function Layout() {
                     Install App
                   </Button>
                 )}
-                <Button variant="ghost" className="w-full justify-start text-red-650 hover:text-red-700 hover:bg-red-50 h-9.5 rounded-xl text-xs font-bold" onClick={async () => { await handleSignOut(); setIsMenuOpen(false); }}>
+                <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-9.5 rounded-xl text-xs font-bold" onClick={async () => { await handleSignOut(); setIsMenuOpen(false); }}>
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
                 </Button>
@@ -170,7 +177,7 @@ export function Layout() {
               Install App
             </Button>
           )}
-          <Button variant="ghost" className="w-full h-9.5 rounded-xl justify-start text-zinc-500 hover:text-red-650 hover:bg-red-50 text-xs font-semibold" onClick={handleSignOut}>
+          <Button variant="ghost" className="w-full h-9.5 rounded-xl justify-start text-zinc-500 hover:text-red-700 hover:bg-red-50 text-xs font-semibold" onClick={handleSignOut}>
             <LogOut className="w-4 h-4 mr-2" />
             Sign Out
           </Button>

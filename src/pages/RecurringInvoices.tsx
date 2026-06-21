@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import { useAuth } from '../lib/auth';
 import { supabase, fromDbRecurring, fromDbRecurringQuote, fromDbClient, fromDbTemplate, fromDbLineItem, fromDbQuote } from '../lib/supabase';
 import { Button } from '../components/ui/button';
@@ -224,10 +225,15 @@ export default function RecurringInvoices() {
   };
 
   return (
-    <div className="space-y-8">
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+      className="space-y-8"
+    >
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Recurring Schedules</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Recurring Schedules</h1>
           <p className="text-zinc-500">Automate your billing and quoting for ongoing services.</p>
         </div>
 
@@ -539,6 +545,6 @@ export default function RecurringInvoices() {
         onConfirm={() => deleteQuoteId && handleDeleteQuote(deleteQuoteId)}
         onCancel={() => setDeleteQuoteId(null)}
       />
-    </div>
+    </motion.div>
   );
 }

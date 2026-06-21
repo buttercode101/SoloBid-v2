@@ -145,7 +145,7 @@ export function AttachmentUploader({
           </div>
         ) : (
           <>
-            <Camera className="w-7 h-7 text-zinc-350" />
+            <Camera className="w-7 h-7 text-zinc-400" />
             <div>
               <p className="text-sm font-medium text-zinc-600">
                 Drop photos or PDFs here
