@@ -53,12 +53,18 @@ export function formatZAR(amount: number | null | undefined): string {
 /**
  * Standard colors for Status Badges
  */
-export const statusBadgeStyles = {
+export const statusBadgeStyles: Record<string, string> = {
   sent: 'bg-blue-50 text-blue-700 border border-blue-100',
+  viewed: 'bg-sky-50 text-sky-700 border border-sky-100',
   approved: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
   converted: 'bg-violet-50 text-violet-700 border border-violet-100',
   draft: 'bg-zinc-100 text-zinc-600 border border-zinc-200',
   paid: 'bg-teal-50 text-teal-700 border border-teal-100',
   overdue: 'bg-red-50 text-red-700 border border-red-100',
+  partially_paid: 'bg-orange-50 text-orange-700 border border-orange-100',
+  cancelled: 'bg-zinc-100 text-zinc-500 border border-zinc-200',
+  expired: 'bg-red-50 text-red-700 border border-red-100',
   rejected: 'bg-red-50 text-red-700 border border-red-100',
+  active: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+  paused: 'bg-zinc-100 text-zinc-600 border border-zinc-200',
 };

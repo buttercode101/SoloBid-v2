@@ -22,5 +22,36 @@ All pre-existing TS errors in `server.ts` and `App.tsx` remain unchanged (out of
 
 ---
 
+## SoloBid-v2 — MVP improvement sprint (2026-06-23, session 2)
+
+### Completed
+
+| # | Task | Files changed |
+|---|------|---------------|
+| 1 | Renamed package from `react-example` to `solobid` | `package.json` |
+| 2 | Rewrote README from AI Studio boilerplate to SoloBid product description | `README.md` |
+| 3 | SA defaults verified — ZAR, ZA, 15% VAT already correct | (no change) |
+| 4 | Dashboard metric cards made clickable (Billed/Outstanding/Jobs → /invoices; Vs Last Month/Avg Job Value → /reports) | `Dashboard.tsx` |
+| 5 | WhatsApp message updated to include quote number when available | `whatsapp.ts` |
+| 6 | Public quote view tracking: marks quote `sent → viewed` on ClientView load (fire-and-forget, safe fallback) | `ClientView.tsx` |
+| 7 | `handleApprove` and `handleReject` updated to allow `viewed` status (so clients who viewed can still action) | `ClientView.tsx` |
+| 8 | Added `viewed` badge to ClientView status badge config | `ClientView.tsx` |
+| 9 | Added `viewed`, `expired` to `QuoteStatus`; `partially_paid`, `cancelled` to `InvoiceStatus` | `types/index.ts` |
+| 10 | Added new status values and badge styles to constants and theme | `constants.ts`, `theme.ts` |
+| 11 | `getStatusBadgeClassAndLabel` in Dashboard refactored to use safe fallback table — unknown statuses no longer crash | `Dashboard.tsx` |
+| 12 | Empty states verified present in all key pages (no change needed) | (no change) |
+
+### Check run
+- `npm run lint` (tsc --noEmit): 1 pre-existing error (`TS2688 vite/client` — unrelated to this sprint). No new errors.
+
+### Risky items skipped → see TODO.md
+- Deposit support
+- Paystack webhook refactor
+- Soft delete migrations
+- Audit logs
+- AI features / MCP
+
+---
+
 ## RentEase-SA-main — TBD
 ## RadFlow-SA-main — TBD

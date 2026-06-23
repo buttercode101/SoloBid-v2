@@ -384,24 +384,23 @@ export default function Dashboard() {
   const getStatusBadgeClassAndLabel = (status: string, isExpired: boolean) => {
     const activeStatus = isExpired ? 'expired' : (status || 'draft').toLowerCase();
 
-    switch (activeStatus) {
-      case 'approved':
-        return { style: statusBadgeStyles.approved, label: 'Approved' };
-      case 'sent':
-        return { style: statusBadgeStyles.sent, label: 'Sent' };
-      case 'converted':
-        return { style: statusBadgeStyles.converted, label: 'Converted' };
-      case 'paid':
-        return { style: statusBadgeStyles.paid, label: 'Paid' };
-      case 'overdue':
-        return { style: statusBadgeStyles.overdue, label: 'Overdue' };
-      case 'rejected':
-        return { style: statusBadgeStyles.rejected, label: 'Declined' };
-      case 'expired':
-        return { style: 'bg-red-50 text-red-700 border border-red-200', label: 'Expired' };
-      default:
-        return { style: statusBadgeStyles.draft, label: 'Draft' };
-    }
+    const labels: Record<string, string> = {
+      approved: 'Approved',
+      sent: 'Sent',
+      viewed: 'Viewed',
+      converted: 'Converted',
+      paid: 'Paid',
+      overdue: 'Overdue',
+      partially_paid: 'Partial',
+      cancelled: 'Cancelled',
+      rejected: 'Declined',
+      expired: 'Expired',
+      draft: 'Draft',
+    };
+
+    const style = statusBadgeStyles[activeStatus] || statusBadgeStyles.draft;
+    const label = labels[activeStatus] || activeStatus.replace(/_/g, ' ');
+    return { style, label };
   };
 
   return (
@@ -468,34 +467,39 @@ export default function Dashboard() {
             title: "Billed This Month",
             value: formatCurrency(stats.billedThisMonth),
             icon: Banknote,
-            accent: "bg-teal-50 text-teal-900 border-teal-200/50"
+            accent: "bg-teal-50 text-teal-900 border-teal-200/50",
+            href: "/invoices"
           },
           {
             title: "Outstanding",
             value: formatCurrency(stats.outstandingBalance),
             icon: AlertCircle,
-            accent: stats.outstandingBalance > 0 ? "bg-amber-50 text-amber-800 border-amber-200/50" : "bg-zinc-50 text-zinc-500 border-zinc-200/50"
+            accent: stats.outstandingBalance > 0 ? "bg-amber-50 text-amber-800 border-amber-200/50" : "bg-zinc-50 text-zinc-500 border-zinc-200/50",
+            href: "/invoices"
           },
           {
             title: "Vs Last Month",
             value: `${stats.billedLastMonth > 0 ? Math.round(((stats.billedThisMonth - stats.billedLastMonth) / stats.billedLastMonth) * 100) : 0}%`,
             icon: TrendingUp,
-            accent: stats.billedThisMonth >= stats.billedLastMonth ? "bg-emerald-50 text-emerald-900 border-emerald-200/50" : "bg-amber-50 text-amber-800 border-amber-200/50"
+            accent: stats.billedThisMonth >= stats.billedLastMonth ? "bg-emerald-50 text-emerald-900 border-emerald-200/50" : "bg-amber-50 text-amber-800 border-amber-200/50",
+            href: "/reports"
           },
           {
             title: "Jobs Completed",
             value: stats.completedJobs.toString(),
             icon: Check,
-            accent: "bg-blue-50 text-blue-700 border-blue-100/50"
+            accent: "bg-blue-50 text-blue-700 border-blue-100/50",
+            href: "/invoices"
           },
           {
             title: "Average Job Value",
             value: formatCurrency(stats.avgJobValue),
             icon: FileText,
-            accent: "bg-purple-50 text-purple-700 border-purple-100/50"
+            accent: "bg-purple-50 text-purple-700 border-purple-100/50",
+            href: "/reports"
           }
         ].map((stat, i) => (
-          <Card key={i} className={`rounded-3xl border border-zinc-100 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group${i === 4 ? ' col-span-2 lg:col-span-1' : ''}`}>
+          <Link key={i} to={stat.href} className={`block rounded-3xl border border-zinc-100 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.015)] transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.035)] hover:-translate-y-0.5 group cursor-pointer${i === 4 ? ' col-span-2 lg:col-span-1' : ''}`}>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500 group-hover:text-zinc-600 transition-colors">{stat.title}</span>
@@ -508,7 +512,7 @@ export default function Dashboard() {
                 <p className="text-[11px] text-zinc-400">Last month: {formatCurrency(stats.billedLastMonth)}</p>
               )}
             </div>
-          </Card>
+          </Link>
         ))}
       </div>
 

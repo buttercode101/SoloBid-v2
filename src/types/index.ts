@@ -1,7 +1,7 @@
 // ── Domain types ────────────────────────────────────────────────────────────
 
-export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'rejected' | 'converted';
-export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
+export type QuoteStatus = 'draft' | 'sent' | 'viewed' | 'approved' | 'rejected' | 'expired' | 'converted';
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'partially_paid' | 'cancelled';
 export type LineItemType = 'labor' | 'material';
 export type Frequency = 'weekly' | 'monthly' | 'yearly';
 export type OnboardingStep = 'welcome' | 'profile' | 'preferences' | 'complete';

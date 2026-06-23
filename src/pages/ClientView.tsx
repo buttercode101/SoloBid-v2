@@ -76,6 +76,11 @@ export default function ClientView() {
         saTaxInvoiceMode: estData.isSATaxInvoice || false,
       });
 
+      // Mark as viewed when a sent quote is opened publicly — fire and forget
+      if (estData.status === 'sent') {
+        supabase.from('quotes').update({ status: 'viewed' }).eq('id', quoteId).then(() => {});
+      }
+
       const { data: itemRows } = await supabase
         .from('line_items')
         .select('*')
@@ -92,7 +97,7 @@ export default function ClientView() {
   };
 
   const handleApprove = async () => {
-    if (estimate?.status !== 'sent') {
+    if (estimate?.status !== 'sent' && estimate?.status !== 'viewed') {
       toast.error('This quotation is not currently open for approval.');
       return;
     }
@@ -128,7 +133,7 @@ export default function ClientView() {
   };
 
   const handleReject = async () => {
-    if (estimate?.status !== 'sent') {
+    if (estimate?.status !== 'sent' && estimate?.status !== 'viewed') {
       toast.error('This quotation is not currently open for rejection.');
       return;
     }
@@ -231,9 +236,10 @@ export default function ClientView() {
           </div>
           <div className="flex items-center gap-3">
              {(() => {
-                const statusConfig = {
+                const statusConfig: Record<string, { bg: string; text: string; icon: string; label: string }> = {
                   draft: { bg: 'bg-zinc-100', text: 'text-zinc-800', icon: '⊙', label: 'Draft' },
                   sent: { bg: 'bg-blue-50', text: 'text-blue-700', icon: '✉', label: 'Reviewing' },
+                  viewed: { bg: 'bg-sky-50', text: 'text-sky-700', icon: '👁', label: 'Viewed' },
                   approved: { bg: 'bg-green-50', text: 'text-green-700', icon: '✓', label: 'Approved' },
                   paid: { bg: 'bg-green-50', text: 'text-green-700', icon: '✓', label: 'Paid' },
                   converted: { bg: 'bg-purple-50', text: 'text-purple-700', icon: '✓', label: 'Invoiced' },
