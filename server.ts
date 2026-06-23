@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
@@ -645,9 +646,20 @@ async function createApp() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    const indexHtml = fs.readFileSync(path.join(distPath, "index.html"), "utf8");
+    app.use(express.static(distPath, {
+      etag: true,
+      maxAge: '1y',
+      immutable: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html') || filePath.endsWith('sw.js') || filePath.endsWith('registerSW.js')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    }));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.setHeader('Cache-Control', 'no-cache');
+      res.type('html').send(indexHtml);
     });
   }
 
@@ -656,7 +668,7 @@ async function createApp() {
 
 const isMain = process.argv[1] === fileURLToPath(import.meta.url) ||
                process.argv[1]?.endsWith("server.ts") ||
-               process.argv[1]?.endsWith("server.cjs");
+               process.argv[1]?.endsWith("server.mjs");
 if (isMain) {
   const PORT = 3000;
   createApp().then(app => {
