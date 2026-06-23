@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import type { Invoice, Quote } from '../types';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { supabase, fromDbInvoice, fromDbQuote, fromDbLineItem } from '../lib/supabase';
@@ -21,8 +22,8 @@ import { AttachmentUploader, type Attachment } from '../components/AttachmentUpl
 export default function Invoices() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [approvedEstimates, setApprovedEstimates] = useState<any[]>([]); 
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [approvedEstimates, setApprovedEstimates] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export default function Invoices() {
     };
   }, [user]);
 
-  const handleConvert = async (estimate: any) => {
+  const handleConvert = async (estimate: Quote) => {
     try {
       if (!user?.uid) throw new Error("Authentication required");
       setLoading(true);
@@ -81,7 +82,7 @@ export default function Invoices() {
       if (error) throw new Error(error.message);
       toast.success('Invoice created successfully');
     } catch (error: any) {
-      console.error("Invoice conversion error:", error);
+      if (import.meta.env.DEV) console.error("Invoice conversion error:", error);
       toast.error(error.message || "Failed to create invoice. Please try again.");
     } finally {
       setLoading(false);
@@ -256,8 +257,36 @@ export default function Invoices() {
     );
   };
 
+  if (initialLoading) {
+    return (
+      <div className="space-y-8 max-w-7xl mx-auto animate-pulse">
+        <div className="pb-2 border-b border-zinc-100">
+          <div className="h-8 bg-zinc-200 rounded-xl w-56 mb-2" />
+          <div className="h-3 bg-zinc-200 rounded-lg w-80" />
+        </div>
+        <div className="rounded-3xl border border-zinc-100 bg-white overflow-hidden">
+          <div className="p-6 border-b border-zinc-50">
+            <div className="h-5 bg-zinc-200 rounded-lg w-32" />
+          </div>
+          <div className="divide-y divide-zinc-50">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="flex items-center justify-between p-5 gap-4">
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-zinc-200 rounded-lg w-40" />
+                  <div className="h-3 bg-zinc-200 rounded-lg w-24" />
+                </div>
+                <div className="h-6 bg-zinc-200 rounded-full w-16" />
+                <div className="h-4 bg-zinc-200 rounded-lg w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}

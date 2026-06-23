@@ -47,6 +47,16 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   SGD: 'S$',
 };
 
+// ── Validity period options ────────────────────────────────────────────────
+
+export const VALIDITY_PERIODS = [
+  { value: '3', label: '3 Days Validity' },
+  { value: '7', label: '7 Days Validity' },
+  { value: '14', label: '14 Days Validity' },
+  { value: '30', label: '30 Days Validity' },
+  { value: 'never', label: 'No Expiration Date' },
+] as const;
+
 // ── Status badge styles ────────────────────────────────────────────────────
 
 export const STATUS_BADGE: Record<string, string> = {

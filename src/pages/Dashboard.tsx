@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import type { Quote, Invoice } from '../types';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { supabase, fromDbQuote, fromDbInvoice } from '../lib/supabase';
@@ -17,17 +18,17 @@ import { getUserFriendlyError } from '../lib/errorHandler';
 import { formatZAR, statusBadgeStyles } from '../lib/theme';
 import { generateWhatsAppShareLink, trackWhatsAppShare } from '../lib/whatsapp';
 
-const DEMO_QUOTES = [
-  { id: 'demo1', clientName: 'Global Tech Solutions', clientEmail: 'contact@globaltech.com', status: 'approved', total: 12500.00, createdAt: new Date().toISOString(), currency: 'USD' },
-  { id: 'demo2', clientName: 'Urban Design Studio', clientEmail: 'info@urbandesign.io', status: 'sent', total: 4500.00, createdAt: new Date(Date.now() - 86400000).toISOString(), currency: 'USD' },
-  { id: 'demo3', clientName: 'Heritage Restoration', clientEmail: 'office@heritagerest.com', status: 'converted', total: 6800.00, createdAt: new Date(Date.now() - 172800000).toISOString(), currency: 'USD' },
-  { id: 'demo4', clientName: 'Peak Performance Inc', clientEmail: 'admin@peakperf.com', status: 'draft', total: 2400.00, createdAt: new Date(Date.now() - 259200000).toISOString(), currency: 'USD' },
+const DEMO_QUOTES: Quote[] = [
+  { id: 'demo1', uid: '', clientName: 'Global Tech Solutions', clientEmail: 'contact@globaltech.com', status: 'approved', total: 12500.00, subtotal: 12500.00, taxRate: 0, taxAmount: 0, createdAt: new Date().toISOString(), currency: 'USD' },
+  { id: 'demo2', uid: '', clientName: 'Urban Design Studio', clientEmail: 'info@urbandesign.io', status: 'sent', total: 4500.00, subtotal: 4500.00, taxRate: 0, taxAmount: 0, createdAt: new Date(Date.now() - 86400000).toISOString(), currency: 'USD' },
+  { id: 'demo3', uid: '', clientName: 'Heritage Restoration', clientEmail: 'office@heritagerest.com', status: 'converted', total: 6800.00, subtotal: 6800.00, taxRate: 0, taxAmount: 0, createdAt: new Date(Date.now() - 172800000).toISOString(), currency: 'USD' },
+  { id: 'demo4', uid: '', clientName: 'Peak Performance Inc', clientEmail: 'admin@peakperf.com', status: 'draft', total: 2400.00, subtotal: 2400.00, taxRate: 0, taxAmount: 0, createdAt: new Date(Date.now() - 259200000).toISOString(), currency: 'USD' },
 ];
 
 export default function Dashboard() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const [recentQuotes, setRecentQuotes] = useState<any[]>([]);
+  const [recentQuotes, setRecentQuotes] = useState<Quote[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -53,13 +54,13 @@ export default function Dashboard() {
     return `${getCurrencySymbol(selectedCurrency)}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const isQuoteExpired = (q: any) => {
+  const isQuoteExpired = (q: Quote) => {
     if (!q.expiresAt) return false;
     if (['approved', 'rejected', 'paid', 'converted'].includes(q.status)) return false;
     return new Date() > new Date(q.expiresAt);
   };
 
-  const handleDuplicateQuote = async (q: any) => {
+  const handleDuplicateQuote = async (q: Quote) => {
     if (!user) return;
     try {
       const { v4: uuidv4 } = await import('uuid');
@@ -108,7 +109,7 @@ export default function Dashboard() {
       toast.success('Quote duplicated — editing new draft');
       navigate(`/quotes/${newId}`);
     } catch (err) {
-      console.error('Duplicate error:', err);
+      if (import.meta.env.DEV) console.error('Duplicate error:', err);
       toast.error('Failed to duplicate quote');
     }
   };
@@ -123,7 +124,7 @@ export default function Dashboard() {
       toast.success("Quote deleted successfully");
       setDeleteId(null);
     } catch (error) {
-      console.error("Error deleting quote:", error);
+      if (import.meta.env.DEV) console.error("Error deleting quote:", error);
       toast.error("Failed to delete quote");
     } finally {
       setIsDeleting(false);
@@ -146,8 +147,8 @@ export default function Dashboard() {
       return;
     }
 
-    let quotesList: any[] = [];
-    let invoicesList: any[] = [];
+    let quotesList: Quote[] = [];
+    let invoicesList: Invoice[] = [];
 
     const computeAndSetStats = async () => {
       let pending = 0;
@@ -179,7 +180,7 @@ export default function Dashboard() {
           });
         }
       } catch (err) {
-        console.error("Failed to fetch expenses", err);
+        if (import.meta.env.DEV) console.error("Failed to fetch expenses", err);
       }
 
       for (const q of quotesList) {
@@ -270,12 +271,12 @@ export default function Dashboard() {
 
     // Initial fetches
     fetchQuotes().catch((error) => {
-      console.error("Dashboard quotes fetch error:", error);
+      if (import.meta.env.DEV) console.error("Dashboard quotes fetch error:", error);
       toast.error(getUserFriendlyError(error));
       setLoading(false);
     });
     fetchInvoices().catch((error) => {
-      console.error("Dashboard invoices fetch error:", error);
+      if (import.meta.env.DEV) console.error("Dashboard invoices fetch error:", error);
     });
 
     // Realtime subscription for quotes
@@ -349,7 +350,7 @@ export default function Dashboard() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleWhatsAppShare = (quote: any) => {
+  const handleWhatsAppShare = (quote: Quote) => {
     try {
       const share = generateWhatsAppShareLink(
         { ...quote, contractorBusinessName: profile?.businessName },
