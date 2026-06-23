@@ -4,6 +4,7 @@ import { formatZAR } from './theme';
 
 export type WhatsAppShareQuote = {
   id?: string;
+  quoteNumber?: string;
   clientName?: string;
   clientPhone?: string;
   phone?: string;
@@ -99,11 +100,12 @@ export const buildWhatsAppQuoteMessage = (quote: WhatsAppShareQuote, viewUrl: st
   const businessName = quote.contractorBusinessName?.trim() || 'your contractor';
   const total = formatQuoteTotal(quote.total || 0, quote.currency || 'ZAR');
   const validity = formatQuoteValidity(quote);
+  const quoteRef = quote.quoteNumber || (quote.id && quote.id !== 'draft' ? `#${quote.id.slice(0, 8).toUpperCase()}` : null);
 
   return [
     `Hi ${clientName},`,
     '',
-    `${businessName} has sent you a quotation for *${total}* (${validity}).`,
+    `${businessName} has sent you a quotation${quoteRef ? ` (${quoteRef})` : ''} for *${total}* (${validity}).`,
     '',
     `Tap to view, approve or decline:`,
     viewUrl,

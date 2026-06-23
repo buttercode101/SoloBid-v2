@@ -19,3 +19,12 @@
 - `src/pages/Reports.tsx` — add date range filtering
 - RecurringInvoices page — add next-issue-date visibility
 - Templates page — add preview modal
+- Deposit support (partial payment collection at quote approval)
+- Paystack webhook refactor (idempotency, retry queue)
+- Soft delete migrations (add `deleted_at` column, filter from queries)
+- Audit logs (track status transitions with timestamp + actor)
+- AI features (quote description auto-fill, price suggestions)
+- MCP integration
+- Dashboard: add filter state to invoice page navigation (e.g. "Outstanding" card → invoices pre-filtered to overdue/unpaid)
+- Dashboard: "Quotes sent/active" card — consider adding a dedicated Quotes count card
+- `viewed` status: verify DB allows text value (not Postgres enum); if enum, migration needed
