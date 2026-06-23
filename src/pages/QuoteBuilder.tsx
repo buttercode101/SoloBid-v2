@@ -458,7 +458,7 @@ export default function QuoteBuilder() {
         setIsMilestone(data.isMilestone || false);
         setProgressPercent(data.progressPercent || 0);
         setQuoteCreatedAt(data.createdAt || null);
-        setValidityDays(data.validityDays || '7');
+        setValidityDays(String(data.validityDays ?? '7'));
         setQuotePdfUrl(data.pdfUrl || '');
         setQuoteNumber(data.quoteNumber || '');
 
@@ -491,7 +491,7 @@ export default function QuoteBuilder() {
         setIsMilestone(data.isMilestone || false);
         setProgressPercent(data.progressPercent || 0);
         setQuoteCreatedAt(data.createdAt || null);
-        setValidityDays(data.validityDays || '7');
+        setValidityDays(String(data.validityDays ?? '7'));
         setQuotePdfUrl(data.pdfUrl || data.quotePdfUrl || data.publicPdfUrl || '');
         setLineItems(localDraft.lineItems as LineItem[]);
         setExpenses(localDraft.expenses as Expense[]);
