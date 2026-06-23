@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import type { Client, Quote } from '../types';
 import { useAuth } from '../lib/auth';
 import { supabase, fromDbClient, fromDbQuote } from '../lib/supabase';
 import { Button } from '../components/ui/button';
@@ -24,12 +25,13 @@ import { Link } from 'react-router-dom';
 
 export default function Clients() {
   const { user } = useAuth();
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [clientStats, setClientStats] = useState<Record<string, { totalBilled: number; lastJobDate?: string }>>({});
-  const [clientQuotes, setClientQuotes] = useState<Record<string, any[]>>({});
+  const [clientQuotes, setClientQuotes] = useState<Record<string, Quote[]>>({});
   const [expandedQuotes, setExpandedQuotes] = useState<Record<string, boolean>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<any>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [emailError, setEmailError] = useState('');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -99,7 +101,8 @@ export default function Clients() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  const handleOpenDialog = (client?: any) => {
+  const handleOpenDialog = (client?: Client) => {
+    setEmailError('');
     if (client) {
       setEditingClient(client);
       setFormData({
@@ -127,6 +130,12 @@ export default function Clients() {
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    setEmailError('');
 
     try {
       const clientId = editingClient ? editingClient.id : uuidv4();
@@ -176,7 +185,7 @@ export default function Clients() {
           <p className="text-zinc-500 text-xs mt-0.5 font-normal">Save customer details, installation addresses, and notes in one place.</p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEmailError(''); }}>
           <DialogTrigger asChild>
             <Button className="h-10 bg-primary hover:bg-[#03362f] text-white font-medium rounded-xl text-sm active:scale-95 transition-all shadow-sm">
               <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" /> Add Client
@@ -202,14 +211,15 @@ export default function Clients() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-xs text-zinc-500 font-medium">Email Address</Label>
-                <Input 
-                  id="email" 
+                <Input
+                  id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  onChange={(e) => { setFormData({...formData, email: e.target.value}); setEmailError(''); }}
                   placeholder="e.g. richard@piedpiper.com"
-                  className="h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
+                  className={`h-10 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm ${emailError ? 'border-red-400 focus:border-red-400 focus:ring-red-200' : ''}`}
                 />
+                {emailError && <p className="text-xs text-red-500 mt-1">{emailError}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="phone" className="text-xs text-zinc-500 font-medium">Phone Number</Label>

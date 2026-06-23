@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from "../components/ui/dialog";
 import { COUNTRIES, getCountryByCode, getCountryByCurrency } from '../lib/countries';
+import { DEFAULTS } from '../lib/constants';
 
 const settingsSchema = z.object({
   businessName: z.string().min(1, "Business Name is required"),
@@ -53,8 +54,8 @@ export default function Settings() {
     defaultTaxRate: profile?.defaultTaxRate?.toString() || '15',
     defaultMarkup: profile?.defaultMarkup?.toString() || '20',
     terms: profile?.terms || '',
-    invoicePrefix: profile?.invoicePrefix || 'INV-',
-    quotePrefix: profile?.quotePrefix || 'QTE-',
+    invoicePrefix: profile?.invoicePrefix || DEFAULTS.INVOICE_PREFIX,
+    quotePrefix: profile?.quotePrefix || DEFAULTS.QUOTE_PREFIX,
     pdfStyle: profile?.pdfStyle || 'modern',
     pdfFont: profile?.pdfFont || 'Helvetica',
     defaultCurrency: profile?.defaultCurrency || 'ZAR',

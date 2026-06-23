@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { VALIDITY_PERIODS } from '../lib/constants';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { supabase, fromDbQuote, fromDbLineItem, fromDbExpense, fromDbAttachment, toDbQuote, toDbLineItem, toDbExpense } from '../lib/supabase';
@@ -1327,11 +1328,9 @@ export default function QuoteBuilder() {
                       value={validityDays}
                       onChange={(e) => setValidityDays(e.target.value)}
                     >
-                      <option value="3">3 Days Validity</option>
-                      <option value="7">7 Days Validity</option>
-                      <option value="14">14 Days Validity</option>
-                      <option value="30">30 Days Validity</option>
-                      <option value="never">No Expiration Date</option>
+                      {VALIDITY_PERIODS.map(p => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="flex flex-col justify-center text-[11px] text-zinc-400 leading-normal">
