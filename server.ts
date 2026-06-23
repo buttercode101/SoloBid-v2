@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import zlib from "zlib";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
@@ -69,6 +70,95 @@ async function createApp() {
   };
 
   app.use(cors(corsOptions));
+
+  // Compression middleware — brotli preferred, gzip fallback
+  // Buffers the full response then compresses it (safe for static files, JSON APIs)
+  app.use((req, res, next) => {
+    const ae = (req.headers['accept-encoding'] as string) ?? '';
+    const supportsBr = ae.includes('br');
+    const supportsGzip = ae.includes('gzip');
+    if (!supportsBr && !supportsGzip) return next();
+
+    const chunks: Buffer[] = [];
+    const _write = res.write.bind(res);
+    const _end = res.end.bind(res);
+
+    let intercepting = false;
+    let ended = false;
+
+    const maybeIntercept = () => {
+      const ct = (res.getHeader('Content-Type') as string) ?? '';
+      const ce = (res.getHeader('Content-Encoding') as string) ?? '';
+      if (ce) return false; // already encoded
+      if (!/text|javascript|json|xml|svg/.test(ct)) return false;
+      return true;
+    };
+
+    const flush = async (finalChunk?: Buffer) => {
+      if (ended) return;
+      ended = true;
+      if (finalChunk) chunks.push(finalChunk);
+      const body = Buffer.concat(chunks);
+      if (body.length < 512) {
+        // Too small to compress
+        _write(body);
+        _end();
+        return;
+      }
+      try {
+        let compressed: Buffer;
+        if (supportsBr) {
+          compressed = await new Promise<Buffer>((resolve, reject) =>
+            zlib.brotliCompress(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }, (e, r) => e ? reject(e) : resolve(r))
+          );
+          res.setHeader('Content-Encoding', 'br');
+        } else {
+          compressed = await new Promise<Buffer>((resolve, reject) =>
+            zlib.gzip(body, { level: 6 }, (e, r) => e ? reject(e) : resolve(r))
+          );
+          res.setHeader('Content-Encoding', 'gzip');
+        }
+        res.setHeader('Content-Length', compressed.length);
+        _write(compressed);
+        _end();
+      } catch {
+        _write(body);
+        _end();
+      }
+    };
+
+    res.write = function(chunk: any, encoding?: any, callback?: any) {
+      if (!intercepting) {
+        intercepting = maybeIntercept();
+        if (intercepting) res.removeHeader('Content-Length');
+      }
+      if (intercepting) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, typeof encoding === 'string' ? encoding as BufferEncoding : 'utf8'));
+        if (typeof encoding === 'function') encoding();
+        else if (typeof callback === 'function') callback();
+        return true;
+      }
+      return _write(chunk, encoding, callback);
+    } as any;
+
+    res.end = function(chunk?: any, encoding?: any, callback?: any) {
+      if (!intercepting) {
+        intercepting = maybeIntercept();
+        if (intercepting) res.removeHeader('Content-Length');
+      }
+      if (intercepting) {
+        const buf = chunk ? (Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, typeof encoding === 'string' ? encoding as BufferEncoding : 'utf8')) : undefined;
+        flush(buf).then(() => {
+          if (typeof encoding === 'function') encoding();
+          else if (typeof callback === 'function') callback();
+        });
+        return this;
+      }
+      return _end(chunk, encoding, callback);
+    } as any;
+
+    next();
+  });
 
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -647,16 +737,105 @@ async function createApp() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     const indexHtml = fs.readFileSync(path.join(distPath, "index.html"), "utf8");
+
+    // Pre-compress all JS/CSS assets into memory at startup (brotli + gzip).
+    // Subsequent requests are served from this cache with zero compression overhead.
+    type CompressedEntry = { br: Buffer | null; gz: Buffer | null; raw: Buffer; etag: string; mtime: Date; contentType: string };
+    const assetCache = new Map<string, CompressedEntry>();
+
+    const COMPRESSIBLE = /\.(js|css|json|svg|xml|txt|woff2?)$/i;
+    const MIME_MAP: Record<string, string> = {
+      '.js': 'application/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.svg': 'image/svg+xml',
+      '.woff2': 'font/woff2',
+      '.woff': 'font/woff',
+    };
+
+    const walkAndCache = async (dir: string, urlBase: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const abs = path.join(dir, entry.name);
+        const url = `${urlBase}/${entry.name}`;
+        if (entry.isDirectory()) {
+          await walkAndCache(abs, url);
+        } else if (COMPRESSIBLE.test(entry.name)) {
+          const raw = fs.readFileSync(abs);
+          const stat = fs.statSync(abs);
+          const ext = path.extname(entry.name).toLowerCase();
+          const contentType = MIME_MAP[ext] ?? 'application/octet-stream';
+          const etag = `"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
+          let br: Buffer | null = null;
+          let gz: Buffer | null = null;
+          if (raw.length > 512) {
+            [br, gz] = await Promise.all([
+              new Promise<Buffer>((res, rej) =>
+                zlib.brotliCompress(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } }, (e, r) => e ? rej(e) : res(r))
+              ).catch(() => null),
+              new Promise<Buffer>((res, rej) =>
+                zlib.gzip(raw, { level: 6 }, (e, r) => e ? rej(e) : res(r))
+              ).catch(() => null),
+            ]);
+          }
+          assetCache.set(url, { br, gz, raw, etag, mtime: stat.mtime, contentType });
+        }
+      }
+    };
+
+    await walkAndCache(path.join(distPath, 'assets'), '/assets');
+
+    // Serve cached & compressed assets
+    app.get('/assets/*', (req, res) => {
+      const entry = assetCache.get(req.path);
+      if (!entry) { res.status(404).end(); return; }
+
+      // ETag conditional request
+      if (req.headers['if-none-match'] === entry.etag) {
+        res.status(304).end();
+        return;
+      }
+
+      const ae = (req.headers['accept-encoding'] as string) ?? '';
+      let body: Buffer;
+      if (entry.br && ae.includes('br')) {
+        res.setHeader('Content-Encoding', 'br');
+        body = entry.br;
+      } else if (entry.gz && ae.includes('gzip')) {
+        res.setHeader('Content-Encoding', 'gzip');
+        body = entry.gz;
+      } else {
+        body = entry.raw;
+      }
+
+      res.setHeader('Content-Type', entry.contentType);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('ETag', entry.etag);
+      res.setHeader('Content-Length', body.length);
+      res.setHeader('Vary', 'Accept-Encoding');
+      res.end(body);
+    });
+
+    // Serve non-compressible statics (images, icons, sw.js, etc.)
     app.use(express.static(distPath, {
       etag: true,
       maxAge: '1y',
       immutable: true,
+      index: false,
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith('index.html') || filePath.endsWith('sw.js') || filePath.endsWith('registerSW.js')) {
+        if (
+          filePath.endsWith('index.html') ||
+          filePath.endsWith('sw.js') ||
+          filePath.endsWith('registerSW.js') ||
+          filePath.endsWith('workbox') ||
+          filePath.includes('workbox-')
+        ) {
           res.setHeader('Cache-Control', 'no-cache');
         }
+        // Skip files already handled by the asset cache
+        if (filePath.includes('/assets/')) return;
       },
     }));
+
     app.get("*", (req, res) => {
       res.setHeader('Cache-Control', 'no-cache');
       res.type('html').send(indexHtml);

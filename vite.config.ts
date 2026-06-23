@@ -16,6 +16,8 @@ export default defineConfig(({mode}) => {
         manifest: false,
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          // Exclude the huge PDF renderer from precache — it's loaded on-demand
+          globIgnores: ['**/vendor-pdf-*.js'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
@@ -48,20 +50,14 @@ export default defineConfig(({mode}) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-            'vendor-supabase': ['@supabase/supabase-js'],
-            'vendor-pdf': ['@react-pdf/renderer'],
-            'vendor-ui': [
-              '@radix-ui/react-dialog',
-              '@radix-ui/react-dropdown-menu',
-              '@radix-ui/react-label',
-              '@radix-ui/react-select',
-              '@radix-ui/react-slot',
-              '@radix-ui/react-tabs',
-              '@radix-ui/react-toast',
-            ],
-            'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+          manualChunks(id) {
+            if (id.includes('node_modules/@react-pdf')) return 'vendor-pdf';
+            if (id.includes('node_modules/motion') || id.includes('node_modules/@motionone')) return 'vendor-motion';
+            if (id.includes('node_modules/@dnd-kit')) return 'vendor-dnd';
+            if (id.includes('node_modules/@radix-ui') || id.includes('node_modules/class-variance-authority') || id.includes('node_modules/clsx') || id.includes('node_modules/tailwind-merge')) return 'vendor-ui';
+            if (id.includes('node_modules/@supabase')) return 'vendor-supabase';
+            if (id.includes('node_modules/react-dom') || id.includes('node_modules/react-router') || id.includes('node_modules/react/')) return 'vendor-react';
+            if (id.includes('node_modules/lucide-react')) return 'vendor-icons';
           },
         },
       },
