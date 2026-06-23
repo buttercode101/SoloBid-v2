@@ -205,10 +205,10 @@ export function toDbLineItem(item: Partial<LineItem>, parentId: { quoteId?: stri
     template_id: parentId.templateId ?? null,
     recurring_invoice_id: parentId.recurringInvoiceId ?? null,
     description: item.description,
-    qty: Number(item.qty) || 1,
-    unit_cost: Number(item.unitCost) || 0,
+    qty: item.qty != null ? Number(item.qty) : 1,
+    unit_cost: item.unitCost != null ? Number(item.unitCost) : 0,
     type: item.type ?? 'labor',
-    markup_percent: Number(item.markupPercent) || 0,
+    markup_percent: item.markupPercent != null ? Number(item.markupPercent) : 0,
     sort_order: item.sortOrder ?? 0,
   };
 }

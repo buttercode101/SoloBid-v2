@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
 import { FileText, Loader2 } from 'lucide-react';
@@ -89,7 +90,7 @@ const NotFoundRoute = () => {
 };
 
 
-export default function App() {
+function App() {
   return (
     <AuthProvider>
       <Router>
@@ -145,5 +146,13 @@ export default function App() {
         <Toaster />
       </Router>
     </AuthProvider>
+  );
+}
+
+export default function AppWithBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   );
 }
