@@ -1,11 +1,11 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
-import { Layout } from './components/Layout';
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
 import { FileText, Loader2 } from 'lucide-react';
 
+const Layout = lazy(() => import('./components/Layout').then((module) => ({ default: module.Layout })));
 const Login = lazy(() => import('./pages/Login'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
