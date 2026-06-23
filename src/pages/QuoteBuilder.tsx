@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, Send, ArrowLeft, Mic, GripVertical, ImagePlus, Copy, Check, FileText, Sparkles, Calendar, Receipt, Milestone, Layers, WifiOff, MessageCircle, Printer, Download, Loader2, Mail } from 'lucide-react';
+import { Plus, Trash2, Save, Send, ArrowLeft, Mic, GripVertical, ImagePlus, Copy, Check, FileText, Sparkles, Calendar, Receipt, Milestone, WifiOff, MessageCircle, Printer, Download, Loader2, Mail } from 'lucide-react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -31,6 +31,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { z } from 'zod';
 import DOMPurify from 'dompurify';
 import { getCurrencySymbol } from '../lib/currencies';
+import { sanitizeNumericInput, formatCurrency as formatCurrencyValue, calculateLineTotal } from '../lib/calculations';
+import { QuoteSummaryCard } from '../components/quote/QuoteSummaryCard';
+import { ExpensesList } from '../components/quote/ExpensesList';
 import { getUserFriendlyError } from '../lib/errorHandler';
 import { useRateLimit } from '../hooks/useRateLimit';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -70,21 +73,15 @@ interface Expense {
   createdAt?: string;
 }
 
-const sanitizeNumericInput = (val: string): string => {
-  if (val === '') return '';
-  if (/^\d*\.?\d*$/.test(val)) {
-    if (/^0\d+/.test(val)) {
-      return val.replace(/^0+/, '');
-    }
-    if (/^0+$/.test(val)) {
-      return '0';
-    }
-    return val;
-  }
-  return '';
-};
+interface SortableLineItemProps {
+  item: LineItem;
+  updateLineItem: (id: string, field: string, value: string) => void;
+  removeLineItem: (id: string) => void;
+  handleVoiceInput: (id: string) => void;
+  currency: string;
+}
 
-function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInput, currency }: any) {
+function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInput, currency }: SortableLineItemProps) {
   const [isFocused, setIsFocused] = useState(false);
   const {
     attributes,
@@ -97,24 +94,6 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-  };
-
-  const roundedTotal = () => {
-    const qty = typeof item.qty === 'number' ? item.qty : parseFloat(item.qty) || 0;
-    const cost = typeof item.unitCost === 'number' ? item.unitCost : parseFloat(item.unitCost) || 0;
-    const markup = typeof item.markupPercent === 'number' ? item.markupPercent : parseFloat(item.markupPercent) || 0;
-    
-    if (item.type === 'material') {
-      return (qty * cost) * (1 + markup / 100);
-    }
-    return qty * cost;
-  };
-
-  const formatCurrencyValue = (amount: number) => {
-    if (currency === 'ZAR') {
-      return formatZAR(amount);
-    }
-    return `${getCurrencySymbol(currency)}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -246,7 +225,7 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
         
         <div className="text-sm font-semibold text-zinc-800 md:text-right w-full md:w-auto self-end">
           <span className="text-zinc-400 font-normal mr-1.5 text-xs">Line total:</span>
-          <span className="text-zinc-900 tabular-nums font-semibold">{formatCurrencyValue(roundedTotal())}</span>
+          <span className="text-zinc-900 tabular-nums font-semibold">{formatCurrencyValue(calculateLineTotal({ ...item, qty: Number(item.qty) || 0, unitCost: Number(item.unitCost) || 0, markupPercent: Number(item.markupPercent) || 0 }), currency)}</span>
         </div>
       </div>
     </motion.div>
@@ -458,7 +437,7 @@ export default function QuoteBuilder() {
         setIsMilestone(data.isMilestone || false);
         setProgressPercent(data.progressPercent || 0);
         setQuoteCreatedAt(data.createdAt || null);
-        setValidityDays(data.validityDays || '7');
+        setValidityDays(String(data.validityDays ?? '7'));
         setQuotePdfUrl(data.pdfUrl || '');
         setQuoteNumber(data.quoteNumber || '');
 
@@ -491,7 +470,7 @@ export default function QuoteBuilder() {
         setIsMilestone(data.isMilestone || false);
         setProgressPercent(data.progressPercent || 0);
         setQuoteCreatedAt(data.createdAt || null);
-        setValidityDays(data.validityDays || '7');
+        setValidityDays(String(data.validityDays ?? '7'));
         setQuotePdfUrl(data.pdfUrl || data.quotePdfUrl || data.publicPdfUrl || '');
         setLineItems(localDraft.lineItems as LineItem[]);
         setExpenses(localDraft.expenses as Expense[]);
@@ -1420,100 +1399,14 @@ export default function QuoteBuilder() {
             </CardContent>
           </Card>
 
-          {/* Expenses Card */}
-          <Card className="rounded-3xl border border-zinc-100 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-zinc-50 p-6">
-              <div>
-                <CardTitle className="text-lg font-semibold text-zinc-900">3. Material Costs & Expenses</CardTitle>
-                <CardDescription className="text-zinc-400 text-xs">Add receipts and track how much was spent on materials.</CardDescription>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={addExpense}
-                className="h-8.5 rounded-lg border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 shadow-sm cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1.5 text-primary stroke-[2.5]" /> Add Expense
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 p-6 bg-white">
-              <AnimatePresence mode="popLayout">
-                {expenses.map((expense) => (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    key={expense.id} 
-                    className="flex flex-col md:flex-row items-start md:items-center gap-4 p-4.5 border border-zinc-200 bg-zinc-50/30 rounded-2xl hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all duration-200"
-                  >
-                    <div className="flex-1 w-full space-y-1.5">
-                      <Label className="text-xs text-zinc-500 font-medium">Item Name / Description</Label>
-                      <Input 
-                        value={expense.description} 
-                        onChange={e => updateExpense(expense.id, 'description', e.target.value)}
-                        placeholder="e.g. Copper pipes and brass joints"
-                        className="h-9.5 rounded-xl border-zinc-200 focus:ring-primary focus:border-primary shadow-sm"
-                      />
-                    </div>
-                    <div className="w-full md:w-32 space-y-1.5">
-                      <Label className="text-xs text-zinc-500 font-medium">Cost ({getCurrencySymbol(currency)})</Label>
-                      <Input 
-                        type="text"
-                        inputMode="decimal"
-                        value={expense.amount} 
-                        className="h-9.5 rounded-xl border-zinc-200 text-zinc-800"
-                        onChange={e => {
-                          const val = e.target.value;
-                          if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                            updateExpense(expense.id, 'amount', sanitizeNumericInput(val));
-                          }
-                        }}
-                      />
-                    </div>
-                    <div className="pt-2 md:pt-6 flex gap-2 w-full md:w-auto shrink-0 self-end md:self-auto justify-end">
-                      <div className="relative">
-                        <input 
-                          type="file" 
-                          accept="image/*"
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              handleExpensePhotoUpload(expense.id, e.target.files[0]);
-                            }
-                          }}
-                          title="Upload receipt photo"
-                        />
-                        <Button 
-                          type="button"
-                          variant={expense.receiptUrl ? "default" : "outline"} 
-                          size="icon"
-                          className={`h-9.5 w-9.5 rounded-xl border-zinc-200 hover:scale-95 ${expense.receiptUrl ? "bg-emerald-800 hover:bg-emerald-900 text-white border-none shadow-sm shadow-emerald-950/20" : "bg-white hover:bg-zinc-50"}`}
-                          title={expense.receiptUrl ? "Receipt photo saved" : "Store receipt photo"}
-                        >
-                          <ImagePlus className="w-4.5 h-4.5" />
-                        </Button>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-9.5 w-9.5 rounded-xl text-zinc-400 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => removeExpense(expense.id)}
-                        aria-label="Remove expense"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              
-              {expenses.length === 0 && (
-                <div className="text-center py-10 text-zinc-400 border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/10">
-                  <span className="block text-xs text-zinc-400">No expenses added yet.</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ExpensesList
+            expenses={expenses}
+            currency={currency}
+            addExpense={addExpense}
+            updateExpense={updateExpense}
+            removeExpense={removeExpense}
+            handleExpensePhotoUpload={handleExpensePhotoUpload}
+          />
 
 
           {/* Attachments Card */}
@@ -1554,93 +1447,20 @@ export default function QuoteBuilder() {
 
         {/* Right Sidebar Summary */}
         <div className="space-y-6">
-          <Card className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl relative sticky top-6 overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-primary" />
-            <div className="space-y-6 pt-2">
-              <div className="border-b border-zinc-100 pb-4">
-                <h3 className="text-base font-bold text-zinc-900 tracking-tight flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-primary" />
-                  Total Summary
-                </h3>
-                <p className="text-xs text-zinc-400 mt-1">Calculated in real time.</p>
-              </div>
-              
-              <div className="space-y-3 font-normal text-sm">
-                <div className="flex justify-between items-center text-zinc-500">
-                  <span>Subtotal</span>
-                  <span className="font-semibold text-zinc-700 tabular-nums">{formatCurrency(subtotal, currency)}</span>
-                </div>
-                
-                <div className="flex justify-between items-center text-zinc-500 border-t border-zinc-50 pt-2.5">
-                  <span className="text-zinc-500 flex items-center gap-1">
-                    {currency === 'ZAR' && profile?.saTaxInvoiceMode ? (
-                      <span title="SA Tax Invoice mode forces 15% VAT. Change in Settings if needed.">VAT (15%) ⓘ</span>
-                    ) : (
-                      <>
-                        <span className="mr-1 shrink-0">Tax</span>
-                        <div className="inline-flex items-center gap-1 text-zinc-700 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-0.5 font-bold">
-                          <Input 
-                            type="text"
-                            inputMode="decimal"
-                            className="w-10 h-6 text-center text-xs border-none p-0 focus:ring-0 focus:outline-none focus:border-none font-bold" 
-                            value={taxRate}
-                            onChange={e => {
-                              const val = e.target.value;
-                              if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                setTaxRate(sanitizeNumericInput(val));
-                              }
-                            }}
-                          />
-                          <span className="text-xs font-bold font-mono">%</span>
-                        </div>
-                      </>
-                    )}
-                  </span>
-                  <span className="font-semibold text-zinc-700 tabular-nums">{formatCurrency(tax, currency)}</span>
-                </div>
-
-                <div className="pt-4 border-t border-zinc-200 flex justify-between items-baseline gap-2">
-                  <span className="font-bold text-zinc-900 text-base">Grand Total</span>
-                  <span className="text-3xl font-bold tracking-tight text-primary tabular-nums self-end">
-                    {formatCurrency(total, currency)}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="pt-6 space-y-2.5 border-t border-zinc-100">
-                <Button
-                  className="w-full h-12 rounded-2xl bg-[#25D366] text-white border-[#25D366] font-bold hover:bg-[#1fb958] hover:border-[#1fb958] cursor-pointer shadow-md shadow-emerald-950/10 active:scale-[0.985] text-sm"
-                  onClick={handleWhatsAppShare}
-                  disabled={!!pdfBusy}
-                >
-                  {pdfBusy === 'share' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
-                  Send via WhatsApp
-                </Button>
-
-                {id && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      className="h-10 rounded-xl text-zinc-700 border-zinc-200 font-medium hover:bg-zinc-50 cursor-pointer text-sm"
-                      onClick={handleCopyLink}
-                    >
-                      {copied ? <Check className="w-4 h-4 mr-1.5 text-green-600" /> : <Copy className="w-4 h-4 mr-1.5 text-zinc-500" />}
-                      Copy Link
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-10 rounded-xl text-zinc-700 border-zinc-200 font-medium hover:bg-zinc-50 cursor-pointer text-sm"
-                      asChild
-                    >
-                      <Link to={`/client/quote/${id}`}>
-                        Preview
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
+          <QuoteSummaryCard
+            subtotal={subtotal}
+            tax={tax}
+            total={total}
+            currency={currency}
+            taxRate={taxRate}
+            setTaxRate={setTaxRate}
+            saTaxInvoiceMode={profile?.saTaxInvoiceMode}
+            pdfBusy={pdfBusy}
+            handleWhatsAppShare={handleWhatsAppShare}
+            quoteId={id}
+            copied={copied}
+            handleCopyLink={handleCopyLink}
+          />
         </div>
       </div>
 

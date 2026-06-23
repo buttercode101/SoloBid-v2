@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js';
+import type {
+  UserProfile, Quote, Invoice, Client, Template,
+  LineItem, Expense, Attachment, RecurringInvoice, RecurringQuote,
+} from '../types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://kkxgrsmmwajcbuuigayf.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGdyc21td2FqY2J1dWlnYXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0NzEyNzcsImV4cCI6MjA5NzA0NzI3N30.NUgq9WRf9q8LgOKEUBMg8sDufmR8jQIweDZwPPB71W4';
@@ -10,7 +14,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 // ── Mapper utilities ────────────────────────────────────────────────────────
 
-export function fromDbUser(row: any): any {
+export function fromDbUser(row: any): UserProfile | null {
   if (!row) return null;
   return {
     uid: row.id,
@@ -48,8 +52,8 @@ export function fromDbUser(row: any): any {
   };
 }
 
-export function toDbUser(profile: any): any {
-  const row: any = {};
+export function toDbUser(profile: Partial<UserProfile>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
   if (profile.uid !== undefined) row.id = profile.uid;
   if (profile.fullName !== undefined) row.full_name = profile.fullName;
   if (profile.businessName !== undefined) row.business_name = profile.businessName;
@@ -84,7 +88,7 @@ export function toDbUser(profile: any): any {
 }
 
 
-export function fromDbAttachment(row: any): any {
+export function fromDbAttachment(row: any): Attachment | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -99,7 +103,7 @@ export function fromDbAttachment(row: any): any {
   };
 }
 
-export function fromDbQuote(row: any): any {
+export function fromDbQuote(row: any): Quote | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -140,8 +144,9 @@ export function fromDbQuote(row: any): any {
   };
 }
 
-export function toDbQuote(quote: any): any {
-  const row: any = {};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toDbQuote(quote: Partial<Quote> | any): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
   if (quote.uid !== undefined) row.user_id = quote.uid;
   if (quote.clientId !== undefined) row.client_id = quote.clientId;
   if (quote.clientName !== undefined) row.client_name = quote.clientName;
@@ -176,7 +181,7 @@ export function toDbQuote(quote: any): any {
   return row;
 }
 
-export function fromDbLineItem(row: any): any {
+export function fromDbLineItem(row: any): LineItem | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -193,22 +198,22 @@ export function fromDbLineItem(row: any): any {
   };
 }
 
-export function toDbLineItem(item: any, parentId: { quoteId?: string; templateId?: string; recurringInvoiceId?: string }): any {
+export function toDbLineItem(item: Partial<LineItem>, parentId: { quoteId?: string; templateId?: string; recurringInvoiceId?: string }): Record<string, unknown> {
   return {
     id: item.id,
-    quote_id: parentId.quoteId || null,
-    template_id: parentId.templateId || null,
-    recurring_invoice_id: parentId.recurringInvoiceId || null,
+    quote_id: parentId.quoteId ?? null,
+    template_id: parentId.templateId ?? null,
+    recurring_invoice_id: parentId.recurringInvoiceId ?? null,
     description: item.description,
-    qty: parseFloat(item.qty) || 1,
-    unit_cost: parseFloat(item.unitCost) || 0,
-    type: item.type || 'labor',
-    markup_percent: parseFloat(item.markupPercent) || 0,
+    qty: item.qty != null ? Number(item.qty) : 1,
+    unit_cost: item.unitCost != null ? Number(item.unitCost) : 0,
+    type: item.type ?? 'labor',
+    markup_percent: item.markupPercent != null ? Number(item.markupPercent) : 0,
     sort_order: item.sortOrder ?? 0,
   };
 }
 
-export function fromDbExpense(row: any): any {
+export function fromDbExpense(row: any): Expense | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -222,19 +227,19 @@ export function fromDbExpense(row: any): any {
   };
 }
 
-export function toDbExpense(expense: any): any {
+export function toDbExpense(expense: Partial<Expense>): Record<string, unknown> {
   return {
     id: expense.id,
     user_id: expense.uid,
     quote_id: expense.quoteId,
     description: expense.description,
-    amount: parseFloat(expense.amount) || 0,
-    currency: expense.currency || 'ZAR',
-    receipt_url: expense.receiptUrl || null,
+    amount: Number(expense.amount) || 0,
+    currency: expense.currency ?? 'ZAR',
+    receipt_url: expense.receiptUrl ?? null,
   };
 }
 
-export function fromDbClient(row: any): any {
+export function fromDbClient(row: any): Client | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -250,8 +255,8 @@ export function fromDbClient(row: any): any {
   };
 }
 
-export function toDbClient(client: any): any {
-  const row: any = {};
+export function toDbClient(client: Partial<Client>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
   if (client.id !== undefined) row.id = client.id;
   if (client.uid !== undefined) row.user_id = client.uid;
   if (client.name !== undefined) row.name = client.name;
@@ -263,7 +268,7 @@ export function toDbClient(client: any): any {
   return row;
 }
 
-export function fromDbInvoice(row: any): any {
+export function fromDbInvoice(row: any): Invoice | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -289,8 +294,8 @@ export function fromDbInvoice(row: any): any {
   };
 }
 
-export function toDbInvoice(inv: any): any {
-  const row: any = {};
+export function toDbInvoice(inv: Partial<Invoice>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
   if (inv.id !== undefined) row.id = inv.id;
   if (inv.uid !== undefined) row.user_id = inv.uid;
   if (inv.quoteId !== undefined) row.quote_id = inv.quoteId;
@@ -307,7 +312,7 @@ export function toDbInvoice(inv: any): any {
   return row;
 }
 
-export function fromDbTemplate(row: any, lineItems?: any[]): any {
+export function fromDbTemplate(row: any, lineItems?: any[]): Template | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -320,7 +325,7 @@ export function fromDbTemplate(row: any, lineItems?: any[]): any {
   };
 }
 
-export function fromDbRecurringQuote(row: any): any {
+export function fromDbRecurringQuote(row: any): RecurringQuote | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -335,7 +340,7 @@ export function fromDbRecurringQuote(row: any): any {
   };
 }
 
-export function fromDbRecurring(row: any, lineItems?: any[]): any {
+export function fromDbRecurring(row: any, lineItems?: any[]): RecurringInvoice | null {
   if (!row) return null;
   return {
     id: row.id,

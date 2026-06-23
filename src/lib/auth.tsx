@@ -1,48 +1,12 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase, fromDbUser, toDbUser } from './supabase';
+import type { UserProfile, OnboardingStep, SubscriptionStatus } from '../types';
 
-export type OnboardingStep = 'welcome' | 'profile' | 'preferences' | 'complete';
-export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'none';
+export type { OnboardingStep, SubscriptionStatus, UserProfile };
 
 // Supabase User augmented with Firebase-compatible uid alias
 export type AppUser = User & { uid: string };
-
-export interface UserProfile {
-  uid: string;
-  fullName?: string;
-  businessName: string;
-  industry?: string;
-  mobileNumber?: string;
-  logoUrl?: string;
-  defaultLaborRate: number;
-  defaultTaxRate: number;
-  defaultMarkup: number;
-  terms: string;
-  invoicePrefix?: string;
-  invoiceCount?: number;
-  quotePrefix?: string;
-  quoteCount?: number;
-  pdfStyle?: string;
-  pdfFont?: string;
-  defaultCurrency?: string;
-  vatNumber?: string;
-  businessRegistrationNumber?: string;
-  address?: string;
-  saTaxInvoiceMode?: boolean;
-  country?: string;
-  bankName?: string;
-  accountNumber?: string;
-  accountType?: string;
-  branchCode?: string;
-  onboardingStep?: OnboardingStep;
-  onboardingComplete?: boolean;
-  profileComplete?: boolean;
-  profileCompletion?: number;
-  subscriptionStatus?: SubscriptionStatus;
-  createdAt: string;
-  updatedAt?: string;
-}
 
 export interface AuthState {
   authenticated: boolean;
