@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowRight, BadgeCheck, FileText, Loader2, Mail, ReceiptText, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
+import { checkPwnedPassword, type PasswordSafetyResult } from '../lib/integrations/passwordSafety';
 
 interface PasswordStrength {
   score: number;
@@ -31,7 +32,7 @@ function validatePassword(password: string): PasswordStrength {
   return { score, feedback, isValid: score >= 75 };
 }
 
-const PasswordStrengthIndicator = ({ password }: { password: string }) => {
+const PasswordStrengthIndicator = ({ password, safety, checkingSafety }: { password: string; safety: PasswordSafetyResult | null; checkingSafety: boolean }) => {
   if (!password) return null;
   const strength = validatePassword(password);
 
@@ -50,6 +51,14 @@ const PasswordStrengthIndicator = ({ password }: { password: string }) => {
           ))}
         </ul>
       )}
+      {checkingSafety && (
+        <p className="text-xs font-medium text-zinc-500">Checking known breached-password lists…</p>
+      )}
+      {safety && (
+        <p className={`text-xs font-semibold ${safety.safe ? 'text-emerald-700' : 'text-red-600'}`}>
+          {safety.message}
+        </p>
+      )}
     </div>
   );
 };
@@ -66,6 +75,41 @@ export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [passwordSafety, setPasswordSafety] = useState<PasswordSafetyResult | null>(null);
+  const [checkingPasswordSafety, setCheckingPasswordSafety] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPasswordSafety(null);
+
+    if (!isSignUp || password.length < 8) {
+      setCheckingPasswordSafety(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        setCheckingPasswordSafety(true);
+        const result = await checkPwnedPassword(password);
+        if (!cancelled) setPasswordSafety(result);
+      } catch (error) {
+        if (!cancelled) {
+          setPasswordSafety({
+            safe: true,
+            pwnedCount: 0,
+            message: 'Password breach check is temporarily unavailable. Strong-password rules still apply.',
+          });
+        }
+      } finally {
+        if (!cancelled) setCheckingPasswordSafety(false);
+      }
+    }, 550);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [isSignUp, password]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -87,6 +131,11 @@ export default function Login() {
 
     if (isSignUp && !strength.isValid) {
       toast.error('Please choose a stronger password before creating your account.');
+      return;
+    }
+
+    if (isSignUp && passwordSafety && !passwordSafety.safe) {
+      toast.error('This password appears in known breaches. Please choose a different password.');
       return;
     }
 
@@ -192,9 +241,9 @@ export default function Login() {
                   required
                   className="h-11 rounded-xl"
                 />
-                {isSignUp && <PasswordStrengthIndicator password={password} />}
+                {isSignUp && <PasswordStrengthIndicator password={password} safety={passwordSafety} checkingSafety={checkingPasswordSafety} />}
               </div>
-              <Button type="submit" className="h-11 w-full rounded-xl bg-zinc-950 font-bold text-white hover:bg-zinc-800" disabled={loading}>
+              <Button type="submit" className="h-11 w-full rounded-xl bg-zinc-950 font-bold text-white hover:bg-zinc-800" disabled={loading || (isSignUp && checkingPasswordSafety)}>
                 {loading ? 'Please wait…' : (isSignUp ? 'Create account' : 'Sign in')}
               </Button>
               <button
