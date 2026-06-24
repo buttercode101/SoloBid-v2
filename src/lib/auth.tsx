@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { User } from '@supabase/supabase-js';
 import { supabase, fromDbUser, toDbUser } from './supabase';
 import type { UserProfile, OnboardingStep, SubscriptionStatus } from '../types';
+import { getDefaultSaBusinessSettings } from './integrations/saLocal';
 
 export type { OnboardingStep, SubscriptionStatus, UserProfile };
 
@@ -134,15 +135,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
 
     const now = new Date().toISOString();
+    const saDefaults = getDefaultSaBusinessSettings();
     const baseProfile: UserProfile = {
       uid: user.id,
       businessName: '',
-      defaultLaborRate: 75,
-      defaultTaxRate: 0,
+      defaultLaborRate: 450,
+      defaultTaxRate: saDefaults.defaultVatRate,
       defaultMarkup: 20,
-      terms: 'Payment is due within 14 days of invoice date.',
-      defaultCurrency: 'USD',
-      country: 'US',
+      terms: saDefaults.invoiceTerms,
+      defaultCurrency: saDefaults.currency,
+      country: saDefaults.country,
       invoicePrefix: 'INV-',
       invoiceCount: 0,
       pdfStyle: 'modern',
