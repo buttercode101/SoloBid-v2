@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { NumericInput } from '../ui/numeric-input';
-import { MessageCircle, Copy, Check, Layers, Loader2, WalletCards } from 'lucide-react';
+import { MessageCircle, Copy, Check, Layers, Loader2, Wallet } from 'lucide-react';
 import { formatCurrency } from '../../lib/calculations';
 import { convertCurrency, formatCurrency as formatApiCurrency } from '../../lib/integrations/currency';
 import { buildQuotePaymentPlanSummary, type QuotePaymentPlanSummary } from '../../lib/paymentFlow';
@@ -149,7 +149,7 @@ export function QuoteSummaryCard({
           {paymentPlan && (
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900">
               <p className="flex items-center gap-1.5 font-bold uppercase tracking-wide text-emerald-700">
-                <WalletCards className="h-3.5 w-3.5" /> Suggested payment plan
+                <Wallet className="h-3.5 w-3.5" /> Suggested payment plan
               </p>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-white/80 p-2 ring-1 ring-emerald-100">
