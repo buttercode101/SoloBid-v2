@@ -2,9 +2,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+import { NumericInput } from '../ui/numeric-input';
 import { MessageCircle, Copy, Check, Layers, Loader2 } from 'lucide-react';
-import { formatCurrency, sanitizeNumericInput } from '../../lib/calculations';
+import { formatCurrency } from '../../lib/calculations';
 
 interface Props {
   subtotal: number;
@@ -51,17 +51,10 @@ export function QuoteSummaryCard({
                 <>
                   <span className="mr-1 shrink-0">Tax</span>
                   <div className="inline-flex items-center gap-1 text-zinc-700 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-0.5 font-bold">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
+                    <NumericInput
                       className="w-10 h-6 text-center text-xs border-none p-0 focus:ring-0 focus:outline-none focus:border-none font-bold"
                       value={taxRate}
-                      onChange={e => {
-                        const val = e.target.value;
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                          setTaxRate(sanitizeNumericInput(val));
-                        }
-                      }}
+                      onValueChange={setTaxRate}
                     />
                     <span className="text-xs font-bold font-mono">%</span>
                   </div>

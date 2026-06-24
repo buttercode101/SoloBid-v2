@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import zlib from "zlib";
 import { fileURLToPath } from "url";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
@@ -15,14 +15,20 @@ const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error('[SoloBid] Missing SUPABASE_URL or SUPABASE_ANON_KEY — set these in your environment variables.');
-}
+let supabaseAdmin: SupabaseClient | null = null;
 
-// Admin client — uses service role key (bypasses RLS). Falls back to anon key if service role not set.
-const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
-  auth: { persistSession: false },
-});
+function getSupabaseAdmin(): SupabaseClient {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY — set these in your environment variables.');
+  }
+
+  // Admin client — uses service role key (bypasses RLS). Falls back to anon key if service role not set.
+  supabaseAdmin ??= createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
+    auth: { persistSession: false },
+  });
+
+  return supabaseAdmin;
+}
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy_key");
 
@@ -34,7 +40,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   }
   const token = authHeader.split('Bearer ')[1];
   try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(token);
     if (error || !user) throw error || new Error('Unauthorized');
     (req as any).user = user;
     next();
@@ -286,7 +292,7 @@ async function createApp() {
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 14);
 
-          const { error: invError } = await supabaseAdmin.from('invoices').insert({
+          const { error: invError } = await getSupabaseAdmin().from('invoices').insert({
             id: invoiceId,
             user_id: recurring.user_id,
             quote_id: null,
@@ -300,14 +306,14 @@ async function createApp() {
           });
           if (invError) throw new Error(invError.message);
 
-          await supabaseAdmin.from('users').update({ invoice_count: newCount }).eq('id', recurring.user_id);
+          await getSupabaseAdmin().from('users').update({ invoice_count: newCount }).eq('id', recurring.user_id);
 
           const nextDate = new Date(recurring.next_issue_date);
           if (recurring.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
           else if (recurring.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
           else if (recurring.frequency === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
 
-          await supabaseAdmin.from('recurring_invoices').update({
+          await getSupabaseAdmin().from('recurring_invoices').update({
             next_issue_date: nextDate.toISOString().split('T')[0],
             updated_at: new Date().toISOString(),
           }).eq('id', recurring.id);
@@ -386,7 +392,7 @@ async function createApp() {
           const newQuoteId = crypto.randomUUID();
 
           const clientData = rq.clients;
-          const { error: qErr } = await supabaseAdmin.from('quotes').insert({
+          const { error: qErr } = await getSupabaseAdmin().from('quotes').insert({
             id: newQuoteId,
             user_id: rq.user_id,
             client_id: rq.client_id,
@@ -419,17 +425,17 @@ async function createApp() {
               markup_percent: li.markup_percent,
               sort_order: li.sort_order,
             }));
-            await supabaseAdmin.from('line_items').insert(newLineItems);
+            await getSupabaseAdmin().from('line_items').insert(newLineItems);
           }
 
-          await supabaseAdmin.from('users').update({ quote_count: newCount }).eq('id', rq.user_id);
+          await getSupabaseAdmin().from('users').update({ quote_count: newCount }).eq('id', rq.user_id);
 
           const nextDate = new Date(rq.next_issue_date);
           if (rq.frequency === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
           else if (rq.frequency === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
           else if (rq.frequency === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
 
-          await supabaseAdmin.from('recurring_quotes').update({
+          await getSupabaseAdmin().from('recurring_quotes').update({
             next_issue_date: nextDate.toISOString().split('T')[0],
             updated_at: new Date().toISOString(),
           }).eq('id', rq.id);
@@ -459,7 +465,7 @@ async function createApp() {
           const contractor = (invoice as any).users;
 
           if (isOverdue && invoice.status !== 'overdue') {
-            await supabaseAdmin.from('invoices').update({ status: 'overdue' }).eq('id', invoice.id);
+            await getSupabaseAdmin().from('invoices').update({ status: 'overdue' }).eq('id', invoice.id);
           }
 
           if (invoice.client_email && contractor) {
@@ -499,7 +505,7 @@ async function createApp() {
               const businessName = contractor?.business_name || 'Your contractor';
               const msg = `Hi ${invoice.client_name}, just a reminder that invoice #${invoiceRef} for *${amount}* is *${statusText}* (due ${dueDate.toLocaleDateString()}). Please arrange payment. — ${businessName}`;
               const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-              await supabaseAdmin.from('invoices').update({
+              await getSupabaseAdmin().from('invoices').update({
                 whatsapp_reminder_link: waLink,
                 whatsapp_reminder_status: statusText,
                 whatsapp_reminder_at: now.toISOString()
@@ -512,7 +518,7 @@ async function createApp() {
       }
 
       // Log cron run
-      await supabaseAdmin.from('cron_logs').insert({
+      await getSupabaseAdmin().from('cron_logs').insert({
         type: 'reminders',
         run_at: now.toISOString(),
         sent_count: sentCount,
@@ -526,7 +532,7 @@ async function createApp() {
       console.error("Cron error:", error);
 
       try {
-        await supabaseAdmin.from('cron_logs').insert({
+        await getSupabaseAdmin().from('cron_logs').insert({
           type: 'reminders',
           run_at: new Date().toISOString(),
           error: error.message || "Internal server error",
@@ -716,7 +722,7 @@ async function createApp() {
         if (existing) return; // Already processed
 
         // Log webhook
-        await supabaseAdmin.from('webhook_logs').insert({
+        await getSupabaseAdmin().from('webhook_logs').insert({
           provider: 'paystack',
           reference,
           payload: event.data,

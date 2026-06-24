@@ -6,6 +6,7 @@ import { supabase, fromDbQuote, fromDbLineItem, fromDbExpense, fromDbAttachment,
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import { NumericInput } from '../components/ui/numeric-input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
@@ -32,7 +33,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { z } from 'zod';
 import DOMPurify from 'dompurify';
 import { getCurrencySymbol } from '../lib/currencies';
-import { sanitizeNumericInput, formatCurrency as formatCurrencyValue, calculateLineTotal } from '../lib/calculations';
+import { formatCurrency as formatCurrencyValue, calculateLineTotal } from '../lib/calculations';
 import { QuoteSummaryCard } from '../components/quote/QuoteSummaryCard';
 import { ExpensesList } from '../components/quote/ExpensesList';
 import { getUserFriendlyError } from '../lib/errorHandler';
@@ -43,6 +44,7 @@ import { getPendingQuoteSaves, getQuoteDraftLocally, queueQuoteSave, removeQuote
 import { buildQuotePdfBlob, downloadQuotePdf } from '../lib/documentActions';
 import { formatWhatsAppPhoneNumber, generateWhatsAppShareLink, getQuotePdfUrl, trackWhatsAppShare, validateWhatsAppPhoneNumber } from '../lib/whatsapp';
 import { AttachmentUploader, type Attachment } from '../components/AttachmentUploader';
+import type { EditableExpense, EditableLineItem } from '../types';
 
 const quoteSchema = z.object({
   clientName: z.string().min(1, "Client Name is required"),
@@ -57,25 +59,8 @@ const quoteSchema = z.object({
   }))
 });
 
-interface LineItem {
-  id: string;
-  description: string;
-  qty: number | string;
-  unitCost: number | string;
-  type: 'labor' | 'material';
-  markupPercent: number | string;
-}
-
-interface Expense {
-  id: string;
-  description: string;
-  amount: number | string;
-  receiptUrl?: string;
-  createdAt?: string;
-}
-
 interface SortableLineItemProps {
-  item: LineItem;
+  item: EditableLineItem;
   updateLineItem: (id: string, field: string, value: string) => void;
   removeLineItem: (id: string) => void;
   handleVoiceInput: (id: string) => void;
@@ -174,33 +159,19 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
 
         <div className="lg:col-span-2 space-y-1.5">
           <Label className="text-zinc-500 font-medium text-xs">Quantity / Hours</Label>
-          <Input 
-            type="text"
-            inputMode="decimal"
-            value={item.qty} 
+          <NumericInput
+            value={item.qty}
             className="h-9.5 rounded-xl border-zinc-200 text-zinc-800"
-            onChange={e => {
-              const val = e.target.value;
-              if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                updateLineItem(item.id, 'qty', sanitizeNumericInput(val));
-              }
-            }}
+            onValueChange={value => updateLineItem(item.id, 'qty', value)}
           />
         </div>
 
         <div className="lg:col-span-3 space-y-1.5">
           <Label className="text-zinc-500 font-medium text-xs">Unit Price ({getCurrencySymbol(currency)})</Label>
-          <Input 
-            type="text"
-            inputMode="decimal"
-            value={item.unitCost} 
+          <NumericInput
+            value={item.unitCost}
             className="h-9.5 rounded-xl border-zinc-200 text-zinc-800"
-            onChange={e => {
-              const val = e.target.value;
-              if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                updateLineItem(item.id, 'unitCost', sanitizeNumericInput(val));
-              }
-            }}
+            onValueChange={value => updateLineItem(item.id, 'unitCost', value)}
           />
         </div>
       </div>
@@ -209,17 +180,10 @@ function SortableLineItem({ item, updateLineItem, removeLineItem, handleVoiceInp
         {item.type === 'material' ? (
           <div className="flex items-center gap-2.5 text-xs text-zinc-400 bg-zinc-100/50 py-1 px-2.5 rounded-lg border border-zinc-200/40">
             <span className="font-medium text-zinc-500">Material Markup %:</span>
-            <Input 
-              type="text"
-              inputMode="decimal"
-              className="w-16 h-7.5 rounded-md text-xs border-zinc-200 bg-white" 
+            <NumericInput
+              className="w-16 h-7.5 rounded-md text-xs border-zinc-200 bg-white"
               value={item.markupPercent}
-              onChange={e => {
-                const val = e.target.value;
-                if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                  updateLineItem(item.id, 'markupPercent', sanitizeNumericInput(val));
-                }
-              }}
+              onValueChange={value => updateLineItem(item.id, 'markupPercent', value)}
             />
           </div>
         ) : <div className="hidden md:block" />}
@@ -247,8 +211,8 @@ export default function QuoteBuilder() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [quoteNumber, setQuoteNumber] = useState('');
   const [notes, setNotes] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [lineItems, setLineItems] = useState<EditableLineItem[]>([]);
+  const [expenses, setExpenses] = useState<EditableExpense[]>([]);
   const [taxRate, setTaxRate] = useState<number | string>(profile?.defaultTaxRate ?? 0);
   const [currency, setCurrency] = useState(profile?.defaultCurrency || 'ZAR');
   const [isMilestone, setIsMilestone] = useState(false);
@@ -442,10 +406,10 @@ export default function QuoteBuilder() {
         setQuotePdfUrl(data.pdfUrl || '');
         setQuoteNumber(data.quoteNumber || '');
 
-        const items = (itemRows || []).map(fromDbLineItem) as LineItem[];
+        const items = (itemRows || []).map(fromDbLineItem) as EditableLineItem[];
         setLineItems(items.length > 0 ? items : []);
 
-        const loadedExpenses = (expRows || []).map(fromDbExpense) as Expense[];
+        const loadedExpenses = (expRows || []).map(fromDbExpense) as EditableExpense[];
         setExpenses(loadedExpenses);
         const { data: attRows } = await supabase.from('quote_attachments').select('*').eq('quote_id', quoteId);
         const loadedAttachments = (attRows || []).map((r: any) => ({
@@ -473,8 +437,8 @@ export default function QuoteBuilder() {
         setQuoteCreatedAt(data.createdAt || null);
         setValidityDays(String(data.validityDays ?? '7'));
         setQuotePdfUrl(data.pdfUrl || data.quotePdfUrl || data.publicPdfUrl || '');
-        setLineItems(localDraft.lineItems as LineItem[]);
-        setExpenses(localDraft.expenses as Expense[]);
+        setLineItems(localDraft.lineItems as EditableLineItem[]);
+        setExpenses(localDraft.expenses as EditableExpense[]);
         setLocalSaveStatus('Restored from local draft');
         toast.info('Loaded your local draft while offline.');
       } else {
@@ -497,7 +461,7 @@ export default function QuoteBuilder() {
     }]);
   };
 
-  const updateLineItem = (id: string, field: keyof LineItem, value: any) => {
+  const updateLineItem = (id: string, field: keyof EditableLineItem, value: any) => {
     setLineItems(lineItems.map(item => 
       item.id === id ? { ...item, [field]: value } : item
     ));
@@ -821,7 +785,7 @@ export default function QuoteBuilder() {
     }]);
   };
 
-  const updateExpense = (id: string, field: keyof Expense, value: any) => {
+  const updateExpense = (id: string, field: keyof EditableExpense, value: any) => {
     setExpenses(expenses.map(exp => 
       exp.id === id ? { ...exp, [field]: value } : exp
     ));

@@ -43,6 +43,15 @@ export interface UserProfile {
   updatedAt?: string;
 }
 
+export interface EditableLineItem {
+  id: string;
+  description: string;
+  qty: number | string;
+  unitCost: number | string;
+  type: LineItemType;
+  markupPercent: number | string;
+}
+
 export interface LineItem {
   id: string;
   quoteId?: string;
@@ -141,6 +150,14 @@ export interface Template {
   lineItems: LineItem[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface EditableExpense {
+  id: string;
+  description: string;
+  amount: number | string;
+  receiptUrl?: string;
+  createdAt?: string;
 }
 
 export interface Expense {
