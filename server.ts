@@ -178,7 +178,14 @@ async function createApp() {
     next();
   });
 
-  app.use(express.json({ limit: '50mb' }));
+  app.use(express.json({
+    limit: '50mb',
+    verify: (req, _res, buf) => {
+      if (req.originalUrl === '/api/webhooks/paystack') {
+        (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      }
+    },
+  }));
   app.use('/api/', apiLimiter);
 
   app.get("/api/health", (req, res) => {
@@ -648,11 +655,10 @@ async function createApp() {
     }
   });
 
-  // Mark invoice as paid (called after client-side Paystack success)
+  // Mark invoice as paid manually by the authenticated user.
   app.post('/api/invoices/:id/mark-paid', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      const { reference } = req.body;
       const uid = (req as any).user.id;
 
       // Verify the invoice belongs to this user
@@ -667,7 +673,7 @@ async function createApp() {
 
       await supabaseAdmin
         .from('invoices')
-        .update({ status: 'paid', paid_at: new Date().toISOString(), paystack_reference: reference })
+        .update({ status: 'paid', paid_at: new Date().toISOString() })
         .eq('id', id);
 
       return res.json({ success: true });
@@ -682,7 +688,7 @@ async function createApp() {
   //   2. PAYSTACK_SECRET_KEY env var is updated to sk_live_ on Vercel.
   //   3. Webhook URL is registered in the Paystack dashboard (Settings → Webhooks).
   //   4. Webhook signature verification below remains enabled (do not disable).
-  app.post('/api/webhooks/paystack', express.raw({ type: 'application/json' }), async (req, res) => {
+  app.post('/api/webhooks/paystack', async (req, res) => {
     // Respond immediately
     res.status(200).json({ received: true });
 
@@ -691,7 +697,12 @@ async function createApp() {
       if (!paystackSecret) return;
 
       const signature = req.headers['x-paystack-signature'] as string;
-      const body = req.body;
+      const body = (req as express.Request & { rawBody?: Buffer }).rawBody;
+
+      if (!body || !signature) {
+        console.warn('[Paystack webhook] Missing raw body or signature');
+        return;
+      }
 
       const hash = require('crypto')
         .createHmac('sha512', paystackSecret)
@@ -705,37 +716,64 @@ async function createApp() {
 
       const event = JSON.parse(body.toString());
 
-      if (event.event === 'charge.success') {
-        const reference = event.data.reference;
-        const metadata = event.data.metadata || {};
-        const invoiceId = metadata.invoiceId;
+      if (event.event !== 'charge.success') return;
 
-        if (!invoiceId) return;
+      const reference = event.data?.reference;
+      const metadata = event.data?.metadata || {};
 
-        // Idempotency check
-        const { data: existing } = await supabaseAdmin
-          .from('webhook_logs')
-          .select('id')
-          .eq('reference', reference)
-          .single();
-
-        if (existing) return; // Already processed
-
-        // Log webhook
-        await getSupabaseAdmin().from('webhook_logs').insert({
-          provider: 'paystack',
-          reference,
-          payload: event.data,
-          status: 'processed',
-        });
-
-        // Update invoice
-        await supabaseAdmin
-          .from('invoices')
-          .update({ status: 'paid', paid_at: new Date().toISOString(), paystack_reference: reference })
-          .eq('id', invoiceId)
-          .in('status', ['sent', 'overdue']);
+      if (metadata.billingType !== 'subscription') {
+        console.info('[Paystack webhook] Ignored non-subscription charge.success event', { reference });
+        return;
       }
+
+      const userId = metadata.userId;
+      const planId = metadata.planId;
+
+      if (!reference || !userId || !planId) {
+        console.warn('[Paystack webhook] Missing subscription metadata', { reference, hasUserId: Boolean(userId), hasPlanId: Boolean(planId) });
+        return;
+      }
+
+      // Idempotency check
+      const { data: existing } = await supabaseAdmin
+        .from('webhook_logs')
+        .select('id')
+        .eq('reference', reference)
+        .maybeSingle();
+
+      if (existing) return; // Already processed
+
+      const processedAt = new Date().toISOString();
+      let status = 'processed';
+
+      const { error: userUpdateError } = await getSupabaseAdmin()
+        .from('users')
+        .update({ subscription_status: 'active' })
+        .eq('id', userId);
+
+      if (userUpdateError) {
+        status = 'logged';
+        // TODO: When a subscriptions table is added, record Paystack subscription payments there.
+        console.warn('[Paystack webhook] Subscription payment logged without updating users.subscription_status', {
+          reference,
+          userId,
+          planId,
+          error: userUpdateError.message,
+        });
+      }
+
+      await getSupabaseAdmin().from('webhook_logs').insert({
+        provider: 'paystack',
+        reference,
+        payload: {
+          reference,
+          billingType: metadata.billingType,
+          userId,
+          planId,
+          paidAt: processedAt,
+        },
+        status,
+      });
     } catch (err) {
       console.error('[Paystack webhook] Error:', err);
     }
