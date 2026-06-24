@@ -31,8 +31,30 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Typecheck
-        run: npm run lint
+      - name: Run checks and capture logs
+        shell: bash
+        run: |
+          set +e
+          mkdir -p ci-logs
+          npm run lint > ci-logs/typecheck.log 2>&1
+          lint_status=$?
+          npm run build > ci-logs/build.log 2>&1
+          build_status=$?
+          {
+            echo "lint_status=$lint_status"
+            echo "build_status=$build_status"
+          } > ci-logs/status.env
+          echo "=== Typecheck tail ==="
+          tail -n 80 ci-logs/typecheck.log || true
+          echo "=== Build tail ==="
+          tail -n 80 ci-logs/build.log || true
+          if [ "$lint_status" -ne 0 ] || [ "$build_status" -ne 0 ]; then
+            exit 1
+          fi
 
-      - name: Build
-        run: npm run build
+      - name: Upload CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solobid-ci-diagnostics
+          path: ci-logs
