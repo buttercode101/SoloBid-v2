@@ -1,7 +1,7 @@
-// Paystack inline JS integration — no npm package needed, uses their CDN script
-// TODO: PAYSTACK LIVE MODE — swap VITE_PAYSTACK_PUBLIC_KEY from pk_test_ to pk_live_ once
-// Paystack account is approved. Also update PAYSTACK_SECRET_KEY in server env from sk_test_ to sk_live_.
-// Do NOT enable live keys until ButterCode Systems Paystack account approval is confirmed.
+// Paystack inline JS integration — no npm package needed, uses their CDN script.
+// Disabled by default while provider approval is pending.
+
+const PAYSTACK_ENABLED = import.meta.env.VITE_PAYSTACK_ENABLED === 'true';
 
 declare global {
   interface Window {
@@ -9,7 +9,7 @@ declare global {
       setup(config: {
         key: string;
         email: string;
-        amount: number; // in kobo/cents (multiply ZAR by 100)
+        amount: number;
         currency: string;
         ref: string;
         metadata?: Record<string, any>;
@@ -17,6 +17,12 @@ declare global {
         callback: (response: { reference: string; status: string }) => void;
       }): { openIframe(): void };
     };
+  }
+}
+
+function assertPaystackEnabled(): void {
+  if (!PAYSTACK_ENABLED) {
+    throw new Error('Online payments are disabled while approval is pending. Use manual payment tracking for now.');
   }
 }
 
@@ -40,11 +46,12 @@ export async function initializePaystackPayment(params: {
   onSuccess: (reference: string) => void;
   onClose: () => void;
 }): Promise<void> {
+  assertPaystackEnabled();
   await loadPaystackScript();
   const handler = window.PaystackPop.setup({
     key: params.publicKey,
     email: params.email,
-    amount: Math.round(params.amountZAR * 100), // convert to cents
+    amount: Math.round(params.amountZAR * 100),
     currency: 'ZAR',
     ref: params.reference,
     metadata: { invoiceId: params.invoiceId },
