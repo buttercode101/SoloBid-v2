@@ -19,6 +19,9 @@ export type WhatsAppShareQuote = {
   notes?: string;
   lineItems?: Array<{ description?: string }>;
   contractorBusinessName?: string;
+  isMilestone?: boolean;
+  progressPercent?: number;
+  depositPercent?: number;
 };
 
 export type WhatsAppShareLinkResult = {
@@ -95,23 +98,44 @@ export const formatQuoteValidity = (quote: WhatsAppShareQuote) => {
   return 'valid for the stated quote period';
 };
 
+export const buildQuotePaymentCopy = (quote: WhatsAppShareQuote) => {
+  const total = Number(quote.total) || 0;
+  const currency = quote.currency || 'ZAR';
+  const depositPercent = Math.min(100, Math.max(0, quote.depositPercent ?? 50));
+  const depositAmount = total * (depositPercent / 100);
+  const hasDeposit = total > 0 && depositPercent > 0;
+  const hasMilestone = Boolean(quote.isMilestone && Number(quote.progressPercent) > 0);
+
+  const copy: string[] = [];
+  if (hasDeposit) {
+    copy.push(`Suggested deposit to start: ${formatQuoteTotal(depositAmount, currency)} (${depositPercent}%).`);
+  }
+  if (hasMilestone) {
+    copy.push(`Milestone progress noted: ${quote.progressPercent}% complete.`);
+  }
+
+  return copy.join('\n');
+};
+
 export const buildWhatsAppQuoteMessage = (quote: WhatsAppShareQuote, viewUrl: string) => {
   const clientName = quote.clientName?.trim() || 'there';
   const businessName = quote.contractorBusinessName?.trim() || 'your contractor';
   const total = formatQuoteTotal(quote.total || 0, quote.currency || 'ZAR');
   const validity = formatQuoteValidity(quote);
   const quoteRef = quote.quoteNumber || (quote.id && quote.id !== 'draft' ? `#${quote.id.slice(0, 8).toUpperCase()}` : null);
+  const paymentCopy = buildQuotePaymentCopy(quote);
 
   return [
     `Hi ${clientName},`,
     '',
     `${businessName} has sent you a quotation${quoteRef ? ` (${quoteRef})` : ''} for *${total}* (${validity}).`,
+    paymentCopy ? `\n${paymentCopy}` : null,
     '',
     `Tap to view, approve or decline:`,
     viewUrl,
     '',
     'Reply here if you have any questions.'
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 };
 
 export function generateWhatsAppShareLink(quote: WhatsAppShareQuote, clientViewBaseUrl?: string): WhatsAppShareLinkResult {
