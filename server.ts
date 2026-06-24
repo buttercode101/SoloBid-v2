@@ -11,9 +11,13 @@ import rateLimit from "express-rate-limit";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://kkxgrsmmwajcbuuigayf.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGdyc21td2FqY2J1dWlnYXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0NzEyNzcsImV4cCI6MjA5NzA0NzI3N30.NUgq9WRf9q8LgOKEUBMg8sDufmR8jQIweDZwPPB71W4';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('[SoloBid] Missing SUPABASE_URL or SUPABASE_ANON_KEY — set these in your environment variables.');
+}
 
 // Admin client — uses service role key (bypasses RLS). Falls back to anon key if service role not set.
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
@@ -667,6 +671,11 @@ async function createApp() {
   });
 
   // Paystack webhook (for server-side payment confirmation)
+  // TODO: PAYSTACK LIVE MODE — before switching to live keys (sk_live_), verify:
+  //   1. ButterCode Systems Paystack account is approved.
+  //   2. PAYSTACK_SECRET_KEY env var is updated to sk_live_ on Vercel.
+  //   3. Webhook URL is registered in the Paystack dashboard (Settings → Webhooks).
+  //   4. Webhook signature verification below remains enabled (do not disable).
   app.post('/api/webhooks/paystack', express.raw({ type: 'application/json' }), async (req, res) => {
     // Respond immediately
     res.status(200).json({ received: true });

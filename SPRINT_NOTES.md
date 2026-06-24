@@ -53,5 +53,42 @@ All pre-existing TS errors in `server.ts` and `App.tsx` remain unchanged (out of
 
 ---
 
+## SoloBid-v2 — Pre-launch audit & polish (2026-06-24)
+
+### Audit findings (inspect-only pass)
+
+| Area | Finding |
+|---|---|
+| Quote/invoice status flow | Correct — ClientView guards `viewed` update; approve/reject allow `sent` OR `viewed` |
+| Delete confirmations | All pages have `ConfirmDialog` — Clients, Templates, Recurring, Dashboard |
+| Status badge fallback | `statusBadgeStyles` already uses `\|\| statusBadgeStyles.draft` fallback at all call sites |
+| Paystack key split | Correct — public key in frontend, secret key server-only, HMAC-SHA512 webhook verification |
+| WhatsApp links | Free `wa.me` links only — no paid API |
+| Resend email | Server-side only — correct |
+| SA defaults | ZAR, ZA, 15% VAT confirmed in `constants.ts` |
+| Empty states | Present in all key pages |
+| Firebase | `src/lib/firebase.ts` exists but is not imported anywhere — legacy leftover |
+| Supabase fallback keys | Hardcoded real project keys in `supabase.ts` and `server.ts` — replaced with empty + error log |
+| README | Incorrectly listed "Firebase Authentication"; missing Vercel/Resend/Paystack setup docs |
+| `env.example` filename | File is `env.example`, README said `.env.example` — corrected |
+
+### Completed
+
+| # | Task | Files changed |
+|---|------|---------------|
+| 1 | Removed hardcoded Supabase URL/anon key fallbacks; added console.error if env vars are missing | `src/lib/supabase.ts`, `server.ts` |
+| 2 | Added Paystack live-mode TODO comments in client and server code | `src/lib/paystack.ts`, `server.ts` |
+| 3 | Rewrote README: fixed Firebase auth reference, corrected env.example filename, added Vercel/Supabase/Resend/Paystack setup sections | `README.md` |
+| 4 | Added Firebase legacy config files to .gitignore (not used in current Supabase-based auth) | `.gitignore` |
+| 5 | Updated TODO.md with new audit findings | `TODO.md` |
+
+### Risky items skipped → see TODO.md
+- Firebase file cleanup (inspect before deleting — `firebase.ts` is unused but the JSON files might be referenced)
+- Soft delete migrations
+- Paystack webhook integration testing
+- `quotes.status` DB enum verification (no Supabase SQL access in this session)
+
+---
+
 ## RentEase-SA-main — TBD
 ## RadFlow-SA-main — TBD
