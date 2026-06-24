@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { NumericInput } from '../ui/numeric-input';
-import { MessageCircle, Copy, Check, Layers, Loader2 } from 'lucide-react';
+import { MessageCircle, Copy, Check, Layers, Loader2, WalletCards } from 'lucide-react';
 import { formatCurrency } from '../../lib/calculations';
 import { convertCurrency, formatCurrency as formatApiCurrency } from '../../lib/integrations/currency';
+import { buildQuotePaymentPlanSummary, type QuotePaymentPlanSummary } from '../../lib/paymentFlow';
 
 interface Props {
   subtotal: number;
@@ -33,6 +34,7 @@ export function QuoteSummaryCard({
 }: Props) {
   const [fxEstimates, setFxEstimates] = useState<FxEstimate[]>([]);
   const [fxStatus, setFxStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [paymentPlan, setPaymentPlan] = useState<QuotePaymentPlanSummary | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +72,31 @@ export function QuoteSummaryCard({
     return () => {
       cancelled = true;
       window.clearTimeout(timeout);
+    };
+  }, [currency, total]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPaymentPlan() {
+      if (!total || total <= 0) {
+        setPaymentPlan(null);
+        return;
+      }
+
+      const summary = await buildQuotePaymentPlanSummary({
+        total,
+        currency,
+        depositPercent: 50,
+        dueBusinessDays: 7,
+      });
+
+      if (!cancelled) setPaymentPlan(summary);
+    }
+
+    loadPaymentPlan().catch(() => setPaymentPlan(null));
+    return () => {
+      cancelled = true;
     };
   }, [currency, total]);
 
@@ -118,6 +145,25 @@ export function QuoteSummaryCard({
               {formatCurrency(total, currency)}
             </span>
           </div>
+
+          {paymentPlan && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900">
+              <p className="flex items-center gap-1.5 font-bold uppercase tracking-wide text-emerald-700">
+                <WalletCards className="h-3.5 w-3.5" /> Suggested payment plan
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-white/80 p-2 ring-1 ring-emerald-100">
+                  <p className="text-[10px] font-bold uppercase text-emerald-500">Deposit</p>
+                  <p className="font-bold text-emerald-950">{formatCurrency(paymentPlan.depositAmount, currency)}</p>
+                </div>
+                <div className="rounded-xl bg-white/80 p-2 ring-1 ring-emerald-100">
+                  <p className="text-[10px] font-bold uppercase text-emerald-500">Balance</p>
+                  <p className="font-bold text-emerald-950">{formatCurrency(paymentPlan.balanceAmount, currency)}</p>
+                </div>
+              </div>
+              <p className="mt-2 leading-relaxed">Suggested due date: <strong>{paymentPlan.dueDateLabel}</strong>. Dates are adjusted to business days where needed.</p>
+            </div>
+          )}
 
           {(fxEstimates.length > 0 || fxStatus !== 'idle') && (
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 text-xs text-zinc-500">
