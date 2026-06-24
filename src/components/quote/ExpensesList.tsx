@@ -3,18 +3,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { NumericInput } from '../ui/numeric-input';
 import { Label } from '../ui/label';
 import { Plus, Trash2, ImagePlus } from 'lucide-react';
-import { sanitizeNumericInput } from '../../lib/calculations';
 import { getCurrencySymbol } from '../../lib/currencies';
 
-export interface EditableExpense {
-  id: string;
-  description: string;
-  amount: number | string;
-  receiptUrl?: string;
-  createdAt?: string;
-}
+import type { EditableExpense } from '../../types';
 
 interface Props {
   expenses: EditableExpense[];
@@ -65,17 +59,10 @@ export function ExpensesList({
               </div>
               <div className="w-full md:w-32 space-y-1.5">
                 <Label className="text-xs text-zinc-500 font-medium">Cost ({getCurrencySymbol(currency)})</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
+                <NumericInput
                   value={expense.amount}
                   className="h-9.5 rounded-xl border-zinc-200 text-zinc-800"
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                      updateExpense(expense.id, 'amount', sanitizeNumericInput(val));
-                    }
-                  }}
+                  onValueChange={value => updateExpense(expense.id, 'amount', value)}
                 />
               </div>
               <div className="pt-2 md:pt-6 flex gap-2 w-full md:w-auto shrink-0 self-end md:self-auto justify-end">
