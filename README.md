@@ -1,6 +1,6 @@
 # SoloBid
 
-**SoloBid** is a quote-to-invoice platform for independent contractors and small service businesses. Send professional quotes, collect client approvals with e-signatures, convert to invoices, and track payments — all in one place.
+**SoloBid** is a quote-to-invoice platform for independent contractors and small service businesses. Send professional quotes, collect client approvals with e-signatures, convert to invoices, and track invoice status manually — all in one place.
 
 Built by **ButterCode Systems**.
 
@@ -8,7 +8,7 @@ Built by **ButterCode Systems**.
 
 - **Quote builder** — drag-and-drop line items, material markup, expense tracking, milestone billing
 - **Client approval** — shareable public quote link with e-signature and approval/decline flow
-- **Invoice management** — convert approved quotes to invoices, PDF generation, and manual payment status tracking
+- **Invoice management** — convert approved quotes to invoices, PDF generation, and manual status tracking
 - **WhatsApp sharing** — one-tap share via wa.me with quote summary pre-filled
 - **Recurring invoices & quotes** — set frequencies and auto-generate on schedule
 - **South African defaults** — ZAR currency, 15% VAT, SA tax invoice mode
@@ -18,10 +18,10 @@ Built by **ButterCode Systems**.
 ## Tech Stack
 
 - **Frontend**: Vite + React 19, TailwindCSS 4, React Router 7
-- **Backend**: Express.js with server-side email (Resend) and cron reminders
+- **Backend**: Express.js with server-side email (Resend), cron reminders, and subscription webhook handling
 - **Database & Auth**: Supabase (PostgreSQL + realtime subscriptions + Supabase Auth)
-- **Payments**: Manual tracking for launch; online payments are gated for future activation
-- **PDF**: @react-pdf/renderer (client-side, chunked for PWA)
+- **Billing**: Paystack is reserved for SoloBid user subscriptions. Contractor/client invoice payments are tracked manually.
+- **PDF**: @react-pdf/renderer
 - **Deployment**: Vercel
 
 ## Run Locally
@@ -51,15 +51,15 @@ All required variables are documented in `env.example`.
 |---|---|---|
 | `VITE_SUPABASE_URL` | Frontend | Your Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Frontend | Supabase anonymous/public key |
-| `VITE_PAYSTACK_ENABLED` | Frontend | Feature flag for online payment UI. Keep `false` until account approval. |
-| `VITE_PAYSTACK_PUBLIC_KEY` | Frontend | Optional public key. Only required when online payments are enabled. |
+| `VITE_PAYSTACK_ENABLED` | Frontend | Feature flag for SoloBid subscription checkout. Keep `false` until account approval and billing QA are complete. |
+| `VITE_PAYSTACK_PUBLIC_KEY` | Frontend | Optional Paystack public key. Only required when subscription checkout is enabled. |
 | `SUPABASE_URL` | Server | Same Supabase project URL |
 | `SUPABASE_ANON_KEY` | Server | Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server | Supabase service role key (bypasses RLS) |
-| `PAYSTACK_ENABLED` | Server | Feature flag for online payment webhooks/routes. Keep `false` until account approval. |
-| `PAYSTACK_SECRET_KEY` | Server | Optional secret key. Only required when online payments are enabled. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server | Supabase service role key |
+| `PAYSTACK_ENABLED` | Server | Feature flag for subscription webhook handling. Keep `false` until account approval and billing QA are complete. |
+| `PAYSTACK_SECRET_KEY` | Server | Optional Paystack secret key. Only required when subscription webhooks are enabled. |
 | `RESEND_API_KEY` | Server | Resend API key for outbound email |
-| `APP_ORIGIN` | Server | Your public app URL (e.g. `https://solobid.app`) |
+| `APP_ORIGIN` | Server | Your public app URL |
 | `ALLOWED_ORIGINS` | Server | Comma-separated allowed CORS origins |
 | `CRON_SECRET` | Server | Secret token for cron reminder endpoint |
 
@@ -67,44 +67,44 @@ All required variables are documented in `env.example`.
 
 1. Push the repo to GitHub.
 2. Import the project in Vercel.
-3. In Vercel project settings → **Environment Variables**, add the Supabase, Resend, app origin, CORS, and cron variables listed above.
-4. Keep online payment flags disabled until account approval is confirmed.
+3. In Vercel project settings, add the Supabase, Resend, app origin, CORS, and cron variables listed above.
+4. Keep Paystack flags disabled until account approval, subscription checkout, webhook verification, and billing QA are complete.
 5. Vercel auto-detects the build command (`npm run build`) and output directory (`dist/`).
-6. Set the **Root Directory** to `.` (project root).
-7. After approval only, enable online payments and register the webhook URL in the payment provider dashboard.
+6. Set the **Root Directory** to `.`.
+7. After approval only, enable Paystack subscription billing and register the webhook URL in the Paystack dashboard.
 
 ## Supabase Setup
 
 - Create a project at Supabase.
-- Run migrations from the `supabase/` directory (if present) or apply schema from the Supabase SQL editor.
-- Enable Row Level Security (RLS) on all tables — queries are filtered by `user_id`.
-- Add `https://yourdomain.com` to the **Allowed Redirect URLs** in Supabase Auth settings.
+- Run migrations from the `supabase/` directory or apply schema from the Supabase SQL editor.
+- Enable Row Level Security on all tables.
+- Add your production domain to the Allowed Redirect URLs in Supabase Auth settings.
 
 ## Resend Email Setup
 
 - Create an account at Resend.
-- Add and verify your sending domain (e.g. `solobid.app`).
+- Add and verify your sending domain.
 - Create an API key and add it as `RESEND_API_KEY`.
-- The from address is `noreply@solobid.app` — update in `server.ts` if using a different domain.
+- The from address is `noreply@solobid.app`; update in `server.ts` if using a different domain.
 
-## Online Payment Setup
+## Subscription Billing Setup
 
-> **Current launch mode:** online payments are pending provider approval.
-> Keep payment feature flags disabled.
-> SoloBid remains usable for quote approvals, invoice generation, PDF/WhatsApp sharing, reminders, and manual payment tracking.
+Current launch mode: contractor invoices use manual tracking only. Paystack is reserved for SoloBid user subscription purchases after account approval. Do not use Paystack for contractor/client invoice payments.
 
-To activate online payments after approval:
-1. Enable the frontend and server payment flags.
-2. Add the approved public and secret keys.
-3. Register the webhook URL in the provider dashboard.
-4. Test a full invoice payment and webhook confirmation before showing Pay Now in production.
+Before enabling Paystack billing:
+1. Run the subscription billing Supabase migration.
+2. Enable the frontend and server Paystack flags.
+3. Add the approved public and secret keys.
+4. Register the webhook URL in the Paystack dashboard.
+5. Test a full SoloBid subscription checkout and webhook confirmation.
+6. Confirm `users.subscription_status` changes to `active` for paid users.
 
 ## Scripts
 
 | Script | Description |
 |--------|-------------|
 | `npm run dev` | Start Express + Vite dev server |
-| `npm run build` | Production build (Vite + esbuild server bundle) |
-| `npm start` | Run production server from `dist/` |
+| `npm run build` | Production build |
+| `npm start` | Run production server |
 | `npm run lint` | TypeScript type check |
 | `npm run clean` | Remove `dist/` |
