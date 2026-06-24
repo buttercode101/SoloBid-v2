@@ -71,7 +71,7 @@ export async function initializeSubscriptionCheckout(params: {
 
 // Legacy compatibility export for old invoice-level code paths.
 // Do not use this for contractor/client invoices.
-export async function initializePaystackPayment(): Promise<void> {
+export async function initializePaystackPayment(_params?: unknown): Promise<void> {
   throw new Error('Paystack is reserved for SoloBid subscriptions, not contractor invoice payments. Use manual invoice payment tracking.');
 }
 
