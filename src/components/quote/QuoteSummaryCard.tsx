@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { NumericInput } from '../ui/numeric-input';
 import { MessageCircle, Copy, Check, Layers, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/calculations';
+import { convertCurrency, formatCurrency as formatApiCurrency } from '../../lib/integrations/currency';
 
 interface Props {
   subtotal: number;
@@ -21,10 +22,57 @@ interface Props {
   handleCopyLink: () => void;
 }
 
+type FxEstimate = {
+  currency: string;
+  amount: number;
+};
+
 export function QuoteSummaryCard({
   subtotal, tax, total, currency, taxRate, setTaxRate,
   saTaxInvoiceMode, pdfBusy, handleWhatsAppShare, quoteId, copied, handleCopyLink,
 }: Props) {
+  const [fxEstimates, setFxEstimates] = useState<FxEstimate[]>([]);
+  const [fxStatus, setFxStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFxEstimates() {
+      const baseCurrency = currency || 'ZAR';
+      const targetCurrencies = baseCurrency === 'ZAR' ? ['USD', 'EUR', 'GBP'] : ['ZAR'];
+      if (!total || total <= 0) {
+        setFxEstimates([]);
+        setFxStatus('idle');
+        return;
+      }
+
+      try {
+        setFxStatus('loading');
+        const values = await Promise.all(
+          targetCurrencies.map(async (target) => ({
+            currency: target,
+            amount: await convertCurrency(total, baseCurrency, target),
+          })),
+        );
+        if (!cancelled) {
+          setFxEstimates(values);
+          setFxStatus('idle');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFxEstimates([]);
+          setFxStatus('error');
+        }
+      }
+    }
+
+    const timeout = window.setTimeout(loadFxEstimates, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [currency, total]);
+
   return (
     <Card className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl relative sticky top-6 overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-1.5 bg-primary" />
@@ -70,6 +118,24 @@ export function QuoteSummaryCard({
               {formatCurrency(total, currency)}
             </span>
           </div>
+
+          {(fxEstimates.length > 0 || fxStatus !== 'idle') && (
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 text-xs text-zinc-500">
+              <p className="font-bold uppercase tracking-wide text-zinc-400">FX estimate</p>
+              {fxStatus === 'loading' && <p className="mt-1">Loading latest free exchange-rate estimate…</p>}
+              {fxStatus === 'error' && <p className="mt-1">Exchange-rate estimate unavailable right now.</p>}
+              {fxEstimates.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {fxEstimates.map((estimate) => (
+                    <span key={estimate.currency} className="rounded-full bg-white px-2.5 py-1 font-semibold text-zinc-700 ring-1 ring-zinc-200">
+                      ≈ {formatApiCurrency(estimate.amount, estimate.currency, estimate.currency === 'ZAR' ? 'en-ZA' : 'en-US')}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="mt-2 leading-relaxed">Indicative only. Final payment should follow the quoted currency and agreed terms.</p>
+            </div>
+          )}
         </div>
 
         <div className="pt-6 space-y-2.5 border-t border-zinc-100">
