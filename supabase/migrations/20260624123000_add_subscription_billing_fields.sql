@@ -26,10 +26,22 @@ create table if not exists public.subscriptions (
 
 alter table public.subscriptions enable row level security;
 
-create policy if not exists "Users can read own subscriptions"
-  on public.subscriptions
-  for select
-  using (auth.uid() = user_id);
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'subscriptions'
+      and policyname = 'Users can read own subscriptions'
+  ) then
+    create policy "Users can read own subscriptions"
+      on public.subscriptions
+      for select
+      using (auth.uid() = user_id);
+  end if;
+end
+$$;
 
 create index if not exists subscriptions_user_id_idx on public.subscriptions(user_id);
 create index if not exists subscriptions_provider_reference_idx on public.subscriptions(provider, provider_reference);
