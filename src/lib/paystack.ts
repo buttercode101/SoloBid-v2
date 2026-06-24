@@ -1,4 +1,7 @@
 // Paystack inline JS integration — no npm package needed, uses their CDN script
+// TODO: PAYSTACK LIVE MODE — swap VITE_PAYSTACK_PUBLIC_KEY from pk_test_ to pk_live_ once
+// Paystack account is approved. Also update PAYSTACK_SECRET_KEY in server env from sk_test_ to sk_live_.
+// Do NOT enable live keys until ButterCode Systems Paystack account approval is confirmed.
 
 declare global {
   interface Window {

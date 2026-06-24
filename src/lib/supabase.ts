@@ -5,8 +5,12 @@ import type {
   LineItem, Expense, Attachment, RecurringInvoice, RecurringQuote,
 } from '../types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://kkxgrsmmwajcbuuigayf.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGdyc21td2FqY2J1dWlnYXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0NzEyNzcsImV4cCI6MjA5NzA0NzI3N30.NUgq9WRf9q8LgOKEUBMg8sDufmR8jQIweDZwPPB71W4';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('[SoloBid] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY — copy env.example to .env.local and fill in your Supabase project credentials.');
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true },

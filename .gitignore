@@ -3,3 +3,7 @@ dist/
 .DS_Store
 .env
 .env.*
+
+# Firebase legacy config files (not used in current Supabase-based auth)
+firebase-applet-config.json
+firebase-blueprint.json
