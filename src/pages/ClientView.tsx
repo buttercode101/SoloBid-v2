@@ -14,6 +14,7 @@ import { useAuth } from '../lib/auth';
 import { getCurrencySymbol } from '../lib/currencies';
 import { SafeHtml } from '../components/SafeHtml';
 import { SignaturePad } from '../components/SignaturePad';
+import { ClientClosingRoom } from '../components/quotes/ClientClosingRoom';
 
 const approvalSchema = z.object({
   signatureName: z.string().min(2, 'Please enter your full name to sign'),
@@ -283,6 +284,18 @@ export default function ClientView() {
               })()}
           </div>
         </div>
+
+        <ClientClosingRoom
+          estimate={estimate}
+          contractor={contractor}
+          lineItems={lineItems}
+          totalLabel={totalLabel}
+          currencySymbol={currencySymbol}
+          quoteReference={quoteReference}
+          isExpired={isExpired}
+          isReviewable={isReviewable}
+          activeWorkflowStatus={activeWorkflowStatus}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-8">
