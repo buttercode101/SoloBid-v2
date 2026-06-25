@@ -62,21 +62,6 @@
     --input: 240 5.9% 90%;
     --ring: 171 85% 15%;
     --radius: 1.25rem;
-
-    /* SoloBid semantic surfaces */
-    --surface-canvas: 210 20% 98%;
-    --surface-raised: 0 0% 100%;
-    --surface-soft: 180 18% 96%;
-    --ink-muted: 240 4% 46%;
-
-    /* Workflow/status tokens */
-    --quote-draft: 240 5% 65%;
-    --quote-sent: 207 88% 50%;
-    --quote-viewed: 262 83% 58%;
-    --quote-approved: 150 72% 34%;
-    --invoice-paid: 158 64% 34%;
-    --invoice-outstanding: 37 92% 50%;
-    --workflow-expired: 0 72% 51%;
   }
 
   .dark {
@@ -106,44 +91,7 @@
   * {
     @apply border-border;
   }
-
   body {
-    @apply bg-background text-foreground antialiased;
-    background-image:
-      radial-gradient(circle at top left, hsla(var(--primary), 0.08), transparent 30rem),
-      linear-gradient(180deg, hsl(var(--surface-canvas)), hsl(var(--background)) 45%);
-    min-height: 100vh;
-  }
-
-  ::selection {
-    background: hsla(var(--primary), 0.14);
-    color: hsl(var(--foreground));
-  }
-}
-
-@layer utilities {
-  .solobid-card {
-    @apply rounded-3xl border border-zinc-200/70 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)];
-  }
-
-  .solobid-card-tight {
-    @apply rounded-2xl border border-zinc-200/70 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)];
-  }
-
-  .solobid-glass-dark {
-    @apply border border-white/10 bg-white/[0.07] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-2xl;
-  }
-
-  .solobid-focus-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white;
-  }
-
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
-
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    @apply bg-background text-foreground;
   }
 }
