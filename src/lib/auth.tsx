@@ -1,22 +1,14 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase, fromDbUser, toDbUser } from './supabase';
-import type { UserProfile, OnboardingStep, SubscriptionStatus } from '../types';
+import type { UserProfile } from '../types';
 import { getDefaultSaBusinessSettings } from './integrations/saLocal';
+import { buildAuthState, getProfileCompletion, type AuthState } from './authState';
 
-export type { OnboardingStep, SubscriptionStatus, UserProfile };
+export type { AuthState, OnboardingStep, SubscriptionStatus, UserProfile } from './authState';
 
 // Supabase User augmented with Firebase-compatible uid alias
 export type AppUser = User & { uid: string };
-
-export interface AuthState {
-  authenticated: boolean;
-  onboardingComplete: boolean;
-  profileComplete: boolean;
-  profileCompletion: number;
-  subscriptionStatus: SubscriptionStatus;
-  nextOnboardingStep: OnboardingStep;
-}
 
 interface AuthContextType {
   user: AppUser | null;
@@ -27,47 +19,6 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   saveProfileDraft: (profilePatch: Partial<UserProfile>) => Promise<void>;
-}
-
-const REQUIRED_PROFILE_FIELDS: Array<keyof UserProfile> = [
-  'businessName',
-  'mobileNumber',
-];
-
-const ONBOARDING_ORDER: OnboardingStep[] = ['welcome', 'profile', 'preferences', 'complete'];
-
-export function getProfileCompletion(profile: UserProfile | null): number {
-  if (!profile) return 0;
-  const completedFields = REQUIRED_PROFILE_FIELDS.filter((field) => {
-    const value = profile[field];
-    return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
-  }).length;
-  return Math.round((completedFields / REQUIRED_PROFILE_FIELDS.length) * 100);
-}
-
-function normalizeOnboardingStep(step?: OnboardingStep): OnboardingStep {
-  return step && ONBOARDING_ORDER.includes(step) ? step : 'welcome';
-}
-
-function getNextOnboardingStep(profile: UserProfile | null): OnboardingStep {
-  if (!profile) return 'welcome';
-  if (profile.onboardingComplete && getProfileCompletion(profile) === 100) return 'complete';
-  return normalizeOnboardingStep(profile.onboardingStep);
-}
-
-function buildAuthState(user: AppUser | null, profile: UserProfile | null): AuthState {
-  const profileCompletion = getProfileCompletion(profile);
-  const profileComplete = profileCompletion === 100 && Boolean(profile?.profileComplete);
-  const onboardingComplete = profileComplete && Boolean(profile?.onboardingComplete);
-
-  return {
-    authenticated: Boolean(user),
-    onboardingComplete,
-    profileComplete,
-    profileCompletion,
-    subscriptionStatus: profile?.subscriptionStatus || 'none',
-    nextOnboardingStep: onboardingComplete ? 'complete' : getNextOnboardingStep(profile),
-  };
 }
 
 function makeAppUser(user: User): AppUser {
