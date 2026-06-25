@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, BadgeCheck, FileText, Loader2, Mail, ReceiptText, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BadgeCheck, FileText, Loader2, Mail, MessageCircle, ReceiptText, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -68,6 +68,13 @@ const FeatureBadge = ({ children }: { children: React.ReactNode }) => (
     {children}
   </span>
 );
+
+const flowSteps = [
+  { label: 'Quote', detail: 'Build a clean price in minutes.' },
+  { label: 'WhatsApp', detail: 'Send a client-ready approval link.' },
+  { label: 'Sign-off', detail: 'Client approves or declines online.' },
+  { label: 'Track paid', detail: 'Convert to invoice and update EFT status manually.' },
+];
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -158,7 +165,7 @@ export default function Login() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#061f1b] px-4 py-8 text-white sm:px-6 lg:px-8">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.22),_transparent_34%),linear-gradient(180deg,_rgba(255,255,255,0.04),_transparent_28%)]" />
-      <main className="relative mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-3xl flex-col items-center justify-center text-center">
+      <main className="relative mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-4xl flex-col items-center justify-center text-center">
         <section className="flex w-full flex-col items-center">
           <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-emerald-950 shadow-2xl shadow-black/20">
             <ReceiptText className="h-8 w-8" />
@@ -166,29 +173,47 @@ export default function Login() {
 
           <p className="mb-6 text-sm font-black uppercase tracking-[0.32em] text-emerald-100">SoloBid</p>
 
-          <h1 className="max-w-2xl text-5xl font-black leading-[0.95] tracking-[-0.06em] text-white sm:text-6xl md:text-7xl">
-            Quote it.<br />Sign it.<br />Get paid.
+          <h1 className="max-w-3xl text-5xl font-black leading-[0.95] tracking-[-0.06em] text-white sm:text-6xl md:text-7xl">
+            Quote it.<br />Sign it.<br />Track paid.
           </h1>
 
-          <p className="mt-8 max-w-xl text-base leading-8 text-emerald-50/80 sm:text-lg">
-            Professional quotes. Client approval. Invoice — done. In minutes.
+          <p className="mt-8 max-w-2xl text-base leading-8 text-emerald-50/80 sm:text-lg">
+            WhatsApp-ready quotes, client sign-off, invoices, and manual EFT payment tracking for South African service businesses.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <FeatureBadge>Built-in Templates</FeatureBadge>
-            <FeatureBadge>Client Sign-off</FeatureBadge>
+            <FeatureBadge>WhatsApp approval links</FeatureBadge>
+            <FeatureBadge>No client account needed</FeatureBadge>
+            <FeatureBadge>ZAR + VAT defaults</FeatureBadge>
           </div>
 
-          <div className="mt-8 flex items-center justify-center gap-3 text-sm font-semibold text-emerald-50/80 sm:text-base">
-            <span>Quote</span>
-            <ArrowRight className="h-4 w-4 text-emerald-300" />
-            <span>Sign</span>
-            <ArrowRight className="h-4 w-4 text-emerald-300" />
-            <span>Get Paid</span>
+          <div className="mt-8 grid w-full max-w-3xl grid-cols-2 gap-3 text-left sm:grid-cols-4">
+            {flowSteps.map((step, index) => (
+              <div key={step.label} className="rounded-3xl border border-white/10 bg-white/10 p-4 shadow-sm backdrop-blur">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-200 text-xs font-black text-emerald-950">{index + 1}</span>
+                  {index < flowSteps.length - 1 && <ArrowRight className="h-4 w-4 text-emerald-200/80" />}
+                </div>
+                <p className="text-sm font-black text-white">{step.label}</p>
+                <p className="mt-1 text-xs leading-5 text-emerald-50/70">{step.detail}</p>
+              </div>
+            ))}
           </div>
         </section>
 
         <section className="mt-10 w-full max-w-md rounded-[2rem] border border-white/12 bg-white/95 p-4 text-zinc-950 shadow-2xl shadow-black/25 backdrop-blur sm:p-6">
+          <div className="mb-5 rounded-3xl bg-emerald-50 p-4 text-left ring-1 ring-emerald-100">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-950 text-white">
+                <MessageCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-zinc-950">Start with your first quote</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-600">Create the quote, send the approval link, then track invoice payment without switching tools.</p>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-3">
             <Button
               className="h-12 w-full rounded-2xl bg-[#03423a] text-base font-bold text-white shadow-lg shadow-emerald-950/20 hover:bg-[#02352f]"
@@ -258,13 +283,13 @@ export default function Login() {
 
           <div className="mt-6 grid grid-cols-2 gap-2 border-t border-zinc-100 pt-4 text-xs font-medium text-zinc-500">
             <span className="inline-flex items-center justify-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-700" />Secure setup</span>
-            <span className="inline-flex items-center justify-center gap-1.5"><BadgeCheck className="h-3.5 w-3.5 text-emerald-700" />No demo mode</span>
+            <span className="inline-flex items-center justify-center gap-1.5"><BadgeCheck className="h-3.5 w-3.5 text-emerald-700" />Manual EFT friendly</span>
           </div>
         </section>
 
         <p className="mt-6 inline-flex items-center gap-2 text-xs font-medium text-emerald-50/60">
           <FileText className="h-3.5 w-3.5" />
-          Setup takes less than 60 seconds.
+          Built for quote-to-paid workflows, not heavy accounting setup.
         </p>
       </main>
     </div>
