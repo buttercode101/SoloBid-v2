@@ -7,7 +7,7 @@ export type QuotePaymentPlan = {
   currency?: string;
   depositPercent?: number;
   milestonePercent?: number;
-  approvedAt?: string | null;
+  approvedAt?: string | Date | null;
   dueBusinessDays?: number;
 };
 
@@ -65,7 +65,7 @@ export async function buildQuotePaymentPlanSummary(plan: QuotePaymentPlan): Prom
     `Balance after deposit: ${formatQuoteTotal(balanceAmount, currency)}.`,
     milestonePercent > 0 ? `Milestone value: ${formatQuoteTotal(milestoneAmount, currency)} (${milestonePercent}% progress).` : null,
     `Suggested payment due date: ${dueDateLabel} (adjusted to a business day when needed).`,
-  ].filter(Boolean).join(' ');
+  ].filter((line): line is string => Boolean(line)).join(' ');
 
   return {
     depositAmount,
