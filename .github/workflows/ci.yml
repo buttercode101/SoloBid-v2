@@ -15,7 +15,6 @@ jobs:
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
       VITE_SUPABASE_ANON_KEY: ci-placeholder
-      NODE_ENV: production
 
     steps:
       - name: Checkout
@@ -31,28 +30,21 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run checks and capture logs
+      - name: Typecheck
         shell: bash
         run: |
-          set +e
-          mkdir -p ci-logs
-          npm run lint > ci-logs/typecheck.log 2>&1
-          typecheck_status=$?
-          npm run build > ci-logs/build.log 2>&1
-          build_status=$?
-          echo "typecheck_status=$typecheck_status" > ci-logs/status.env
-          echo "build_status=$build_status" >> ci-logs/status.env
-          echo "=== Typecheck tail ==="
-          tail -n 120 ci-logs/typecheck.log || true
-          echo "=== Build tail ==="
-          tail -n 120 ci-logs/build.log || true
-          if [ "$typecheck_status" -ne 0 ] || [ "$build_status" -ne 0 ]; then
-            exit 1
-          fi
+          set -o pipefail
+          npm run lint 2>&1 | tee typecheck.log
 
-      - name: Upload CI diagnostics
-        if: always()
+      - name: Upload typecheck diagnostics
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: solobid-sprint-2-ci-diagnostics
-          path: ci-logs
+          name: typecheck-diagnostics
+          path: typecheck.log
+          if-no-files-found: ignore
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
