@@ -6,7 +6,8 @@ import { GuestRoute, NotFoundRoute, OnboardingRoute, ProtectedRoute } from './Ro
 const Layout = lazy(() => import('../components/Layout').then((module) => ({ default: module.Layout })));
 const Login = lazy(() => import('../pages/Login'));
 const Onboarding = lazy(() => import('../pages/Onboarding'));
-const Dashboard = lazy(() => import('../pages/DashboardWithActions'));
+const Dashboard = lazy(() => import('../pages/Dashboard'));
+const DueToday = lazy(() => import('../pages/DueToday'));
 const QuoteBuilder = lazy(() => import('../pages/QuoteBuilder'));
 const Invoices = lazy(() => import('../pages/Invoices'));
 const Templates = lazy(() => import('../pages/Templates'));
@@ -35,6 +36,7 @@ export function AppRoutes() {
 
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/due-today" element={<DueToday />} />
         <Route path="/quotes" element={<Navigate to="/dashboard" replace />} />
         <Route path="/quotes/new" element={<QuoteBuilder />} />
         <Route path="/quotes/:id" element={<QuoteBuilder />} />
