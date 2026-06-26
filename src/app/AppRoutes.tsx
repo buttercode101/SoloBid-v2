@@ -6,7 +6,7 @@ import { GuestRoute, NotFoundRoute, OnboardingRoute, ProtectedRoute } from './Ro
 const Layout = lazy(() => import('../components/Layout').then((module) => ({ default: module.Layout })));
 const Login = lazy(() => import('../pages/Login'));
 const Onboarding = lazy(() => import('../pages/Onboarding'));
-const Dashboard = lazy(() => import('../pages/Dashboard'));
+const Dashboard = lazy(() => import('../pages/DashboardWithActions'));
 const QuoteBuilder = lazy(() => import('../pages/QuoteBuilder'));
 const Invoices = lazy(() => import('../pages/Invoices'));
 const Templates = lazy(() => import('../pages/Templates'));
