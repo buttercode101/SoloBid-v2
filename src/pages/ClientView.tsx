@@ -11,17 +11,16 @@ import { motion } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { useAuth } from '../lib/auth';
-
-const approvalSchema = z.object({
-  signatureName: z.string().min(2, "Please enter your full name to sign"),
-  signatureDataUrl: z.string().min(20, "Please draw your signature"),
-  agreed: z.boolean().refine(val => val === true, "You must agree to the terms and conditions")
-});
-
 import { getCurrencySymbol } from '../lib/currencies';
-
 import { SafeHtml } from '../components/SafeHtml';
 import { SignaturePad } from '../components/SignaturePad';
+import { ClientClosingRoom } from '../components/quotes/ClientClosingRoom';
+
+const approvalSchema = z.object({
+  signatureName: z.string().min(2, 'Please enter your full name to sign'),
+  signatureDataUrl: z.string().min(20, 'Please draw your signature'),
+  agreed: z.boolean().refine(val => val === true, 'You must agree to the terms and conditions')
+});
 
 export default function ClientView() {
   const { id } = useParams();
@@ -31,7 +30,7 @@ export default function ClientView() {
   const [estimate, setEstimate] = useState<any>(null); // keeping the state name "estimate" internal to avoid wide changes, but display labels as Quotation
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [contractor, setContractor] = useState<any>(null);
-  
+
   const [signatureName, setSignatureName] = useState('');
   const [signatureDataUrl, setSignatureDataUrl] = useState('');
   const [agreed, setAgreed] = useState(false);
@@ -76,7 +75,8 @@ export default function ClientView() {
         saTaxInvoiceMode: estData.isSATaxInvoice || false,
       });
 
-      // Mark as viewed when a sent quote is opened publicly — fire and forget
+      // Mark as viewed when a sent quote is opened publicly — fire and forget.
+      // Keep the local state as sent so the approval form stays available on first load.
       if (estData.status === 'sent') {
         supabase.from('quotes').update({ status: 'viewed' }).eq('id', quoteId).then(() => {});
       }
@@ -89,15 +89,21 @@ export default function ClientView() {
 
       setLineItems((itemRows || []).map(fromDbLineItem));
     } catch (error) {
-      console.error("Error loading quote:", error);
-      toast.error("An unexpected error occurred while loading this quote. Please try again or contact the sender.");
+      console.error('Error loading quote:', error);
+      toast.error('An unexpected error occurred while loading this quote. Please try again or contact the sender.');
     } finally {
       setLoading(false);
     }
   };
 
+  const isExpired = Boolean(estimate?.expiresAt &&
+                    !['approved', 'rejected', 'paid', 'converted'].includes(estimate.status) &&
+                    new Date() > new Date(estimate.expiresAt));
+
+  const isReviewable = Boolean(estimate && !isExpired && (estimate.status === 'sent' || estimate.status === 'viewed'));
+
   const handleApprove = async () => {
-    if (estimate?.status !== 'sent' && estimate?.status !== 'viewed') {
+    if (!isReviewable) {
       toast.error('This quotation is not currently open for approval.');
       return;
     }
@@ -123,17 +129,17 @@ export default function ClientView() {
       if (rpcError) throw rpcError;
       if (data?.error) throw new Error(data.error);
       setEstimate({ ...estimate, status: 'approved', signatureName: signatureName.trim(), signatureDataUrl, approvedAt: data.approvedAt });
-      toast.success("Quotation approved successfully!");
+      toast.success('Quotation approved successfully!');
     } catch (error: any) {
-      console.error("Error approving:", error);
-      toast.error(error.message || "Failed to approve quotation. Please refresh the link and try again, or contact the sender.");
+      console.error('Error approving:', error);
+      toast.error(error.message || 'Failed to approve quotation. Please refresh the link and try again, or contact the sender.');
     } finally {
       setApproving(false);
     }
   };
 
   const handleReject = async () => {
-    if (estimate?.status !== 'sent' && estimate?.status !== 'viewed') {
+    if (!isReviewable) {
       toast.error('This quotation is not currently open for rejection.');
       return;
     }
@@ -162,12 +168,13 @@ export default function ClientView() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
       <Loader2 className="w-6 h-6 text-primary animate-spin" />
     </div>
   );
+
   if (!estimate) return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-zinc-50">
       <div className="text-4xl mb-4">📄</div>
       <h2 className="text-2xl font-bold text-zinc-900 mb-2">Quotation Not Found</h2>
       <p className="text-zinc-500 max-w-md">We couldn't find the quotation you're looking for. It may have been deleted or the link might be incorrect. Please contact the person who sent you this link.</p>
@@ -176,19 +183,17 @@ export default function ClientView() {
 
   const currencySymbol = getCurrencySymbol(estimate?.currency || contractor?.defaultCurrency || 'ZAR');
   const isSATaxInvoice = estimate?.currency === 'ZAR' && contractor?.saTaxInvoiceMode;
-
-  const isExpired = estimate?.expiresAt && 
-                    !['approved', 'rejected', 'paid', 'converted'].includes(estimate.status) && 
-                    new Date() > new Date(estimate.expiresAt);
+  const quoteReference = estimate.quoteNumber || `#${estimate.id.substring(0, 8).toUpperCase()}`;
+  const totalLabel = `${currencySymbol}${(estimate.total || 0).toFixed(2)}`;
+  const activeWorkflowStatus = estimate.status === 'viewed' ? 'sent' : estimate.status;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-screen bg-zinc-50 py-12 px-4 sm:px-6 lg:px-8"
+      className="min-h-screen bg-zinc-50 py-8 px-4 sm:px-6 lg:px-8"
     >
-      <div className="max-w-4xl mx-auto space-y-8">
-        
+      <div className="max-w-5xl mx-auto space-y-6">
         {user && (
           <div className="bg-zinc-900 text-white px-4 py-3 rounded-xl shadow-md flex items-center justify-between gap-3 border border-zinc-800">
             <div className="flex items-center gap-2">
@@ -200,8 +205,8 @@ export default function ClientView() {
                 You're viewing this as your client sees it. They will not see this bar.
               </p>
             </div>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               className="text-xs h-8 text-zinc-900 bg-white hover:bg-zinc-100 border-none font-semibold px-3"
               onClick={() => navigate(`/quotes/${id}`)}
             >
@@ -222,23 +227,44 @@ export default function ClientView() {
             </div>
           </div>
         )}
-        
+
+        <div className="overflow-hidden rounded-[2rem] border border-emerald-900/20 bg-emerald-950 text-white shadow-xl shadow-emerald-950/10">
+          <div className="grid gap-6 p-6 md:grid-cols-[1.4fr_0.9fr] md:p-8">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-200">Client quotation</p>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] md:text-5xl">
+                Review the work. Sign off online.
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-50/75 md:text-base">
+                {contractor?.businessName || 'Your service provider'} sent this quote through SoloBid so you can approve or decline without creating an account.
+              </p>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-100">Total to approve</p>
+              <p className="mt-2 text-4xl font-black tracking-tight">{totalLabel}</p>
+              <p className="mt-2 text-xs leading-5 text-emerald-50/70">
+                Payment is not collected on this page. After approval, the sender can invoice and track EFT/payment status separately.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Top bar with status and actions */}
-        <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-zinc-200">
+        <div className="flex flex-col justify-between gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-zinc-900 rounded-lg flex items-center justify-center text-white font-bold">
-              {contractor?.businessName?.charAt(0)}
+              {contractor?.businessName?.charAt(0) || 'S'}
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-900">{contractor?.businessName}</p>
-              <p className="text-xs text-zinc-500">Quotation {estimate.quoteNumber || `#${estimate.id.substring(0, 8).toUpperCase()}`}</p>
+              <p className="text-sm font-bold text-zinc-900">{contractor?.businessName || 'Service provider'}</p>
+              <p className="text-xs text-zinc-500">Quotation {quoteReference}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
              {(() => {
                 const statusConfig: Record<string, { bg: string; text: string; icon: string; label: string }> = {
                   draft: { bg: 'bg-zinc-100', text: 'text-zinc-800', icon: '⊙', label: 'Draft' },
-                  sent: { bg: 'bg-blue-50', text: 'text-blue-700', icon: '✉', label: 'Reviewing' },
+                  sent: { bg: 'bg-blue-50', text: 'text-blue-700', icon: '✉', label: 'Ready to review' },
                   viewed: { bg: 'bg-sky-50', text: 'text-sky-700', icon: '👁', label: 'Viewed' },
                   approved: { bg: 'bg-green-50', text: 'text-green-700', icon: '✓', label: 'Approved' },
                   paid: { bg: 'bg-green-50', text: 'text-green-700', icon: '✓', label: 'Paid' },
@@ -259,6 +285,18 @@ export default function ClientView() {
           </div>
         </div>
 
+        <ClientClosingRoom
+          estimate={estimate}
+          contractor={contractor}
+          lineItems={lineItems}
+          totalLabel={totalLabel}
+          currencySymbol={currencySymbol}
+          quoteReference={quoteReference}
+          isExpired={isExpired}
+          isReviewable={isReviewable}
+          activeWorkflowStatus={activeWorkflowStatus}
+        />
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-8">
             {/* Header */}
@@ -268,19 +306,19 @@ export default function ClientView() {
                   {contractor?.logoUrl ? (
                     <img src={contractor.logoUrl} alt={contractor.businessName} className="h-16 object-contain mb-4" />
                   ) : null}
-                  <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">{contractor?.businessName}</h1>
+                  <h2 className="text-3xl font-bold text-zinc-900 tracking-tight">{contractor?.businessName}</h2>
                   {isSATaxInvoice && contractor?.vatNumber && (
                     <p className="text-xs text-zinc-400 mt-1 uppercase tracking-wider font-semibold">VAT No: {contractor.vatNumber}</p>
                   )}
                 </div>
                 <div className="text-right">
-                  <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] mb-1">Quotation</h2>
-                  <p className="text-lg font-mono text-zinc-900">{estimate.quoteNumber || `#${estimate.id.substring(0, 8).toUpperCase()}`}</p>
+                  <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-[0.2em] mb-1">Quotation</h3>
+                  <p className="text-lg font-mono text-zinc-900">{quoteReference}</p>
                   <p className="text-xs text-zinc-500 mt-1">{new Date(estimate.updatedAt || estimate.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-8 py-8 border-t border-b border-zinc-50">
+              <div className="grid grid-cols-1 gap-6 py-8 border-t border-b border-zinc-50 sm:grid-cols-2">
                 <div>
                   <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">Prepared for</h3>
                   <p className="font-bold text-zinc-900">{estimate.clientName}</p>
@@ -289,9 +327,9 @@ export default function ClientView() {
                      <p className="text-sm text-zinc-500 mt-2 whitespace-pre-line leading-relaxed">{estimate.clientAddress}</p>
                   )}
                 </div>
-                <div className="text-right">
+                <div className="sm:text-right">
                   <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">Total Amount</h3>
-                  <p className="text-3xl font-bold text-zinc-900">{currencySymbol}{(estimate.total || 0).toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-zinc-900">{totalLabel}</p>
                   <p className="text-xs text-zinc-500 mt-1">Inclusive of {isSATaxInvoice ? '15% VAT' : `${estimate.taxRate}% Tax`}</p>
                 </div>
               </div>
@@ -304,7 +342,7 @@ export default function ClientView() {
                     const baseCost = item.qty * item.unitCost;
                     const markup = item.type === 'material' ? baseCost * (item.markupPercent / 100) : 0;
                     const lineTotal = baseCost + markup;
-                    
+
                     return (
                       <div key={i} className="flex justify-between items-start py-3 group">
                         <div className="flex-1 pr-8">
@@ -333,11 +371,11 @@ export default function ClientView() {
                   </div>
                   <div className="flex justify-between text-lg pt-4">
                     <span className="font-bold text-zinc-900">Total Due</span>
-                    <span className="font-bold text-zinc-900">{currencySymbol}{(estimate.total || 0).toFixed(2)}</span>
+                    <span className="font-bold text-zinc-900">{totalLabel}</span>
                   </div>
                 </div>
               </div>
-              
+
               {estimate.notes && (
                 <div className="mt-8 pt-8 border-t border-zinc-50">
                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Contractor Notes</h3>
@@ -360,30 +398,30 @@ export default function ClientView() {
             {/* Workflow indicator */}
             <Card className="border-none shadow-sm overflow-hidden">
                <CardHeader className="bg-zinc-900 text-white py-4">
-                <CardTitle className="text-sm uppercase tracking-widest font-bold">Project Progress</CardTitle>
+                <CardTitle className="text-sm uppercase tracking-widest font-bold">Quote-to-paid path</CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-6">
                   {[
-                    { key: 'draft', label: 'Quotation Prepared', icon: '📝' },
-                    { key: 'sent', label: 'Quotation Sent', icon: '✉️' },
-                    { key: 'approved', label: 'Awaiting Approval', icon: '✍️' },
-                    { key: 'converted', label: 'Job Scheduled', icon: '🗓️' },
+                    { key: 'draft', label: 'Quote prepared', helper: 'Work and price captured.' },
+                    { key: 'sent', label: 'Client review', helper: 'Open on WhatsApp or email.' },
+                    { key: 'approved', label: 'Digital sign-off', helper: 'Approval captured online.' },
+                    { key: 'converted', label: 'Invoice & payment', helper: 'Sender tracks EFT/payment status.' },
                   ].map((step, i) => {
                     const sequence = ['draft', 'sent', 'approved', 'converted'];
-                    const currentIndex = sequence.indexOf(estimate.status === 'paid' ? 'converted' : estimate.status);
+                    const currentIndex = sequence.indexOf(activeWorkflowStatus === 'paid' ? 'converted' : activeWorkflowStatus);
                     const stepIndex = sequence.indexOf(step.key);
-                    const isCompleted = stepIndex < currentIndex || estimate.status === 'converted' || estimate.status === 'paid';
-                    const isCurrent = stepIndex === currentIndex && estimate.status !== 'converted' && estimate.status !== 'paid';
+                    const isCompleted = stepIndex < currentIndex || activeWorkflowStatus === 'converted' || activeWorkflowStatus === 'paid';
+                    const isCurrent = stepIndex === currentIndex && activeWorkflowStatus !== 'converted' && activeWorkflowStatus !== 'paid';
 
                     return (
                       <div key={step.key} className="flex gap-4 relative">
                         {i < 3 && (
                           <div className={`absolute left-[15px] top-8 w-0.5 h-10 ${isCompleted ? 'bg-green-500' : 'bg-zinc-100'}`} />
                         )}
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs' font-bold z-10 transition-all duration-500 shadow-sm
-                          ${isCompleted ? 'bg-green-500 text-sm text-white' : 
-                            isCurrent ? 'bg-blue-500 text-white ring-4 ring-blue-50' : 
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 transition-all duration-500 shadow-sm
+                          ${isCompleted ? 'bg-green-500 text-sm text-white' :
+                            isCurrent ? 'bg-blue-500 text-white ring-4 ring-blue-50' :
                             'bg-zinc-100 text-zinc-400'}`}>
                           {isCompleted ? '✓' : i + 1}
                         </div>
@@ -392,7 +430,7 @@ export default function ClientView() {
                             {step.label}
                           </p>
                           <p className="text-xs text-zinc-500 mt-0.5">
-                            {isCompleted ? 'Action completed' : isCurrent ? 'Action required' : 'Upcoming'}
+                            {isCompleted ? 'Action completed' : isCurrent ? 'Action required' : step.helper}
                           </p>
                         </div>
                       </div>
@@ -423,18 +461,24 @@ export default function ClientView() {
                   </CardContent>
                 </Card>
               </div>
-            ) : estimate.status === 'sent' ? (
+            ) : isReviewable ? (
               <div className="sticky top-20">
                 <Card className="border-none shadow-xl shadow-zinc-200 overflow-hidden ring-1 ring-zinc-200">
                   <CardHeader className="bg-zinc-900 text-white">
                     <CardTitle className="text-lg">Approve or Decline Quotation</CardTitle>
-                    <p className="text-xs text-zinc-400">Please review the details, then sign to approve or decline with an optional note.</p>
+                    <p className="text-xs text-zinc-400">Review the scope, then sign to approve or decline with an optional note.</p>
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                      <p className="text-sm font-bold text-emerald-950">No account needed</p>
+                      <p className="mt-1 text-xs leading-5 text-emerald-800">
+                        Your approval records your name, signature, and approval time for {contractor?.businessName || 'the sender'}.
+                      </p>
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="signature" className="text-xs uppercase font-bold text-zinc-500 tracking-wider">Full Name for Signature</Label>
-                      <Input 
-                        id="signature" 
+                      <Input
+                        id="signature"
                         value={signatureName}
                         onChange={e => setSignatureName(e.target.value)}
                         placeholder="e.g. John Smith"
@@ -446,26 +490,26 @@ export default function ClientView() {
                       <SignaturePad value={signatureDataUrl} onChange={setSignatureDataUrl} />
                     </div>
                     <div className="flex items-start gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-100">
-                      <input 
-                        type="checkbox" 
-                        id="agree" 
+                      <input
+                        type="checkbox"
+                        id="agree"
                         className="mt-1 w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
                         checked={agreed}
                         onChange={e => setAgreed(e.target.checked)}
                       />
                       <Label htmlFor="agree" className="text-xs text-zinc-500 leading-relaxed font-medium">
-                        I authorize {contractor?.businessName} to proceed for {currencySymbol}{(estimate.total || 0).toFixed(2)}.
+                        I authorize {contractor?.businessName} to proceed with the quoted work for {totalLabel}. Payment instructions or invoices will be handled separately by the sender.
                       </Label>
                     </div>
-                    <Button 
-                      className="w-full py-7 text-lg font-bold rounded-xl shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]" 
+                    <Button
+                      className="w-full py-7 text-lg font-bold rounded-xl shadow-lg shadow-zinc-200 transition-all active:scale-[0.98]"
                       onClick={handleApprove}
                       disabled={approving || rejecting || !signatureName.trim() || !signatureDataUrl || !agreed}
                     >
                       {approving ? 'Approving...' : 'Sign & Approve'}
                     </Button>
                     <p className="text-[10px] text-zinc-400 text-center uppercase tracking-widest leading-relaxed">
-                      By clicking approve, you electronically sign this agreement.
+                      By clicking approve, you electronically sign this quotation.
                     </p>
                     <div className="border-t border-zinc-100 pt-5 space-y-3">
                       <Label htmlFor="rejectionReason" className="text-xs uppercase font-bold text-zinc-500 tracking-wider">Decline Note (Optional)</Label>
@@ -547,7 +591,7 @@ export default function ClientView() {
                     <div className="bg-white/80 rounded-xl p-4 text-left space-y-1 border border-green-100">
                       <p className="text-sm font-semibold text-green-900">What happens next?</p>
                       <p className="text-xs text-green-700 leading-relaxed">
-                        {contractor?.businessName || 'The contractor'} has been notified of your approval and will be in touch shortly to confirm the start date and next steps.
+                        {contractor?.businessName || 'The contractor'} can now create the invoice, confirm the start date, and share EFT/payment instructions outside this approval page.
                       </p>
                     </div>
                     <p className="text-[11px] text-green-600">You can safely close this page.</p>
@@ -557,7 +601,6 @@ export default function ClientView() {
             )}
           </div>
         </div>
-
       </div>
     </motion.div>
   );
