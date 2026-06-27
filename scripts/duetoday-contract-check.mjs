@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 
 const requiredFiles = [
   'src/lib/duetoday/types.ts',
+  'src/lib/duetoday/contract.ts',
   'src/lib/duetoday/actions.ts',
   'src/lib/duetoday/index.ts',
   'src/components/duetoday/DueTodayActionsPanel.tsx',
@@ -14,12 +15,16 @@ for (const file of requiredFiles) {
 }
 
 const actionsPath = 'src/lib/duetoday/actions.ts';
+const contractPath = 'src/lib/duetoday/contract.ts';
 const typesPath = 'src/lib/duetoday/types.ts';
 const panelPath = 'src/components/duetoday/DueTodayActionsPanel.tsx';
+const indexPath = 'src/lib/duetoday/index.ts';
 
 const actions = existsSync(actionsPath) ? readFileSync(actionsPath, 'utf8') : '';
+const contract = existsSync(contractPath) ? readFileSync(contractPath, 'utf8') : '';
 const types = existsSync(typesPath) ? readFileSync(typesPath, 'utf8') : '';
 const panel = existsSync(panelPath) ? readFileSync(panelPath, 'utf8') : '';
+const index = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : '';
 
 const forbiddenWrites = ['.insert(', '.update(', '.delete(', '.upsert(', '.rpc('];
 for (const token of forbiddenWrites) {
@@ -27,15 +32,33 @@ for (const token of forbiddenWrites) {
 }
 
 const requiredActionTokens = [
-  "const SOURCE_APP = 'solobid'",
+  'getSoloBidDueTodayActions',
+  'createSoloBidDueTodayExternalKey',
+  'isResolvedSoloBidQuoteStatus',
+  'isResolvedSoloBidInvoiceStatus',
   'quote_follow_up',
   'invoice_follow_up',
   'payment_chase',
   'recurring_invoices',
-  'getSoloBidDueTodayActions',
+  'organizationId: context.organizationId',
 ];
 for (const token of requiredActionTokens) {
   if (!actions.includes(token)) failures.push(`Expected SoloBid adapter token missing: ${token}`);
+}
+
+const requiredContractTokens = [
+  "DUE_TODAY_SOURCE_APP = 'solobid'",
+  'SOLOBID_DUE_TODAY_SOURCE_MAP',
+  'DEFAULT_QUOTE_FOLLOW_UP_DAYS',
+  'createSoloBidDueTodayExternalKey',
+  'isResolvedSoloBidQuoteStatus',
+  'isResolvedSoloBidInvoiceStatus',
+  'source_table: \'quotes\'',
+  'source_table: \'invoices\'',
+  'source_table: \'recurring_invoices\'',
+];
+for (const token of requiredContractTokens) {
+  if (!contract.includes(token)) failures.push(`Expected SoloBid contract token missing: ${token}`);
 }
 
 const requiredTypeTokens = [
@@ -46,13 +69,23 @@ const requiredTypeTokens = [
   'source_id',
   'due_date',
   'money_value',
+  'organization_id',
+  'organizationId?: string | null',
 ];
 for (const token of requiredTypeTokens) {
   if (!types.includes(token)) failures.push(`Expected DueToday type token missing: ${token}`);
 }
 
+if (!index.includes("export * from './contract'")) {
+  failures.push('DueToday index should export local contract helpers.');
+}
+
 if (!panel.includes('All') || !panel.includes('Overdue') || !panel.includes('Upcoming')) {
   failures.push('SoloBid DueToday panel should keep timeline filters visible.');
+}
+
+if (!panel.includes('Powered by DueToday') || !panel.includes("Today's Money")) {
+  failures.push('SoloBid DueToday panel should preserve DueToday positioning copy.');
 }
 
 if (failures.length) {
