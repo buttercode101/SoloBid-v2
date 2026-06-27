@@ -2,13 +2,13 @@ import { addDays, isAfter, isBefore, isSameDay, parseISO } from 'date-fns';
 import type { Invoice, Quote, RecurringInvoice } from '../../types';
 import { fromDbInvoice, fromDbQuote, fromDbRecurring, supabase } from '../supabase';
 import type { DueTodayAction, DueTodayActionCategory, DueTodayActionPriority, SoloBidDueTodayActionContext } from './types';
-
-const SOURCE_APP = 'solobid' as const;
-const DEFAULT_QUOTE_FOLLOW_UP_DAYS = 2;
-
-function createExternalKey(sourceTable: string, sourceId: string, category: DueTodayActionCategory) {
-  return `${SOURCE_APP}:${sourceTable}:${sourceId}:${category}`;
-}
+import {
+  DEFAULT_QUOTE_FOLLOW_UP_DAYS,
+  DUE_TODAY_SOURCE_APP as SOURCE_APP,
+  createSoloBidDueTodayExternalKey,
+  isResolvedSoloBidInvoiceStatus,
+  isResolvedSoloBidQuoteStatus,
+} from './contract';
 
 function nowIso(now: Date) {
   return now.toISOString();
@@ -34,6 +34,7 @@ function makeAction(input: {
   sourceTable: string;
   sourceId: string;
   ownerId: string;
+  organizationId?: string | null;
   title: string;
   description?: string | null;
   category: DueTodayActionCategory;
@@ -48,7 +49,11 @@ function makeAction(input: {
   metadata?: Record<string, unknown>;
   now: Date;
 }): DueTodayAction {
-  const externalKey = createExternalKey(input.sourceTable, input.sourceId, input.category);
+  const externalKey = createSoloBidDueTodayExternalKey({
+    sourceTable: input.sourceTable,
+    sourceId: input.sourceId,
+    category: input.category,
+  });
   const timestamp = nowIso(input.now);
 
   return {
@@ -58,7 +63,7 @@ function makeAction(input: {
     source_table: input.sourceTable,
     source_id: input.sourceId,
     owner_id: input.ownerId,
-    organization_id: null,
+    organization_id: input.organizationId ?? null,
     title: input.title,
     description: input.description ?? null,
     category: input.category,
@@ -85,7 +90,7 @@ function quoteAction(quote: Quote, context: Required<Pick<SoloBidDueTodayActionC
   const createdAt = safeDate(quote.createdAt) ?? now;
   const followUpDue = expiresAt ?? addDays(createdAt, context.quoteFollowUpDays ?? DEFAULT_QUOTE_FOLLOW_UP_DAYS);
 
-  if (['approved', 'rejected', 'converted'].includes(status)) return null;
+  if (isResolvedSoloBidQuoteStatus(status)) return null;
   if (!['sent', 'viewed', 'expired'].includes(status) && !(expiresAt && isBefore(expiresAt, now))) return null;
 
   const isExpired = status === 'expired' || Boolean(expiresAt && isBefore(expiresAt, now));
@@ -99,6 +104,7 @@ function quoteAction(quote: Quote, context: Required<Pick<SoloBidDueTodayActionC
     sourceTable: 'quotes',
     sourceId: quote.id,
     ownerId: context.userId,
+    organizationId: context.organizationId,
     title: isExpired
       ? `Follow up expired quote for ${quote.clientName || 'client'}`
       : `Follow up quote for ${quote.clientName || 'client'}`,
@@ -126,7 +132,7 @@ function invoiceAction(invoice: Invoice, context: Required<Pick<SoloBidDueTodayA
   const status = invoice.status;
   const dueDate = safeDate(invoice.dueDate);
 
-  if (['paid', 'cancelled'].includes(status)) return null;
+  if (isResolvedSoloBidInvoiceStatus(status)) return null;
   if (status === 'sent' && dueDate && isAfter(dueDate, now)) return null;
   if (!['sent', 'overdue', 'partially_paid'].includes(status)) return null;
 
@@ -139,6 +145,7 @@ function invoiceAction(invoice: Invoice, context: Required<Pick<SoloBidDueTodayA
     sourceTable: 'invoices',
     sourceId: invoice.id,
     ownerId: context.userId,
+    organizationId: context.organizationId,
     title: status === 'partially_paid'
       ? `Chase remaining payment from ${invoice.clientName || 'client'}`
       : `Follow up invoice for ${invoice.clientName || 'client'}`,
@@ -172,6 +179,7 @@ function recurringInvoiceAction(recurring: RecurringInvoice, context: Required<P
     sourceTable: 'recurring_invoices',
     sourceId: recurring.id,
     ownerId: context.userId,
+    organizationId: context.organizationId,
     title: `Issue recurring invoice for ${recurring.clientName || 'client'}`,
     description: `Recurring ${recurring.frequency} invoice`,
     category: 'invoice_follow_up',
