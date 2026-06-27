@@ -127,6 +127,42 @@ function quoteAction(quote: Quote, context: Required<Pick<SoloBidDueTodayActionC
   });
 }
 
+function approvedQuoteInvoiceAction(
+  quote: Quote,
+  invoicedQuoteIds: Set<string>,
+  context: Required<Pick<SoloBidDueTodayActionContext, 'userId'>> & SoloBidDueTodayActionContext,
+): DueTodayAction | null {
+  const now = context.now ?? new Date();
+  if (quote.status !== 'approved') return null;
+  if (invoicedQuoteIds.has(quote.id)) return null;
+
+  return makeAction({
+    sourceTable: 'quotes',
+    sourceId: quote.id,
+    ownerId: context.userId,
+    organizationId: context.organizationId,
+    title: `Generate invoice for ${quote.clientName || 'client'}`,
+    description: quote.quoteNumber ? `Approved quote ${quote.quoteNumber}` : 'Approved quote not invoiced yet',
+    category: 'invoice_follow_up',
+    priority: 'high',
+    dueDate: dueDateOrToday(quote.approvedAt || quote.updatedAt || quote.createdAt, now),
+    moneyValue: quote.total ?? null,
+    currency: quote.currency ?? 'ZAR',
+    contactName: quote.clientName || null,
+    contactPhone: quote.clientPhone || null,
+    contactEmail: quote.clientEmail || null,
+    sourceUrl: buildSourceUrl(context.baseUrl, '/invoices'),
+    metadata: {
+      status: quote.status,
+      quote_number: quote.quoteNumber ?? null,
+      quote_id: quote.id,
+      approved_at: quote.approvedAt ?? null,
+      invoice_copilot_lane: 'approved_quote_not_invoiced',
+    },
+    now,
+  });
+}
+
 function invoiceAction(invoice: Invoice, context: Required<Pick<SoloBidDueTodayActionContext, 'userId'>> & SoloBidDueTodayActionContext): DueTodayAction | null {
   const now = context.now ?? new Date();
   const status = invoice.status;
@@ -134,25 +170,27 @@ function invoiceAction(invoice: Invoice, context: Required<Pick<SoloBidDueTodayA
 
   if (isResolvedSoloBidInvoiceStatus(status)) return null;
   if (status === 'sent' && dueDate && isAfter(dueDate, now)) return null;
-  if (!['sent', 'overdue', 'partially_paid'].includes(status)) return null;
+  if (!['draft', 'sent', 'overdue', 'partially_paid'].includes(status)) return null;
 
   const category: DueTodayActionCategory = status === 'overdue' || status === 'partially_paid'
     ? 'payment_chase'
     : 'invoice_follow_up';
-  const priority: DueTodayActionPriority = status === 'overdue' ? 'high' : status === 'partially_paid' ? 'medium' : 'high';
+  const priority: DueTodayActionPriority = status === 'overdue' ? 'high' : status === 'partially_paid' ? 'medium' : status === 'sent' ? 'high' : 'medium';
 
   return makeAction({
     sourceTable: 'invoices',
     sourceId: invoice.id,
     ownerId: context.userId,
     organizationId: context.organizationId,
-    title: status === 'partially_paid'
-      ? `Chase remaining payment from ${invoice.clientName || 'client'}`
-      : `Follow up invoice for ${invoice.clientName || 'client'}`,
+    title: status === 'draft'
+      ? `Send invoice to ${invoice.clientName || 'client'}`
+      : status === 'partially_paid'
+        ? `Chase remaining payment from ${invoice.clientName || 'client'}`
+        : `Follow up invoice for ${invoice.clientName || 'client'}`,
     description: invoice.invoiceNumber ? `Invoice ${invoice.invoiceNumber}` : null,
     category,
     priority,
-    dueDate: dueDateOrToday(invoice.dueDate, now),
+    dueDate: dueDateOrToday(invoice.dueDate || invoice.createdAt, now),
     moneyValue: invoice.total ?? null,
     currency: invoice.currency ?? 'ZAR',
     contactName: invoice.clientName || null,
@@ -164,6 +202,7 @@ function invoiceAction(invoice: Invoice, context: Required<Pick<SoloBidDueTodayA
       invoice_number: invoice.invoiceNumber ?? null,
       due_date: invoice.dueDate ?? null,
       quote_id: invoice.quoteId ?? invoice.estimateId ?? null,
+      invoice_copilot_lane: status === 'draft' ? 'draft_invoice_not_sent' : status === 'sent' ? 'sent_invoice_due' : status,
     },
     now,
   });
@@ -194,6 +233,7 @@ function recurringInvoiceAction(recurring: RecurringInvoice, context: Required<P
       status: recurring.status,
       frequency: recurring.frequency,
       next_issue_date: recurring.nextIssueDate ?? null,
+      invoice_copilot_lane: 'recurring_invoice_due',
     },
     now,
   });
@@ -206,14 +246,14 @@ export async function getSoloBidDueTodayActions(context: SoloBidDueTodayActionCo
       .from('quotes')
       .select('*')
       .eq('user_id', context.userId)
-      .in('status', ['sent', 'viewed', 'expired'])
+      .in('status', ['sent', 'viewed', 'expired', 'approved'])
       .order('created_at', { ascending: false })
       .limit(100),
     supabase
       .from('invoices')
       .select('*')
       .eq('user_id', context.userId)
-      .in('status', ['sent', 'overdue', 'partially_paid'])
+      .in('status', ['draft', 'sent', 'overdue', 'partially_paid'])
       .order('due_date', { ascending: true })
       .limit(100),
     supabase
@@ -229,11 +269,17 @@ export async function getSoloBidDueTodayActions(context: SoloBidDueTodayActionCo
   if (invoiceError) throw invoiceError;
   if (recurringError) throw recurringError;
 
-  const quotes = ((quoteRows ?? []).map(fromDbQuote).filter(Boolean) as Quote[])
-    .map((quote) => quoteAction(quote, { ...context, userId: context.userId, now }))
-    .filter(Boolean) as DueTodayAction[];
+  const invoicesList = (invoiceRows ?? []).map(fromDbInvoice).filter(Boolean) as Invoice[];
+  const invoicedQuoteIds = new Set(
+    invoicesList.flatMap((invoice) => [invoice.quoteId, invoice.estimateId]).filter((id): id is string => Boolean(id)),
+  );
 
-  const invoices = ((invoiceRows ?? []).map(fromDbInvoice).filter(Boolean) as Invoice[])
+  const quotes = ((quoteRows ?? []).map(fromDbQuote).filter(Boolean) as Quote[]).flatMap((quote) => [
+    quoteAction(quote, { ...context, userId: context.userId, now }),
+    approvedQuoteInvoiceAction(quote, invoicedQuoteIds, { ...context, userId: context.userId, now }),
+  ]).filter(Boolean) as DueTodayAction[];
+
+  const invoices = invoicesList
     .map((invoice) => invoiceAction(invoice, { ...context, userId: context.userId, now }))
     .filter(Boolean) as DueTodayAction[];
 
