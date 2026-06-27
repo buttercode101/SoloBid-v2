@@ -6,6 +6,7 @@ const requiredFiles = [
   'src/lib/duetoday/actions.ts',
   'src/lib/duetoday/index.ts',
   'src/components/duetoday/DueTodayActionsPanel.tsx',
+  'src/components/dashboard/FollowUpCopilot.tsx',
   'fixtures/duetoday/realistic-actions.json',
 ];
 
@@ -19,6 +20,7 @@ const actionsPath = 'src/lib/duetoday/actions.ts';
 const contractPath = 'src/lib/duetoday/contract.ts';
 const typesPath = 'src/lib/duetoday/types.ts';
 const panelPath = 'src/components/duetoday/DueTodayActionsPanel.tsx';
+const dashboardCopilotPath = 'src/components/dashboard/FollowUpCopilot.tsx';
 const indexPath = 'src/lib/duetoday/index.ts';
 const fixturesPath = 'fixtures/duetoday/realistic-actions.json';
 
@@ -26,6 +28,7 @@ const actions = existsSync(actionsPath) ? readFileSync(actionsPath, 'utf8') : ''
 const contract = existsSync(contractPath) ? readFileSync(contractPath, 'utf8') : '';
 const types = existsSync(typesPath) ? readFileSync(typesPath, 'utf8') : '';
 const panel = existsSync(panelPath) ? readFileSync(panelPath, 'utf8') : '';
+const dashboardCopilot = existsSync(dashboardCopilotPath) ? readFileSync(dashboardCopilotPath, 'utf8') : '';
 const index = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : '';
 
 const forbiddenWrites = ['.insert(', '.update(', '.delete(', '.upsert(', '.rpc('];
@@ -101,6 +104,16 @@ const requiredPanelTokens = [
 ];
 for (const token of requiredPanelTokens) {
   if (!panel.includes(token)) failures.push(`Expected SoloBid DueToday panel token missing: ${token}`);
+}
+
+const requiredDashboardCopilotTokens = [
+  'Quote Copilot',
+  'Invoice Copilot lives in DueToday',
+  'draft invoices, due invoices, overdue invoices, partial payments, and recurring invoice issue actions',
+  '/due-today',
+];
+for (const token of requiredDashboardCopilotTokens) {
+  if (!dashboardCopilot.includes(token)) failures.push(`Expected dashboard Copilot token missing: ${token}`);
 }
 
 function readFixtureActions() {
