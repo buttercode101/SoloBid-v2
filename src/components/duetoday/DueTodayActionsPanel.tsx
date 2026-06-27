@@ -8,6 +8,8 @@ import { getSoloBidDueTodayActions, type DueTodayAction } from '../../lib/duetod
 import { formatZAR } from '../../lib/theme';
 import { getCurrencySymbol } from '../../lib/currencies';
 
+type TimelineFilter = 'all' | 'overdue' | 'today' | 'upcoming';
+
 function formatMoney(value: number | null | undefined, currency: string | null = 'ZAR') {
   const amount = value ?? 0;
   if ((currency || 'ZAR') === 'ZAR') return formatZAR(amount);
@@ -33,6 +35,13 @@ function isOverdue(action: DueTodayAction) {
 function isToday(action: DueTodayAction) {
   const due = new Date(action.due_date);
   return due >= startOfToday() && due <= endOfToday();
+}
+
+function actionMatchesFilter(action: DueTodayAction, filter: TimelineFilter) {
+  if (filter === 'overdue') return isOverdue(action);
+  if (filter === 'today') return !isOverdue(action) && isToday(action);
+  if (filter === 'upcoming') return !isOverdue(action) && !isToday(action);
+  return true;
 }
 
 function categoryLabel(category: DueTodayAction['category']) {
@@ -63,6 +72,7 @@ export function DueTodayActionsPanel() {
   const [actions, setActions] = useState<DueTodayAction[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<TimelineFilter>('all');
 
   useEffect(() => {
     if (!user?.uid) {
@@ -95,20 +105,28 @@ export function DueTodayActionsPanel() {
     const overdue = actions.filter(isOverdue);
     const today = actions.filter((action) => !isOverdue(action) && isToday(action));
     const upcoming = actions.filter((action) => !isOverdue(action) && !isToday(action));
+    const filteredActions = actions.filter((action) => actionMatchesFilter(action, activeFilter));
     const totalValue = actions.reduce((sum, action) => sum + (action.money_value || 0), 0);
     const overdueValue = overdue.reduce((sum, action) => sum + (action.money_value || 0), 0);
-    const highestPriority = [...actions].sort((a, b) => {
+    const highestPriority = [...filteredActions].sort((a, b) => {
       const score = (action: DueTodayAction) => (isOverdue(action) ? 3 : action.priority === 'critical' || action.priority === 'high' ? 2 : isToday(action) ? 1 : 0);
       return score(b) - score(a) || new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
     });
-    const grouped = actions.reduce<Record<string, DueTodayAction[]>>((groups, action) => {
+    const grouped = filteredActions.reduce<Record<string, DueTodayAction[]>>((groups, action) => {
       const key = groupTitle(action.category);
       groups[key] = [...(groups[key] ?? []), action];
       return groups;
     }, {});
 
-    return { overdue, today, upcoming, totalValue, overdueValue, highestPriority, grouped };
-  }, [actions]);
+    return { overdue, today, upcoming, filteredActions, totalValue, overdueValue, highestPriority, grouped };
+  }, [actions, activeFilter]);
+
+  const filters: Array<{ key: TimelineFilter; label: string; count: number }> = [
+    { key: 'all', label: 'All', count: actions.length },
+    { key: 'overdue', label: 'Overdue', count: summary.overdue.length },
+    { key: 'today', label: 'Today', count: summary.today.length },
+    { key: 'upcoming', label: 'Upcoming', count: summary.upcoming.length },
+  ];
 
   if (!user) return null;
 
@@ -134,29 +152,21 @@ export function DueTodayActionsPanel() {
         </CardHeader>
         <CardContent className="p-4 md:p-6">
           <div className="grid gap-3 md:grid-cols-4">
-            <div className="rounded-3xl border border-zinc-100 bg-zinc-50/80 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Overdue</p>
-              <p className="mt-2 text-2xl font-semibold text-red-600">{summary.overdue.length}</p>
-              <p className="mt-1 text-xs text-zinc-500">{formatMoney(summary.overdueValue, 'ZAR')} blocked</p>
-            </div>
-            <div className="rounded-3xl border border-zinc-100 bg-zinc-50/80 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Today</p>
-              <p className="mt-2 text-2xl font-semibold text-zinc-950">{summary.today.length}</p>
-              <p className="mt-1 text-xs text-zinc-500">Due before close</p>
-            </div>
-            <div className="rounded-3xl border border-zinc-100 bg-zinc-50/80 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Upcoming</p>
-              <p className="mt-2 text-2xl font-semibold text-zinc-950">{summary.upcoming.length}</p>
-              <p className="mt-1 text-xs text-zinc-500">Coming next</p>
-            </div>
-            <div className="rounded-3xl border border-zinc-100 bg-zinc-950 p-4 text-white">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Start here</p>
-              <p className="mt-2 text-2xl font-semibold">{summary.highestPriority.length ? 'Top 3' : 'Clear'}</p>
-              <p className="mt-1 text-xs text-zinc-400">Highest priority actions</p>
-            </div>
+            <div className="rounded-3xl border border-zinc-100 bg-zinc-50/80 p-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Overdue</p><p className="mt-2 text-2xl font-semibold text-red-600">{summary.overdue.length}</p><p className="mt-1 text-xs text-zinc-500">{formatMoney(summary.overdueValue, 'ZAR')} blocked</p></div>
+            <div className="rounded-3xl border border-zinc-100 bg-zinc-50/80 p-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Today</p><p className="mt-2 text-2xl font-semibold text-zinc-950">{summary.today.length}</p><p className="mt-1 text-xs text-zinc-500">Due before close</p></div>
+            <div className="rounded-3xl border border-zinc-100 bg-zinc-50/80 p-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Upcoming</p><p className="mt-2 text-2xl font-semibold text-zinc-950">{summary.upcoming.length}</p><p className="mt-1 text-xs text-zinc-500">Coming next</p></div>
+            <div className="rounded-3xl border border-zinc-100 bg-zinc-950 p-4 text-white"><p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Viewing</p><p className="mt-2 text-2xl font-semibold">{summary.filteredActions.length}</p><p className="mt-1 text-xs text-zinc-400">Filtered actions</p></div>
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex gap-2 overflow-x-auto rounded-3xl border border-zinc-100 bg-white p-2 shadow-sm">
+        {filters.map((filter) => (
+          <button key={filter.key} type="button" onClick={() => setActiveFilter(filter.key)} className={`whitespace-nowrap rounded-2xl px-4 py-2 text-xs font-semibold transition-colors ${activeFilter === filter.key ? 'bg-zinc-950 text-white' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-950'}`}>
+            {filter.label} <span className={activeFilter === filter.key ? 'text-white/70' : 'text-zinc-400'}>{filter.count}</span>
+          </button>
+        ))}
+      </div>
 
       {loading ? (
         <Card className="rounded-3xl border border-zinc-100 bg-white p-6 text-sm text-zinc-500"><div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading DueToday actions…</div></Card>
@@ -164,34 +174,20 @@ export function DueTodayActionsPanel() {
         <Card className="rounded-3xl border border-amber-100 bg-amber-50 p-6 text-sm text-amber-800">{error}</Card>
       ) : actions.length === 0 ? (
         <Card className="rounded-3xl border border-zinc-100 bg-white p-10 text-center shadow-sm"><CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" /><p className="mt-3 text-sm font-semibold text-zinc-800">Nothing needs chasing right now</p><p className="mx-auto mt-1 max-w-md text-xs text-zinc-500">Sent quotes, overdue invoices and due recurring invoices will appear here automatically.</p></Card>
+      ) : summary.filteredActions.length === 0 ? (
+        <Card className="rounded-3xl border border-zinc-100 bg-white p-10 text-center shadow-sm"><CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500" /><p className="mt-3 text-sm font-semibold text-zinc-800">No actions in this timeline</p><p className="mx-auto mt-1 max-w-md text-xs text-zinc-500">Try All, Overdue, Today, or Upcoming.</p></Card>
       ) : (
         <>
           <Card className="rounded-3xl border border-zinc-100 bg-white shadow-sm">
-            <CardHeader className="flex flex-row items-center gap-2 border-b border-zinc-50 p-5">
-              <Flame className="h-4 w-4 text-red-500" />
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-950">Highest Priority</h3>
-                <p className="text-xs text-zinc-500">Start with these before moving through the full list.</p>
-              </div>
-            </CardHeader>
-            <CardContent className="divide-y divide-zinc-50 p-0">
-              {summary.highestPriority.slice(0, 3).map((action) => <ActionRow key={action.external_key} action={action} />)}
-            </CardContent>
+            <CardHeader className="flex flex-row items-center gap-2 border-b border-zinc-50 p-5"><Flame className="h-4 w-4 text-red-500" /><div><h3 className="text-sm font-semibold text-zinc-950">Highest Priority</h3><p className="text-xs text-zinc-500">Start with these before moving through the full list.</p></div></CardHeader>
+            <CardContent className="divide-y divide-zinc-50 p-0">{summary.highestPriority.slice(0, 3).map((action) => <ActionRow key={action.external_key} action={action} />)}</CardContent>
           </Card>
 
           <div className="space-y-4">
             {Object.entries(summary.grouped).map(([group, groupActions]) => (
               <Card key={group} className="overflow-hidden rounded-3xl border border-zinc-100 bg-white shadow-sm">
-                <CardHeader className="flex flex-row items-center justify-between border-b border-zinc-50 p-5">
-                  <div className="flex items-center gap-2">
-                    <WalletCards className="h-4 w-4 text-zinc-500" />
-                    <h3 className="text-sm font-semibold text-zinc-950">{group}</h3>
-                  </div>
-                  <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-500">{groupActions.length}</span>
-                </CardHeader>
-                <CardContent className="divide-y divide-zinc-50 p-0">
-                  {groupActions.map((action) => <ActionRow key={action.external_key} action={action} />)}
-                </CardContent>
+                <CardHeader className="flex flex-row items-center justify-between border-b border-zinc-50 p-5"><div className="flex items-center gap-2"><WalletCards className="h-4 w-4 text-zinc-500" /><h3 className="text-sm font-semibold text-zinc-950">{group}</h3></div><span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-500">{groupActions.length}</span></CardHeader>
+                <CardContent className="divide-y divide-zinc-50 p-0">{groupActions.map((action) => <ActionRow key={action.external_key} action={action} />)}</CardContent>
               </Card>
             ))}
           </div>
@@ -207,18 +203,8 @@ function ActionRow({ action }: { action: DueTodayAction }) {
 
   return (
     <div className="flex flex-col gap-4 p-5 transition-colors hover:bg-zinc-50/70 md:flex-row md:items-center md:justify-between">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-600">{priorityLabel(action)}</span>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{categoryLabel(action.category)}</span>
-        </div>
-        <p className="mt-2 truncate text-sm font-semibold text-zinc-950">{action.title}</p>
-        <p className="mt-1 text-xs text-zinc-500">{dueLabel(action)}{money ? ` · ${money}` : ''}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        {money && <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-right"><p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Value</p><p className="text-sm font-semibold text-zinc-950">{money}</p></div>}
-        {sourcePath && <Button asChild variant="outline" size="sm" className="rounded-full border-zinc-200 text-xs"><Link to={sourcePath}>Open Source <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" /></Link></Button>}
-      </div>
+      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-600">{priorityLabel(action)}</span><span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{categoryLabel(action.category)}</span></div><p className="mt-2 truncate text-sm font-semibold text-zinc-950">{action.title}</p><p className="mt-1 text-xs text-zinc-500">{dueLabel(action)}{money ? ` · ${money}` : ''}</p></div>
+      <div className="flex items-center gap-2">{money && <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-right"><p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Value</p><p className="text-sm font-semibold text-zinc-950">{money}</p></div>}{sourcePath && <Button asChild variant="outline" size="sm" className="rounded-full border-zinc-200 text-xs"><Link to={sourcePath}>Open Source <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" /></Link></Button>}</div>
     </div>
   );
 }
