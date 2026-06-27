@@ -6,6 +6,8 @@ import { LayoutDashboard, FileText, FileSpreadsheet, Settings, LogOut, Menu, Use
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from './ui/sheet';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
+const dueTodayEnabled = import.meta.env.VITE_ENABLE_DUETODAY === 'true';
+
 export function Layout() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -43,7 +45,7 @@ export function Layout() {
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'DueToday', path: '/due-today', icon: CalendarClock },
+    ...(dueTodayEnabled ? [{ name: 'DueToday', path: '/due-today', icon: CalendarClock }] : []),
     { name: 'Reports', path: '/reports', icon: BarChart3 },
     { name: 'Clients', path: '/clients', icon: Users },
     { name: 'Invoices', path: '/invoices', icon: FileSpreadsheet },
