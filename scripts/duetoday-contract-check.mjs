@@ -84,7 +84,8 @@ if (!panel.includes('All') || !panel.includes('Overdue') || !panel.includes('Upc
   failures.push('SoloBid DueToday panel should keep timeline filters visible.');
 }
 
-if (!panel.includes('Powered by DueToday') || !panel.includes("Today's Money")) {
+const hasDueTodayHeading = panel.includes("Today's Money") || panel.includes('Today&apos;s Money');
+if (!panel.includes('Powered by DueToday') || !hasDueTodayHeading) {
   failures.push('SoloBid DueToday panel should preserve DueToday positioning copy.');
 }
 
