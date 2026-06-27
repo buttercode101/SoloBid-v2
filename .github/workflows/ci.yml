@@ -36,6 +36,9 @@ jobs:
           set -o pipefail
           npm run lint 2>&1 | tee typecheck.log
 
+      - name: DueToday contract check
+        run: npm run test:duetoday
+
       - name: Upload typecheck diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
