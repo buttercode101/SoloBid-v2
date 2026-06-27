@@ -38,10 +38,13 @@ const requiredActionTokens = [
   'createSoloBidDueTodayExternalKey',
   'isResolvedSoloBidQuoteStatus',
   'isResolvedSoloBidInvoiceStatus',
+  'approvedQuoteInvoiceAction',
   'quote_follow_up',
   'invoice_follow_up',
   'payment_chase',
   'recurring_invoices',
+  "'draft', 'sent', 'overdue', 'partially_paid'",
+  "'sent', 'viewed', 'expired', 'approved'",
   'organizationId: context.organizationId',
 ];
 for (const token of requiredActionTokens) {
@@ -55,9 +58,11 @@ const requiredContractTokens = [
   'createSoloBidDueTodayExternalKey',
   'isResolvedSoloBidQuoteStatus',
   'isResolvedSoloBidInvoiceStatus',
-  'source_table: \'quotes\'',
-  'source_table: \'invoices\'',
-  'source_table: \'recurring_invoices\'',
+  "source_table: 'quotes'",
+  "source_table: 'invoices'",
+  "source_table: 'recurring_invoices'",
+  'status = approved and no invoice exists for the quote',
+  'status = draft',
 ];
 for (const token of requiredContractTokens) {
   if (!contract.includes(token)) failures.push(`Expected SoloBid contract token missing: ${token}`);
@@ -86,9 +91,16 @@ if (!panel.includes('All') || !panel.includes('Overdue') || !panel.includes('Upc
   failures.push('SoloBid DueToday panel should keep timeline filters visible.');
 }
 
-const hasDueTodayHeading = panel.includes("Today's Money") || panel.includes('Today&apos;s Money');
-if (!panel.includes('Powered by DueToday') || !hasDueTodayHeading) {
-  failures.push('SoloBid DueToday panel should preserve DueToday positioning copy.');
+const requiredPanelTokens = [
+  'Powered by DueToday',
+  'Today&apos;s Money Copilot',
+  'Quote Copilot',
+  'Invoice Copilot',
+  'Send, chase, issue, mark paid',
+  'Open invoices',
+];
+for (const token of requiredPanelTokens) {
+  if (!panel.includes(token)) failures.push(`Expected SoloBid DueToday panel token missing: ${token}`);
 }
 
 function readFixtureActions() {
@@ -109,16 +121,23 @@ function readFixtureActions() {
 const allowedTables = new Set(['quotes', 'invoices', 'recurring_invoices']);
 const allowedCategories = new Set(['quote_follow_up', 'invoice_follow_up', 'payment_chase']);
 const requiredFixtureScenarios = new Set([
-  'quotes:quote_follow_up',
-  'invoices:payment_chase',
-  'recurring_invoices:invoice_follow_up',
+  'quotes:quote_follow_up:viewed',
+  'quotes:invoice_follow_up:approved',
+  'invoices:invoice_follow_up:draft',
+  'invoices:invoice_follow_up:sent',
+  'invoices:payment_chase:overdue',
+  'invoices:payment_chase:partially_paid',
+  'recurring_invoices:invoice_follow_up:active',
 ]);
 const seenFixtureScenarios = new Set();
+const invoiceFollowUpStatuses = new Set();
+const paymentChaseStatuses = new Set();
 const fixtureActions = readFixtureActions();
 
 for (const action of fixtureActions) {
   const context = `${action.source_table ?? 'unknown'}:${action.category ?? 'unknown'}:${action.source_id ?? 'unknown'}`;
   const expectedKey = `${action.source_app}:${action.source_table}:${action.source_id}:${action.category}`;
+  const status = action.metadata?.status;
 
   if (action.source_app !== 'solobid') failures.push(`Fixture ${context} must use source_app solobid.`);
   if (!allowedTables.has(action.source_table)) failures.push(`Fixture ${context} uses unsupported source_table ${action.source_table}.`);
@@ -131,11 +150,25 @@ for (const action of fixtureActions) {
   if (!action.source_url || typeof action.source_url !== 'string') failures.push(`Fixture ${context} needs a source_url.`);
   if (!action.metadata || typeof action.metadata !== 'object' || Array.isArray(action.metadata)) failures.push(`Fixture ${context} needs metadata object.`);
 
-  seenFixtureScenarios.add(`${action.source_table}:${action.category}`);
+  if (action.category === 'invoice_follow_up') invoiceFollowUpStatuses.add(status);
+  if (action.category === 'payment_chase') paymentChaseStatuses.add(status);
+  if (action.category === 'invoice_follow_up' && !action.metadata.invoice_copilot_lane && action.source_table !== 'invoices') {
+    failures.push(`Fixture ${context} should declare invoice_copilot_lane for invoice-native actions.`);
+  }
+
+  seenFixtureScenarios.add(`${action.source_table}:${action.category}:${status}`);
 }
 
 for (const scenario of requiredFixtureScenarios) {
   if (!seenFixtureScenarios.has(scenario)) failures.push(`Missing realistic SoloBid fixture scenario: ${scenario}`);
+}
+
+for (const status of ['approved', 'draft', 'sent', 'active']) {
+  if (!invoiceFollowUpStatuses.has(status)) failures.push(`Invoice Copilot missing invoice_follow_up status fixture: ${status}`);
+}
+
+for (const status of ['overdue', 'partially_paid']) {
+  if (!paymentChaseStatuses.has(status)) failures.push(`Invoice Copilot missing payment_chase status fixture: ${status}`);
 }
 
 if (failures.length) {
@@ -144,4 +177,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`DueToday contract check passed for SoloBid with ${fixtureActions.length} realistic fixtures.`);
+console.log(`DueToday contract check passed for SoloBid with ${fixtureActions.length} realistic fixtures and invoice-native Copilot coverage.`);
