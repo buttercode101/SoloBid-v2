@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Check, Copy, MessageCircle, Send, TimerReset } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, MessageCircle, ReceiptText, Send, TimerReset } from 'lucide-react';
 import type { Quote } from '../../types';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
@@ -71,7 +71,7 @@ function getFollowUpAction(quote: Quote) {
       tone: 'win',
       label: 'Approved, invoice next',
       title: `${quote.clientName || 'Client'} approved ${quote.quoteNumber || 'the quote'}.`,
-      helper: 'Convert or invoice next, then track payment manually/EFT in SoloBid.',
+      helper: 'Generate the invoice next. Invoice sending, chasing, partial payment and recurring invoice actions now live in DueToday.',
       cta: 'Open quote',
     };
   }
@@ -106,25 +106,25 @@ export function FollowUpCopilot({ quotes, formatCurrency, onCopyLink, onWhatsApp
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">
               <Send className="h-3.5 w-3.5" />
-              Follow-Up Copilot
+              Quote Copilot
             </div>
             <CardTitle className="text-2xl font-black tracking-[-0.04em] text-white">Turn sent quotes into signed work.</CardTitle>
             <CardDescription className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/70">
-              SoloBid watches quote status and dates, then tells you who needs a nudge, who is ready for invoice, and where money is stuck.
+              This dashboard lane handles quote nudges and approvals. Open DueToday for the Invoice Copilot lane: draft invoices, due invoices, overdue invoices, partial payments, and recurring invoices.
             </CardDescription>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/10 p-4 text-right">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/80">Active opportunity</p>
             <p className="mt-1 text-2xl font-black text-white">{formatCurrency(activeValue)}</p>
-            <p className="mt-1 text-xs text-emerald-50/60">Top follow-up actions</p>
+            <p className="mt-1 text-xs text-emerald-50/60">Top quote actions</p>
           </div>
         </div>
       </CardHeader>
       <CardContent className="p-0">
         {actions.length === 0 ? (
           <div className="flex flex-col gap-2 p-6 text-sm text-emerald-50/75">
-            <p className="font-bold text-white">No urgent follow-ups right now.</p>
-            <p>Send a quote, get it viewed, then SoloBid will surface the next best action here.</p>
+            <p className="font-bold text-white">No urgent quote follow-ups right now.</p>
+            <p>Send a quote, get it viewed, then SoloBid will surface the next best quote action here.</p>
           </div>
         ) : (
           <div className="divide-y divide-white/10">
@@ -176,6 +176,22 @@ export function FollowUpCopilot({ quotes, formatCurrency, onCopyLink, onWhatsApp
             ))}
           </div>
         )}
+        <div className="border-t border-white/10 bg-white/[0.06] p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+                <ReceiptText className="h-4 w-4 text-emerald-200" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">Invoice Copilot lives in DueToday.</p>
+                <p className="mt-1 text-xs leading-5 text-emerald-50/65">Use it for draft invoices, due invoices, overdue invoices, partial payments, and recurring invoice issue actions.</p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" className="rounded-xl border-white/15 bg-white/10 text-white hover:bg-white/20" asChild>
+              <Link to="/due-today">Open Invoice Copilot <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" /></Link>
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

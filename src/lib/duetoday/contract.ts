@@ -40,6 +40,22 @@ export const SOLOBID_DUE_TODAY_SOURCE_MAP: SoloBidDueTodaySourceMapEntry[] = [
   },
   {
     source_app: DUE_TODAY_SOURCE_APP,
+    source_table: 'quotes',
+    condition: 'status = approved and no invoice exists for the quote',
+    category: 'invoice_follow_up',
+    priority: 'high',
+    due_date_rule: 'approved_at or updated_at or today',
+  },
+  {
+    source_app: DUE_TODAY_SOURCE_APP,
+    source_table: 'invoices',
+    condition: 'status = draft',
+    category: 'invoice_follow_up',
+    priority: 'medium',
+    due_date_rule: 'created_at or today',
+  },
+  {
+    source_app: DUE_TODAY_SOURCE_APP,
     source_table: 'invoices',
     condition: 'status = sent and due_date <= now',
     category: 'invoice_follow_up',
