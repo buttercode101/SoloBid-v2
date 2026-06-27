@@ -28,13 +28,16 @@ jobs:
           cache-dependency-path: package.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --package-lock=false
 
       - name: Typecheck
         shell: bash
         run: |
           set -o pipefail
           npm run lint 2>&1 | tee typecheck.log
+
+      - name: DueToday contract check
+        run: npm run test:duetoday
 
       - name: Upload typecheck diagnostics
         if: failure()

@@ -44,6 +44,7 @@ export interface DueTodayAction {
 
 export interface SoloBidDueTodayActionContext {
   userId: string;
+  organizationId?: string | null;
   baseUrl?: string;
   now?: Date;
   quoteFollowUpDays?: number;
